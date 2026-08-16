@@ -29,3 +29,11 @@ Thumbs.db
 # 上传文件
 uploads/
 media/
+
+# Node / Vite
+node_modules/
+dist/
+
+# 编辑器/构建产物
+*.local
+.vite/
