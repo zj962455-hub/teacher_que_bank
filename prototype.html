@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>教培题库 · MVP 原型 v0.1</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #f5f5f5;
+    color: #333;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* 顶部 Header */
+  .top-bar {
+    height: 48px;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .top-bar .title { font-weight: 600; font-size: 15px; }
+  .top-bar .meta { color: #888; font-size: 12px; }
+
+  /* 主布局 */
+  .layout {
+    display: flex;
+    height: calc(100vh - 48px);
+  }
+
+  /* 侧栏 */
+  .sidebar {
+    width: 260px;
+    background: #fff;
+    border-right: 1px solid #e0e0e0;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .sidebar-group { padding: 12px 0; }
+  .sidebar-group-title {
+    padding: 4px 20px;
+    font-size: 11px;
+    color: #aaa;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .sidebar-item {
+    padding: 8px 20px;
+    cursor: pointer;
+    color: #555;
+    border-left: 3px solid transparent;
+    user-select: none;
+    transition: all 0.1s;
+    font-size: 13px;
+  }
+  .sidebar-item:hover { background: #f5f5f5; }
+  .sidebar-item.active {
+    background: #e8f1ff;
+    color: #3b7ddd;
+    border-left-color: #3b7ddd;
+    font-weight: 500;
+  }
+
+  /* 画布 */
+  .canvas {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .page-view {
+    display: none;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .page-view.active { display: block; }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  .page-meta {
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+
+  /* Web 设备框架 */
+  .wf-web {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .wf-web-header {
+    height: 56px;
+    background: #fafafa;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 20px;
+  }
+  .wf-web-logo {
+    font-weight: 700;
+    color: #3b7ddd;
+    font-size: 15px;
+  }
+  .wf-web-nav {
+    display: flex;
+    gap: 4px;
+  }
+  .wf-web-nav-item {
+    color: #666;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: default;
+    font-size: 13px;
+  }
+  .wf-web-nav-item.active {
+    background: #e8f1ff;
+    color: #3b7ddd;
+  }
+  .wf-web-body {
+    display: flex;
+    min-height: 500px;
+  }
+  .wf-web-sidebar {
+    width: 200px;
+    background: #fafafa;
+    border-right: 1px solid #e0e0e0;
+    padding: 16px 12px;
+  }
+  .wf-web-sidebar-item {
+    padding: 8px 10px;
+    color: #666;
+    border-radius: 4px;
+    margin-bottom: 2px;
+    font-size: 13px;
+    cursor: default;
+  }
+  .wf-web-sidebar-item.active {
+    background: #3b7ddd;
+    color: #fff;
+  }
+  .wf-web-main {
+    flex: 1;
+    padding: 20px;
+  }
+
+  /* 移动设备框架 */
+  .wf-mobile {
+    width: 320px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 24px;
+    overflow: hidden;
+    margin: 0 auto;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  }
+  .wf-mobile-status {
+    height: 24px;
+    background: #fafafa;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    font-size: 11px;
+    color: #666;
+  }
+  .wf-mobile-header {
+    height: 48px;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+    position: relative;
+    padding: 0 16px;
+  }
+  .wf-mobile-body {
+    padding: 12px;
+    min-height: 480px;
+    background: #f5f5f5;
+  }
+  .wf-mobile-tabbar {
+    height: 56px;
+    background: #fff;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+  }
+  .wf-mobile-tab {
+    flex: 1;
+    text-align: center;
+    color: #888;
+    font-size: 11px;
+    padding: 8px;
+  }
+  .wf-mobile-tab.active { color: #3b7ddd; }
+
+  /* 通用 UI 元素 */
+  .wf-button {
+    background: #3b7ddd;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    border: none;
+    cursor: default;
+    display: inline-block;
+    font-family: inherit;
+  }
+  .wf-button.secondary {
+    background: #fff;
+    color: #3b7ddd;
+    border: 1px solid #3b7ddd;
+  }
+  .wf-button.ghost {
+    background: transparent;
+    color: #666;
+    border: 1px solid #ddd;
+  }
+  .wf-button.danger {
+    background: #fff;
+    color: #d33;
+    border: 1px solid #d33;
+  }
+
+  .wf-input {
+    background: #fff;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: #555;
+    width: 100%;
+    display: block;
+    font-family: inherit;
+  }
+  .wf-input::placeholder { color: #aaa; }
+
+  .wf-textarea {
+    background: #fff;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 13px;
+    color: #555;
+    width: 100%;
+    min-height: 100px;
+    font-family: inherit;
+    resize: vertical;
+  }
+
+  .wf-label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .wf-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .wf-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+  }
+  .wf-card-meta {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 8px;
+  }
+
+  .wf-image-placeholder {
+    background: #f0f0f0;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #aaa;
+    font-size: 12px;
+    min-height: 80px;
+    padding: 12px;
+    text-align: center;
+  }
+  .wf-image-placeholder.inline {
+    display: inline-flex;
+    min-height: 30px;
+    padding: 2px 8px;
+    margin: 4px 0;
+  }
+
+  .wf-tag {
+    display: inline-block;
+    background: #f0f0f0;
+    color: #666;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    margin-right: 4px;
+  }
+  .wf-tag.blue { background: #e8f1ff; color: #3b7ddd; }
+  .wf-tag.green { background: #e8f7ec; color: #2a9d4a; }
+  .wf-tag.orange { background: #fff3e0; color: #d97b00; }
+
+  .wf-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .wf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  .wf-divider {
+    height: 1px;
+    background: #eee;
+    margin: 16px 0;
+  }
+
+  .wf-checkbox {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid #aaa;
+    border-radius: 2px;
+    margin-right: 6px;
+    vertical-align: middle;
+    background: #fff;
+    position: relative;
+  }
+  .wf-checkbox.checked {
+    background: #3b7ddd;
+    border-color: #3b7ddd;
+  }
+  .wf-checkbox.checked::after {
+    content: '✓';
+    color: #fff;
+    font-size: 10px;
+    position: absolute;
+    top: -3px;
+    left: 1px;
+  }
+
+  .wf-radio {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid #aaa;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+    background: #fff;
+  }
+
+  /* 注释块 */
+  .annotation {
+    background: #fffbe6;
+    border: 1px solid #ffe58f;
+    border-radius: 4px;
+    padding: 12px 16px;
+    color: #664d03;
+    font-size: 13px;
+    margin-top: 20px;
+    line-height: 1.7;
+  }
+  .annotation-title {
+    font-weight: 600;
+    color: #ad6800;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+  .annotation ul { margin: 6px 0 0 0; padding-left: 20px; }
+
+  /* 关键决策 */
+  .decision {
+    background: #f0f7ff;
+    border-left: 3px solid #3b7ddd;
+    padding: 12px 16px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: #333;
+    line-height: 1.7;
+  }
+
+  /* Mock 题目 */
+  .mock-question {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .mock-question-content { flex: 1; min-width: 0; }
+  .mock-question-text {
+    font-size: 13px;
+    color: #333;
+    margin-bottom: 6px;
+    line-height: 1.5;
+  }
+  .mock-question-meta {
+    font-size: 11px;
+    color: #888;
+  }
+
+  /* Mock 树 */
+  .tree-item {
+    padding: 6px 10px;
+    font-size: 13px;
+    color: #555;
+    border-radius: 4px;
+    cursor: default;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .tree-item.active { background: #e8f1ff; color: #3b7ddd; }
+  .tree-item.has-children { font-weight: 500; }
+  .tree-children {
+    padding-left: 20px;
+    margin-top: 2px;
+  }
+
+  /* 试卷预览 */
+  .paper-preview {
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 40px 50px;
+    min-height: 600px;
+    margin: 0 auto;
+    max-width: 600px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .paper-title {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+  .paper-question {
+    margin-bottom: 16px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .paper-question-num {
+    font-weight: 600;
+    margin-right: 6px;
+  }
+
+  /* 数据卡片 */
+  .stat-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 16px;
+    flex: 1;
+    min-width: 140px;
+  }
+  .stat-num {
+    font-size: 26px;
+    font-weight: 700;
+    color: #333;
+    line-height: 1.2;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: #888;
+    margin-top: 4px;
+  }
+
+  /* 章节标题 */
+  .section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    margin: 20px 0 10px;
+    letter-spacing: 0.5px;
+  }
+
+  /* 题目卡片（移动端） */
+  .q-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+
+  /* 表格 */
+  .wf-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+  }
+  .wf-table th, .wf-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    font-size: 13px;
+    vertical-align: top;
+  }
+  .wf-table th {
+    background: #f8f8f8;
+    color: #666;
+    font-weight: 500;
+    font-size: 12px;
+  }
+  .wf-table tr:hover td { background: #fafcff; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="title">📚 教培题库 MVP 原型 v0.1</div>
+  <div class="meta">点击左侧切换页面 · 2026-08-13 · 低保真线框图</div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-group">
+      <div class="sidebar-group-title">Web 端（主力录入 + 管理）</div>
+      <div class="sidebar-item active" data-target="web-login">① 登录页</div>
+      <div class="sidebar-item" data-target="web-dashboard">② 题库首页（仪表盘）</div>
+      <div class="sidebar-item" data-target="web-list">③ 题目列表</div>
+      <div class="sidebar-item" data-target="web-new">④ 新建题目</div>
+      <div class="sidebar-item" data-target="web-detail">⑤ 题目详情</div>
+      <div class="sidebar-item" data-target="web-categories">⑥ 分类管理</div>
+      <div class="sidebar-item" data-target="web-paper">⑦ 组卷页（三栏）</div>
+      <div class="sidebar-item" data-target="web-export">⑧ 试卷预览/导出</div>
+      <div class="sidebar-item" data-target="web-profile">⑨ 个人中心</div>
+    </div>
+    <div class="sidebar-group">
+      <div class="sidebar-group-title">小程序端（辅助浏览 + 组卷）</div>
+      <div class="sidebar-item" data-target="mp-login">① 登录</div>
+      <div class="sidebar-item" data-target="mp-home">② 首页（分类网格）</div>
+      <div class="sidebar-item" data-target="mp-list">③ 题目列表</div>
+      <div class="sidebar-item" data-target="mp-detail">④ 题目详情</div>
+      <div class="sidebar-item" data-target="mp-papers">⑤ 我的试卷</div>
+      <div class="sidebar-item" data-target="mp-export">⑥ 试卷导出</div>
+    </div>
+  </aside>
+
+  <main class="canvas">
+
+    <!-- ================== Web 端 ================== -->
+
+    <!-- Web 登录 -->
+    <div class="page-view active" id="web-login">
+      <h1 class="page-title">Web 端 · 登录页</h1>
+      <div class="page-meta">手机号验证码登录 · 与小程序账号互通</div>
+
+      <div class="wf-web" style="max-width: 480px; margin: 40px auto;">
+        <div style="padding: 48px 40px; min-height: 480px;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <div style="font-size: 36px;">📚</div>
+            <div style="font-size: 24px; font-weight: 700; color: #3b7ddd; margin-top: 8px;">教培题库</div>
+            <div style="color: #888; margin-top: 4px; font-size: 13px;">老师的私人题库 · 轻量组卷</div>
+          </div>
+          <div class="wf-label">手机号</div>
+          <input class="wf-input" placeholder="请输入手机号" />
+          <div style="height: 12px;"></div>
+          <div class="wf-label">验证码</div>
+          <div class="wf-row" style="margin-bottom: 0;">
+            <input class="wf-input" placeholder="6 位验证码" style="flex: 1;" />
+            <button class="wf-button ghost" style="white-space: nowrap;">获取验证码</button>
+          </div>
+          <div style="margin-top: 16px; font-size: 12px; color: #666;">
+            <span class="wf-checkbox checked"></span>我已阅读并同意《用户协议》和《隐私政策》
+          </div>
+          <button class="wf-button" style="width: 100%; margin-top: 16px; padding: 12px;">登录 / 注册</button>
+          <div style="text-align: center; margin-top: 16px; font-size: 12px; color: #888;">
+            用微信扫码登录 →
+          </div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-title">📌 关键设计点</div>
+        - 手机号 + 验证码登录（无密码，简化体验）<br>
+        - 必须勾选隐私政策才能登录（个保法合规）<br>
+        - 此账号与小程序端互通（同一个手机号）<br>
+        - 提供微信扫码登录作为可选入口
+      </div>
+    </div>
+
+    <!-- Web 题库首页 -->
+    <div class="page-view" id="web-dashboard">
+      <h1 class="page-title">Web 端 · 题库首页（仪表盘）</h1>
+      <div class="page-meta">登录后着陆页 · 数据概览 + 快捷入口 + 最近编辑</div>
+
+      <div class="wf-web">
+        <div class="wf-web-header">
+          <div class="wf-web-logo">📚 教培题库</div>
+          <div class="wf-web-nav">
+            <div class="wf-web-nav-item active">题库首页</div>
+            <div class="wf-web-nav-item">题目列表</div>
+            <div class="wf-web-nav-item">分类管理</div>
+            <div class="wf-web-nav-item">我的试卷</div>
+          </div>
+          <div style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
+            <input class="wf-input" placeholder="🔍 搜索题目" style="width: 200px;" />
+            <div style="width: 32px; height: 32px; background: #3b7ddd; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px;">李</div>
+          </div>
+        </div>
+        <div class="wf-web-body">
+          <div class="wf-web-sidebar">
+            <div class="wf-web-sidebar-item active">📊 数据概览</div>
+            <div class="wf-web-sidebar-item">📝 最近编辑</div>
+            <div class="wf-web-sidebar-item">📦 未分类题目</div>
+            <div class="wf-web-sidebar-item">⭐ 我的收藏</div>
+            <div class="wf-web-sidebar-item">🗑️ 回收站</div>
+            <div class="wf-web-sidebar-item">⚙️ 个人中心</div>
+          </div>
+          <div class="wf-web-main">
+            <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+              <div class="stat-card">
+                <div class="stat-num">328</div>
+                <div class="stat-label">题目总数</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-num">+12</div>
+                <div class="stat-label">本周新增</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-num" style="color: #d97b00;">15</div>
+                <div class="stat-label">未分类</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-num">7</div>
+                <div class="stat-label">试卷草稿</div>
+              </div>
+            </div>
+
+            <div class="section-title">快捷入口</div>
+            <div style="display: flex; gap: 8px; margin-bottom: 24px;">
+              <button class="wf-button">＋ 新建题目</button>
+              <button class="wf-button secondary">📄 开始组卷</button>
+              <button class="wf-button ghost">📥 批量导入题目</button>
+              <button class="wf-button ghost">📤 导出全部数据</button>
+            </div>
+
+            <div class="section-title">最近编辑（3）</div>
+            <div class="mock-question">
+              <div class="wf-checkbox"></div>
+              <div class="mock-question-content">
+                <div class="mock-question-text">已知等差数列 {aₙ} 的前 n 项和为 Sₙ = n² + n，求通项公式 aₙ...</div>
+                <div class="mock-question-meta">
+                  <span class="wf-tag blue">高一 / 数列</span>
+                  <span class="wf-tag">★★★</span>
+                  · 2 小时前编辑
+                </div>
+              </div>
+            </div>
+            <div class="mock-question">
+              <div class="wf-checkbox"></div>
+              <div class="mock-question-content">
+                <div class="mock-question-text">如图，在 △ABC 中，AB = AC，∠A = 36°...</div>
+                <div class="mock-question-meta">
+                  <span class="wf-tag blue">初三 / 几何</span>
+                  · 昨天编辑
+                </div>
+              </div>
+            </div>
+            <div class="mock-question">
+              <div class="wf-checkbox"></div>
+              <div class="mock-question-content">
+                <div class="mock-question-text">解方程：2x + 5 = 3(x - 1) + 4</div>
+                <div class="mock-question-meta">
+                  <span class="wf-tag blue">初一 / 方程</span>
+                  · 3 天前编辑
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Web 题目列表 -->
+    <div class="page-view" id="web-list">
+      <h1 class="page-title">Web 端 · 题目列表</h1>
+      <div class="page-meta">题库核心页面 · 分类树 + 搜索 + 批量操作</div>
+
+      <div class="wf-web">
+        <div class="wf-web-header">
+          <div class="wf-web-logo">📚 教培题库</div>
+          <div class="wf-web-nav">
+            <div class="wf-web-nav-item">题库首页</div>
+            <div class="wf-web-nav-item active">题目列表</div>
+            <div class="wf-web-nav-item">分类管理</div>
+            <div class="wf-web-nav-item">我的试卷</div>
+          </div>
+          <div style="margin-left: auto;">
+            <input class="wf-input" placeholder="🔍 搜索题干关键词" style="width: 240px;" />
+          </div>
+        </div>
+        <div class="wf-web-body">
+          <div class="wf-web-sidebar">
+            <div style="font-size: 11px; color: #888; padding: 4px 10px 8px; font-weight: 600;">📚 章节树</div>
+            <div class="tree-item has-children">📁 高一 <span style="margin-left: auto; color: #aaa; font-size: 11px;">128</span></div>
+            <div class="tree-children">
+              <div class="tree-item">函数 <span style="margin-left: auto; color: #aaa; font-size: 11px;">42</span></div>
+              <div class="tree-item">三角函数 <span style="margin-left: auto; color: #aaa; font-size: 11px;">38</span></div>
+              <div class="tree-item active">数列 <span style="margin-left: auto; color: #aaa; font-size: 11px;">48</span></div>
+              <div class="tree-item" style="color: #3b7ddd; font-size: 12px;">＋ 添加小节</div>
+            </div>
+            <div class="tree-item has-children">📁 高二 <span style="margin-left: auto; color: #aaa; font-size: 11px;">85</span></div>
+            <div class="tree-item has-children">📁 初三 <span style="margin-left: auto; color: #aaa; font-size: 11px;">67</span></div>
+            <div class="tree-item has-children">📁 初二 <span style="margin-left: auto; color: #aaa; font-size: 11px;">48</span></div>
+            <div class="tree-item">📦 未分类 <span style="margin-left: auto; color: #aaa; font-size: 11px;">15</span></div>
+          </div>
+          <div class="wf-web-main">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div style="font-size: 12px; color: #888;">
+                当前位置：<strong style="color: #333;">高一 / 数列</strong> · 共 <strong style="color: #333;">48</strong> 题
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <span class="wf-tag">难度 ★★★</span>
+                <span class="wf-tag blue">含图片</span>
+                <button class="wf-button" style="padding: 6px 12px;">＋ 新建题目</button>
+              </div>
+            </div>
+
+            <div class="wf-card" style="padding: 0;">
+              <table class="wf-table">
+                <thead>
+                  <tr>
+                    <th style="width: 32px;"><span class="wf-checkbox"></span></th>
+                    <th>题干</th>
+                    <th style="width: 140px;">标签</th>
+                    <th style="width: 70px;">难度</th>
+                    <th style="width: 90px;">更新时间</th>
+                    <th style="width: 140px;">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="wf-checkbox"></span></td>
+                    <td>已知等差数列 {aₙ} 的前 n 项和为 Sₙ = n² + n，求通项公式 aₙ</td>
+                    <td><span class="wf-tag">等差</span> <span class="wf-tag">求和</span></td>
+                    <td>★★★</td>
+                    <td>2 小时前</td>
+                    <td><span style="color: #3b7ddd; font-size: 12px;">编辑 · 加入试卷 · 删除</span></td>
+                  </tr>
+                  <tr>
+                    <td><span class="wf-checkbox"></span></td>
+                    <td>在等比数列中，若 a₂ = 4，a₅ = 32，求公比 q</td>
+                    <td><span class="wf-tag">等比</span></td>
+                    <td>★★</td>
+                    <td>昨天</td>
+                    <td><span style="color: #3b7ddd; font-size: 12px;">编辑 · 加入试卷 · 删除</span></td>
+                  </tr>
+                  <tr>
+                    <td><span class="wf-checkbox checked"></span></td>
+                    <td>
+                      求数列 1, 3, 6, 10, 15... 的通项公式
+                      <div class="wf-image-placeholder inline" style="margin-top: 4px;">[题目配图]</div>
+                    </td>
+                    <td><span class="wf-tag">通项</span> <span class="wf-tag blue">含图</span></td>
+                    <td>★★★</td>
+                    <td>2 天前</td>
+                    <td><span style="color: #3b7ddd; font-size: 12px;">编辑 · 加入试卷 · 删除</span></td>
+                  </tr>
+                  <tr>
+                    <td><span class="wf-checkbox"></span></td>
+                    <td>若 {aₙ} 是公差为 3 的等差数列，且 a₃ = 10，求 a₁₀</td>
+                    <td><span class="wf-tag">等差</span></td>
+                    <td>★★</td>
+                    <td>3 天前</td>
+                    <td><span style="color: #3b7ddd; font-size: 12px;">编辑 · 加入试卷 · 删除</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 12px; color: #888;">
+              <div>已选 <strong style="color: #3b7ddd;">1</strong> 题</div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="wf-button secondary" style="padding: 6px 12px;">＋ 加入试卷</button>
+                <button class="wf-button danger" style="padding: 6px 12px;">批量删除</button>
+                <span>第 1 / 8 页 · 共 48 题</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Web 新建题目 -->
+    <div class="page-view" id="web-new">
+      <h1 class="page-title">Web 端 · 新建题目 <span style="font-size: 14px; color: #3b7ddd; font-weight: 500; margin-left: 8px;">v0.2 · 已加入 OCR + 公式识别</span></h1>
+      <div class="page-meta">核心录入页面 · 两栏布局 · 自动保存草稿 · <strong style="color: #3b7ddd;">📷 支持图片 OCR + 公式识别</strong></div>
+
+      <div class="wf-web">
+        <div class="wf-web-header">
+          <div style="font-size: 18px; color: #888; cursor: pointer;">←</div>
+          <div style="font-weight: 600;">新建题目</div>
+          <div style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+            <span style="font-size: 12px; color: #888;">已自动保存 · 30 秒前</span>
+            <button class="wf-button ghost" style="padding: 6px 12px;">保存草稿</button>
+            <button class="wf-button" style="padding: 6px 16px;">发布</button>
+          </div>
+        </div>
+        <div style="display: flex; min-height: 600px;">
+          <div style="flex: 1; padding: 24px; border-right: 1px solid #e0e0e0;">
+
+            <!-- 录入模式切换 -->
+            <div style="display: flex; gap: 4px; margin-bottom: 16px; background: #f0f0f0; border-radius: 6px; padding: 3px; width: fit-content;">
+              <div style="padding: 6px 14px; background: #fff; border-radius: 4px; font-size: 12px; color: #3b7ddd; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;">📷 图片识别</div>
+              <div style="padding: 6px 14px; font-size: 12px; color: #888; cursor: pointer;">✏️ 手动录入</div>
+            </div>
+
+            <!-- OCR 识别状态条 -->
+            <div class="wf-card" style="background: #f0f7ff; border: 1px solid #b8d8ff; padding: 12px 16px; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 20px;">📷</span>
+                  <div>
+                    <div style="font-size: 13px; font-weight: 600; color: #333;">识别来源 · 数列-1.jpg</div>
+                    <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                      234 KB · 30 秒前上传 · <span style="color: #2a9d4a;">✓ OCR 识别完成</span> · 印刷体 · <strong>预估准确率 92%</strong>
+                    </div>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                  <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">👁️ 查看原图</button>
+                  <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">🔄 重新识别</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 题干富文本框 -->
+            <div class="wf-label">题干内容 <span style="color: #d33;">*</span></div>
+            <div style="background: #fff; border: 1px solid #d0d0d0; border-radius: 4px;">
+              <div style="background: #f8f8f8; padding: 8px 12px; border-bottom: 1px solid #e0e0e0; display: flex; gap: 4px; align-items: center; font-size: 12px;">
+                <span style="padding: 4px 8px; border-radius: 3px; color: #555;"><b>B</b></span>
+                <span style="padding: 4px 8px; border-radius: 3px; color: #555;"><i>I</i></span>
+                <span style="padding: 4px 8px; border-radius: 3px; color: #555;"><u>U</u></span>
+                <span style="padding: 4px 8px; border-radius: 3px; color: #555;">•</span>
+                <span style="padding: 4px 8px; border-radius: 3px; color: #555;">1.</span>
+                <span style="padding: 4px 8px; border-radius: 3px; color: #555;">🔗</span>
+                <span style="padding: 4px 8px; border-radius: 3px; color: #3b7ddd; background: #e8f1ff; font-weight: 600;">∑ 公式</span>
+                <span style="padding: 4px 8px; border-radius: 3px; color: #555;">🖼️</span>
+                <span style="color: #aaa; margin-left: auto; font-size: 11px;">支持 Markdown · 公式用 LaTeX（KaTeX 渲染）</span>
+              </div>
+              <div style="padding: 16px; font-size: 14px; line-height: 1.9; color: #222; min-height: 200px;">
+                已知等差数列 {aₙ} 的前 n 项和为：<br><br>
+                <span style="display: inline-block; padding: 4px 12px; background: #fff7e6; border: 1px solid #ffd591; border-radius: 4px; font-family: 'Times New Roman', serif; color: #d97b00; font-size: 15px;">
+                  S<sub>n</sub> = n² + n
+                </span>
+                <span style="font-size: 10px; color: #888; vertical-align: super; margin-left: 4px;">📐 LaTeX: \$S_n = n^2 + n\$</span>
+                <br><br>
+                求该数列的通项公式 aₙ。
+                <div style="margin-top: 12px; font-size: 11px; color: #888; padding-top: 8px; border-top: 1px dashed #eee;">
+                  💡 点击公式块可编辑 LaTeX 源码 · <span style="color: #d97b00; background: #fff7e6; padding: 0 4px;">黄色高亮</span> 是 OCR 识别结果
+                </div>
+              </div>
+            </div>
+
+            <!-- 答案 / 解析（也支持 OCR） -->
+            <div class="wf-label" style="margin-top: 16px;">答案 / 解析（可选）</div>
+            <div class="wf-card" style="background: #f0f7ff; border: 1px solid #b8d8ff; padding: 10px 14px; margin-bottom: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+                <div>
+                  <span style="color: #3b7ddd;">📷 答案图片识别：</span>
+                  <span style="color: #888;">数列-1.jpg · 已识别 3 行文字 + 1 个公式</span>
+                  <span style="color: #2a9d4a; margin-left: 6px;">✓</span>
+                </div>
+                <button class="wf-button ghost" style="padding: 3px 10px; font-size: 11px;">查看 / 重新识别</button>
+              </div>
+            </div>
+            <div style="background: #fff; border: 1px solid #d0d0d0; border-radius: 4px;">
+              <div style="background: #f8f8f8; padding: 6px 12px; border-bottom: 1px solid #e0e0e0; display: flex; gap: 4px; align-items: center; font-size: 11px;">
+                <span style="color: #3b7ddd; font-weight: 600;">∑ 公式</span>
+                <span style="color: #aaa; margin-left: auto;">支持 LaTeX · KaTeX 渲染</span>
+              </div>
+              <div style="padding: 14px; font-size: 14px; line-height: 1.8; color: #222; min-height: 100px;">
+                ∵ S<sub>n</sub> = n² + n<br>
+                ∴ a₁ = S₁ = 2<br>
+                当 n ≥ 2 时：a<sub>n</sub> = S<sub>n</sub> - S<sub>n-1</sub> = <span style="display: inline-block; padding: 2px 6px; background: #fff7e6; border-radius: 3px;">2n</span><br>
+                ∴ <strong style="color: #d97b00;">a<sub>n</sub> = 2n</strong>
+              </div>
+            </div>
+
+            <!-- 原始图片（OCR 校对参考） -->
+            <div class="wf-label" style="margin-top: 16px;">
+              原始图片 <span style="font-weight: normal; color: #888;">（保留作为 OCR 校对参考）</span>
+            </div>
+            <div class="wf-card" style="padding: 12px; display: flex; align-items: center; gap: 16px;">
+              <div style="width: 120px; height: 80px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 11px; flex-shrink: 0;">[缩略图]</div>
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 13px; font-weight: 600;">数列-1.jpg</div>
+                <div style="font-size: 11px; color: #888; margin-top: 4px;">234 KB · 上传于 30 秒前</div>
+                <div style="font-size: 11px; color: #2a9d4a; margin-top: 4px;">📌 保留原图，方便对照 OCR 识别结果校对</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; flex-shrink: 0;">
+                <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">重新上传</button>
+                <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px; color: #d33; border-color: #d33;">删除</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右栏 -->
+          <div style="width: 300px; padding: 24px; background: #fafafa;">
+            <div class="wf-label">所属分类 <span style="color: #d33;">*</span></div>
+            <select class="wf-input">
+              <option>高一 / 数列</option>
+            </select>
+
+            <div class="wf-label" style="margin-top: 16px;">标签</div>
+            <div style="background: #fff; border: 1px solid #d0d0d0; border-radius: 4px; padding: 6px; min-height: 36px;">
+              <span class="wf-tag">等差</span>
+              <span class="wf-tag">求和</span>
+              <input class="wf-input" placeholder="输入标签回车" style="border: none; padding: 2px 4px; width: 110px; display: inline-block; box-shadow: none;" />
+            </div>
+
+            <div class="wf-label" style="margin-top: 16px;">难度</div>
+            <div style="display: flex; gap: 2px;">
+              <span style="color: #f5a623; font-size: 18px; cursor: pointer;">★</span>
+              <span style="color: #f5a623; font-size: 18px; cursor: pointer;">★</span>
+              <span style="color: #f5a623; font-size: 18px; cursor: pointer;">★</span>
+              <span style="color: #ddd; font-size: 18px; cursor: pointer;">★</span>
+              <span style="color: #ddd; font-size: 18px; cursor: pointer;">★</span>
+            </div>
+
+            <div class="wf-label" style="margin-top: 16px;">题目类型</div>
+            <div style="font-size: 13px; color: #555;">
+              <span class="wf-radio"></span>选择题 &nbsp;
+              <span class="wf-radio"></span>填空题 &nbsp;
+              <span class="wf-radio"></span>解答题
+            </div>
+
+            <div class="wf-label" style="margin-top: 16px;">可见范围</div>
+            <select class="wf-input">
+              <option>仅自己可见（默认）</option>
+              <option>分享给指定老师</option>
+            </select>
+
+            <div class="wf-divider"></div>
+            <div style="font-size: 11px; color: #888; line-height: 1.7;">
+              💡 <strong>OCR 自动识别</strong>：印刷体准确率 90%+，手写体 70-80%，<strong>请务必校对后再发布</strong>。<br><br>
+              公式以 LaTeX 源码存储，前端 KaTeX 渲染，可二次编辑。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-title">📌 MVP 录入设计决策（v0.2 已升级）</div>
+        <ul>
+          <li><strong>双录入模式</strong>：📷 图片识别 / ✏️ 手动录入 —— 老大的需求场景里 <strong>80% 是图片题</strong>（教科书/试卷扫描/截图）</li>
+          <li><strong>OCR 服务</strong>：<strong>Mathpix API</strong>（业界标准）—— 印刷体准确率 90%+，手写体 70-80%</li>
+          <li><strong>公式识别</strong>：OCR 自动提取 LaTeX 代码，前端用 <strong>KaTeX 渲染</strong>（快、轻、现代主流方案）</li>
+          <li><strong>原图保留</strong>：OCR 提取文字后<strong>原图保留</strong>作为校对参考，老师可对照原图改文字</li>
+          <li><strong>识别结果可编辑</strong>：老师校对 → 直接编辑 → 发布，所有内容结构化存储（HTML + LaTeX 片段）</li>
+          <li><strong>公式工具栏 ∑ 按钮</strong>：手动插入 LaTeX 公式入口（不依赖图片也能输公式）</li>
+          <li><strong>准确率预估显示</strong>：识别完成显示预估准确率，老师心理有数</li>
+          <li><strong>答案 / 解析也支持 OCR</strong>：题干和答案可以分别 OCR 处理</li>
+          <li><strong>分类用树状下拉</strong>，右侧固定 300px 栏方便快速切换</li>
+          <li><strong>自动保存草稿</strong>（每 30 秒），避免老师写一半丢失</li>
+          <li><strong>可见范围默认仅自己</strong>，符合「私人题库」定位</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Web 题目详情 -->
+    <div class="page-view" id="web-detail">
+      <h1 class="page-title">Web 端 · 题目详情</h1>
+      <div class="page-meta">单题只读视图 · 操作：编辑 / 加入试卷 / 删除 / 分享</div>
+
+      <div class="wf-web">
+        <div class="wf-web-header">
+          <div style="font-size: 18px; color: #888; cursor: pointer;">←</div>
+          <div style="font-weight: 600;">题目详情</div>
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button class="wf-button ghost" style="padding: 6px 12px;">📤 分享</button>
+            <button class="wf-button secondary" style="padding: 6px 12px;">＋ 加入试卷</button>
+            <button class="wf-button ghost" style="padding: 6px 12px;">编辑</button>
+            <button class="wf-button danger" style="padding: 6px 12px;">删除</button>
+          </div>
+        </div>
+        <div style="padding: 32px;">
+          <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+            <span class="wf-tag blue">高一</span>
+            <span class="wf-tag blue">数列</span>
+            <span class="wf-tag">等差</span>
+            <span class="wf-tag">求和</span>
+            <span class="wf-tag orange">★★★</span>
+            <span class="wf-tag">解答题</span>
+          </div>
+          <div style="font-size: 16px; line-height: 1.8; color: #222; margin-bottom: 20px;">
+            已知等差数列 {aₙ} 的前 n 项和为：<br><br>
+            Sₙ = n² + n<br><br>
+            求该数列的通项公式 aₙ。
+          </div>
+          <div class="wf-image-placeholder" style="min-height: 180px; margin-bottom: 20px;">[题目配图]</div>
+
+          <div class="wf-divider"></div>
+
+          <div class="section-title">答案 / 解析</div>
+          <div style="font-size: 14px; line-height: 1.8; color: #444;">
+            ∵ Sₙ = n² + n<br>
+            ∴ a₁ = S₁ = 1² + 1 = 2<br>
+            当 n ≥ 2 时：aₙ = Sₙ - Sₙ₋₁<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= (n² + n) - ((n-1)² + (n-1))<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= 2n<br>
+            验证 a₁ = 2(1) = 2 ✓<br>
+            ∴ <strong>aₙ = 2n</strong>
+          </div>
+
+          <div class="wf-divider"></div>
+          <div style="display: flex; gap: 24px; font-size: 12px; color: #888;">
+            <div>创建于 2026-08-10</div>
+            <div>最后编辑 2026-08-13 09:23</div>
+            <div>仅自己可见</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Web 分类管理 -->
+    <div class="page-view" id="web-categories">
+      <h1 class="page-title">Web 端 · 分类管理</h1>
+      <div class="page-meta">章节树维护 · 拖拽排序 · 题目数量统计</div>
+
+      <div class="wf-web">
+        <div class="wf-web-header">
+          <div class="wf-web-logo">📚 教培题库</div>
+          <div class="wf-web-nav">
+            <div class="wf-web-nav-item">题库首页</div>
+            <div class="wf-web-nav-item">题目列表</div>
+            <div class="wf-web-nav-item active">分类管理</div>
+            <div class="wf-web-nav-item">我的试卷</div>
+          </div>
+        </div>
+        <div style="padding: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="font-size: 13px; color: #888;">右键 / 拖拽节点操作 · 支持两级嵌套</div>
+            <div style="display: flex; gap: 8px;">
+              <button class="wf-button ghost" style="padding: 6px 12px;">📥 导入分类模板</button>
+              <button class="wf-button" style="padding: 6px 12px;">＋ 新建章节</button>
+            </div>
+          </div>
+          <div class="wf-card" style="padding: 16px;">
+            <div class="tree-item has-children">
+              <span style="color: #888; cursor: grab;">⋮⋮</span>
+              📁 高一 <span style="margin-left: auto; font-size: 11px; color: #aaa;">128 题</span>
+            </div>
+            <div class="tree-children">
+              <div class="tree-item">
+                <span style="color: #888; cursor: grab;">⋮⋮</span>
+                函数 <span style="margin-left: auto; font-size: 11px; color: #aaa;">42 题</span>
+              </div>
+              <div class="tree-item">
+                <span style="color: #888; cursor: grab;">⋮⋮</span>
+                三角函数 <span style="margin-left: auto; font-size: 11px; color: #aaa;">38 题</span>
+              </div>
+              <div class="tree-item active">
+                <span style="color: #888; cursor: grab;">⋮⋮</span>
+                数列 <span style="margin-left: auto; font-size: 11px; color: #aaa;">48 题</span>
+              </div>
+              <div class="tree-item" style="color: #3b7ddd; font-size: 12px;">＋ 添加小节</div>
+            </div>
+            <div class="tree-item has-children">
+              <span style="color: #888; cursor: grab;">⋮⋮</span>
+              📁 高二 <span style="margin-left: auto; font-size: 11px; color: #aaa;">85 题</span>
+            </div>
+            <div class="tree-item has-children">
+              <span style="color: #888; cursor: grab;">⋮⋮</span>
+              📁 初三 <span style="margin-left: auto; font-size: 11px; color: #aaa;">67 题</span>
+            </div>
+            <div class="tree-item has-children">
+              <span style="color: #888; cursor: grab;">⋮⋮</span>
+              📁 初二 <span style="margin-left: auto; font-size: 11px; color: #aaa;">48 题</span>
+            </div>
+            <div class="tree-item">
+              <span style="color: #888; cursor: grab;">⋮⋮</span>
+              📦 未分类 <span style="margin-left: auto; font-size: 11px; color: #aaa;">15 题</span>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; padding: 12px; background: #fffbe6; border: 1px solid #ffe58f; border-radius: 4px; font-size: 12px; color: #664d03;">
+            💡 MVP 只支持两级：<strong>章 → 小节</strong>。<br>
+            建议数据存储为「路径字符串」（如「高一/数列」），<strong>为未来扩展三层预留空间</strong>（如 章 → 小节 → 知识点），不改数据库 schema。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Web 组卷页 -->
+    <div class="page-view" id="web-paper">
+      <h1 class="page-title">Web 端 · 组卷页（三栏）</h1>
+      <div class="page-meta">题目池筛选 + 中间题目列表 + 右侧试卷区</div>
+
+      <div class="wf-web">
+        <div class="wf-web-header">
+          <div style="font-size: 18px; color: #888; cursor: pointer;">←</div>
+          <div style="font-weight: 600;">组卷：<input class="wf-input" placeholder="高一第一次月考数学" style="display: inline-block; width: 240px; padding: 4px 8px;" /></div>
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button class="wf-button ghost" style="padding: 6px 12px;">保存草稿</button>
+            <button class="wf-button" style="padding: 6px 12px;">下一步：导出 →</button>
+          </div>
+        </div>
+        <div style="display: flex; min-height: 600px;">
+          <!-- 左栏：题目筛选 -->
+          <div style="width: 220px; background: #fafafa; border-right: 1px solid #e0e0e0; padding: 16px;">
+            <div class="wf-label">📚 分类</div>
+            <div class="tree-item has-children">📁 高一</div>
+            <div class="tree-children">
+              <div class="tree-item">函数</div>
+              <div class="tree-item active">数列</div>
+              <div class="tree-item">三角函数</div>
+            </div>
+
+            <div class="wf-label" style="margin-top: 16px;">难度</div>
+            <div style="font-size: 13px;">
+              <span class="wf-checkbox checked"></span>★★<br>
+              <span class="wf-checkbox checked"></span>★★★<br>
+              <span class="wf-checkbox"></span>★★★★
+            </div>
+
+            <div class="wf-label" style="margin-top: 16px;">题型</div>
+            <div style="font-size: 13px;">
+              <span class="wf-checkbox checked"></span>选择题<br>
+              <span class="wf-checkbox checked"></span>填空题<br>
+              <span class="wf-checkbox"></span>解答题
+            </div>
+
+            <div class="wf-label" style="margin-top: 16px;">标签</div>
+            <div style="font-size: 13px;">
+              <span class="wf-checkbox checked"></span>等差<br>
+              <span class="wf-checkbox"></span>等比<br>
+              <span class="wf-checkbox checked"></span>求和
+            </div>
+          </div>
+
+          <!-- 中栏：题目列表 -->
+          <div style="flex: 1; padding: 16px; overflow-y: auto; background: #fff;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div style="font-size: 12px; color: #888;">
+                筛选结果：<strong style="color: #333;">26</strong> 题
+              </div>
+              <input class="wf-input" placeholder="🔍 在结果中搜索" style="width: 200px;" />
+            </div>
+
+            <div class="mock-question">
+              <div class="wf-checkbox"></div>
+              <div class="mock-question-content">
+                <div class="mock-question-text">已知等差数列 {aₙ} 的前 n 项和为 Sₙ = n² + n，求通项公式</div>
+                <div class="mock-question-meta"><span class="wf-tag">等差</span> <span class="wf-tag">求和</span> <span class="wf-tag orange">★★★</span></div>
+              </div>
+            </div>
+            <div class="mock-question">
+              <div class="wf-checkbox"></div>
+              <div class="mock-question-content">
+                <div class="mock-question-text">在等比数列中，若 a₂ = 4，a₅ = 32，求公比 q</div>
+                <div class="mock-question-meta"><span class="wf-tag">等比</span> <span class="wf-tag orange">★★★</span></div>
+              </div>
+            </div>
+            <div class="mock-question">
+              <div class="wf-checkbox"></div>
+              <div class="mock-question-content">
+                <div class="mock-question-text">求数列 1, 3, 6, 10, 15... 的通项公式</div>
+                <div class="mock-question-meta"><span class="wf-tag">通项</span> <span class="wf-tag orange">★★★</span></div>
+              </div>
+            </div>
+            <div class="mock-question">
+              <div class="wf-checkbox"></div>
+              <div class="mock-question-content">
+                <div class="mock-question-text">若 {aₙ} 是公差为 3 的等差数列，且 a₃ = 10...</div>
+                <div class="mock-question-meta"><span class="wf-tag">等差</span> <span class="wf-tag">★★</span></div>
+              </div>
+            </div>
+            <div class="mock-question">
+              <div class="wf-checkbox"></div>
+              <div class="mock-question-content">
+                <div class="mock-question-text">在等比数列中，已知 a₁ = 2，公比 q = 3，求 a₅</div>
+                <div class="mock-question-meta"><span class="wf-tag">等比</span> <span class="wf-tag">★★</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右栏：试卷预览 -->
+          <div style="width: 320px; background: #fff7e6; border-left: 1px solid #e0e0e0; padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div style="font-weight: 600;">📄 已选题目 <span style="color: #3b7ddd;">5</span></div>
+              <div style="font-size: 11px; color: #888;">可拖拽排序</div>
+            </div>
+
+            <div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 10px; margin-bottom: 8px;">
+              <div style="display: flex; gap: 6px; align-items: flex-start;">
+                <span style="color: #aaa; cursor: grab;">⋮⋮</span>
+                <div style="flex: 1;">
+                  <div style="font-size: 12px; color: #333;">1. 已知等差数列 {aₙ}...</div>
+                  <div style="font-size: 10px; color: #888; margin-top: 2px;">★★★ · 选择题</div>
+                </div>
+                <span style="color: #d33; cursor: pointer;">✕</span>
+              </div>
+            </div>
+
+            <div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 10px; margin-bottom: 8px;">
+              <div style="display: flex; gap: 6px; align-items: flex-start;">
+                <span style="color: #aaa; cursor: grab;">⋮⋮</span>
+                <div style="flex: 1;">
+                  <div style="font-size: 12px; color: #333;">2. 在等比数列中，若 a₂...</div>
+                  <div style="font-size: 10px; color: #888; margin-top: 2px;">★★★ · 选择题</div>
+                </div>
+                <span style="color: #d33; cursor: pointer;">✕</span>
+              </div>
+            </div>
+
+            <div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 10px; margin-bottom: 8px;">
+              <div style="display: flex; gap: 6px; align-items: flex-start;">
+                <span style="color: #aaa; cursor: grab;">⋮⋮</span>
+                <div style="flex: 1;">
+                  <div style="font-size: 12px; color: #333;">3. 求数列 1, 3, 6...</div>
+                  <div style="font-size: 10px; color: #888; margin-top: 2px;">★★★ · 填空题</div>
+                </div>
+                <span style="color: #d33; cursor: pointer;">✕</span>
+              </div>
+            </div>
+
+            <div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 10px; margin-bottom: 8px;">
+              <div style="display: flex; gap: 6px; align-items: flex-start;">
+                <span style="color: #aaa; cursor: grab;">⋮⋮</span>
+                <div style="flex: 1;">
+                  <div style="font-size: 12px; color: #333;">4. 若 {aₙ} 是公差为 3...</div>
+                  <div style="font-size: 10px; color: #888; margin-top: 2px;">★★ · 填空题</div>
+                </div>
+                <span style="color: #d33; cursor: pointer;">✕</span>
+              </div>
+            </div>
+
+            <div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 10px; margin-bottom: 8px;">
+              <div style="display: flex; gap: 6px; align-items: flex-start;">
+                <span style="color: #aaa; cursor: grab;">⋮⋮</span>
+                <div style="flex: 1;">
+                  <div style="font-size: 12px; color: #333;">5. 在等比数列中，已知...</div>
+                  <div style="font-size: 10px; color: #888; margin-top: 2px;">★★ · 选择题</div>
+                </div>
+                <span style="color: #d33; cursor: pointer;">✕</span>
+              </div>
+            </div>
+
+            <div class="wf-divider"></div>
+            <div style="font-size: 11px; color: #888; line-height: 1.6;">
+              💡 MVP 不做固定模板（选择 5 + 填空 5 + 解答 3），先做自由勾选 + 拖拽排序。后期再加「常用模板」。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Web 试卷导出 -->
+    <div class="page-view" id="web-export">
+      <h1 class="page-title">Web 端 · 试卷预览 / 导出</h1>
+      <div class="page-meta">试卷预览（A4 样式）+ 选择导出格式</div>
+
+      <div style="display: flex; gap: 16px; align-items: flex-start;">
+        <div class="paper-preview" style="flex: 1;">
+          <div class="paper-title">高一第一次月考数学试卷</div>
+          <div style="text-align: center; color: #888; font-size: 12px; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid #ccc;">
+            姓名：_________ 班级：_________ 学号：_________ 得分：_________
+          </div>
+
+          <div class="section-title" style="margin: 24px 0 12px; color: #333; text-transform: none; font-size: 14px;">一、选择题（每题 5 分，共 15 分）</div>
+          <div class="paper-question">
+            <span class="paper-question-num">1.</span>已知等差数列 {aₙ} 的前 n 项和为 Sₙ = n² + n，求该数列的通项公式 aₙ。
+          </div>
+          <div style="font-size: 12px; color: #666; margin-bottom: 16px; padding-left: 24px;">
+            A. aₙ = 2n &nbsp;&nbsp;&nbsp;&nbsp; B. aₙ = 2n + 1 &nbsp;&nbsp;&nbsp;&nbsp; C. aₙ = n² &nbsp;&nbsp;&nbsp;&nbsp; D. aₙ = 2n - 1
+          </div>
+
+          <div class="paper-question">
+            <span class="paper-question-num">2.</span>在等比数列中，若 a₂ = 4，a₅ = 32，求公比 q。
+          </div>
+          <div style="font-size: 12px; color: #666; margin-bottom: 16px; padding-left: 24px;">
+            A. 2 &nbsp;&nbsp;&nbsp;&nbsp; B. 3 &nbsp;&nbsp;&nbsp;&nbsp; C. 4 &nbsp;&nbsp;&nbsp;&nbsp; D. √2
+          </div>
+
+          <div class="section-title" style="margin: 24px 0 12px; color: #333; text-transform: none; font-size: 14px;">二、填空题（每题 5 分，共 10 分）</div>
+          <div class="paper-question">
+            <span class="paper-question-num">3.</span>若 {aₙ} 是公差为 3 的等差数列，且 a₃ = 10，则 a₁₀ = _________。
+          </div>
+          <div style="height: 60px; border-bottom: 1px solid #eee; margin-bottom: 16px;"></div>
+
+          <div class="section-title" style="margin: 24px 0 12px; color: #333; text-transform: none; font-size: 14px;">三、解答题（共 10 分）</div>
+          <div class="paper-question">
+            <span class="paper-question-num">4.</span>求数列 1, 3, 6, 10, 15... 的通项公式。
+          </div>
+          <div class="wf-image-placeholder" style="min-height: 120px; margin: 12px 0;">[题目配图]</div>
+          <div style="height: 80px; border-bottom: 1px solid #eee; margin-bottom: 12px;"></div>
+        </div>
+
+        <div style="width: 260px; flex-shrink: 0;">
+          <div class="wf-card">
+            <div class="wf-card-title">📤 导出格式</div>
+            <button class="wf-button" style="width: 100%; margin-bottom: 8px;">📄 导出 PDF</button>
+            <button class="wf-button secondary" style="width: 100%; margin-bottom: 8px;">🖼️ 导出 JPG（每页一张图）</button>
+            <button class="wf-button ghost" style="width: 100%; margin-bottom: 8px;">📋 复制到剪贴板</button>
+          </div>
+          <div class="wf-card">
+            <div class="wf-card-title">📊 试卷信息</div>
+            <div style="font-size: 12px; color: #555; line-height: 1.8;">
+              <div>题数：<strong>5</strong></div>
+              <div>总分：<strong>40 分</strong></div>
+              <div>预估用时：30 分钟</div>
+              <div>创建时间：2026-08-13</div>
+            </div>
+          </div>
+          <div class="wf-card">
+            <div class="wf-card-title">📚 试卷库</div>
+            <div style="font-size: 12px; color: #555;">
+              试卷自动保存到「我的试卷」<br>
+              支持二次编辑<br>
+              支持导出修改记录
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-title">📌 导出设计决策</div>
+        <ul>
+          <li>MVP 只做 <strong>PDF + JPG</strong>，DOC 排版复杂度高（公式转 Word 对象）先不做</li>
+          <li>PDF 用 <strong>A4 标准</strong>，可直接打印</li>
+          <li>JPG 适合发群/朋友圈/学生平板</li>
+          <li>试卷自动存到「我的试卷」，可二次编辑</li>
+          <li>未来可加：导出含答案版 / 仅试题版 / 答题卡</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Web 个人中心 -->
+    <div class="page-view" id="web-profile">
+      <h1 class="page-title">Web 端 · 个人中心</h1>
+      <div class="page-meta">账号信息 + 订阅状态 + 数据管理 + 隐私</div>
+
+      <div class="wf-card" style="max-width: 760px;">
+        <div class="wf-card-title">账号信息</div>
+        <div style="display: flex; gap: 24px; align-items: center; padding: 12px 0;">
+          <div style="width: 64px; height: 64px; background: #3b7ddd; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 600;">李</div>
+          <div style="flex: 1;">
+            <div style="font-size: 16px; font-weight: 600;">李老师</div>
+            <div style="color: #888; font-size: 12px; margin-top: 4px;">手机号：138****1234</div>
+            <div style="color: #888; font-size: 12px;">注册时间：2026-07-15</div>
+          </div>
+          <button class="wf-button ghost" style="padding: 6px 12px;">修改信息</button>
+        </div>
+
+        <div class="wf-divider"></div>
+        <div class="wf-card-title">订阅状态</div>
+        <div style="padding: 12px; background: #fff7e6; border: 1px solid #ffd591; border-radius: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 600;">免费版 <span class="wf-tag" style="background: #fff; color: #d97b00; border: 1px solid #d97b00;">当前</span></div>
+              <div style="font-size: 12px; color: #888; margin-top: 4px;">题目数限制 500 · 试卷导出带「教培题库」水印</div>
+            </div>
+            <button class="wf-button">升级 Pro · ¥99/年</button>
+          </div>
+        </div>
+
+        <div class="wf-divider"></div>
+        <div class="wf-card-title">数据管理</div>
+        <div class="wf-row">
+          <button class="wf-button ghost">📥 导出全部题目（Excel）</button>
+          <button class="wf-button ghost">📥 导出全部试卷</button>
+          <button class="wf-button ghost">📥 导出 PDF 备份包</button>
+        </div>
+
+        <div class="wf-divider"></div>
+        <div class="wf-card-title">隐私与安全</div>
+        <div class="wf-row">
+          <button class="wf-button ghost">🔒 修改密码 / 注销账号</button>
+          <button class="wf-button ghost">📜 查看隐私政策</button>
+          <button class="wf-button ghost">📋 导出我的数据（个保法要求）</button>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-title">📌 商业模式提示</div>
+        MVP 阶段先免费，验证用户量。<br>
+        等日活稳定（500+）再加付费墙。<br>
+        建议定价：<strong>¥99-199/年</strong>（教培老师消费力足够，参见「作业帮教师版」「智学网」定价区间）。
+      </div>
+    </div>
+
+    <!-- ================== 小程序端 ================== -->
+
+    <!-- 小程序登录 -->
+    <div class="page-view" id="mp-login">
+      <h1 class="page-title">小程序端 · 登录</h1>
+      <div class="page-meta">手机号验证码 · 微信一键授权（可选）</div>
+
+      <div class="wf-mobile">
+        <div class="wf-mobile-status">
+          <span>9:41</span>
+          <span>📶 🔋 100%</span>
+        </div>
+        <div class="wf-mobile-header" style="background: #3b7ddd; color: #fff;">📚 教培题库</div>
+        <div class="wf-mobile-body" style="padding-top: 60px;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <div style="font-size: 48px;">📚</div>
+            <div style="font-weight: 600; margin-top: 8px; font-size: 18px;">教培题库</div>
+            <div style="font-size: 11px; color: #888; margin-top: 4px;">老师的私人题库</div>
+          </div>
+          <input class="wf-input" placeholder="📱 手机号" style="margin-bottom: 12px;" />
+          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <input class="wf-input" placeholder="验证码" style="flex: 1;" />
+            <button class="wf-button ghost">获取</button>
+          </div>
+          <div style="font-size: 11px; color: #666; margin-bottom: 12px;">
+            <span class="wf-checkbox checked"></span>我已阅读并同意《隐私政策》
+          </div>
+          <button class="wf-button" style="width: 100%; padding: 10px;">登录</button>
+          <div style="margin-top: 16px; text-align: center;">
+            <div style="font-size: 12px; color: #888; margin-bottom: 8px;">或</div>
+            <button class="wf-button green" style="width: 100%; padding: 10px; background: #07c160; color: #fff;">💚 微信一键登录</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 小程序首页 -->
+    <div class="page-view" id="mp-home">
+      <h1 class="page-title">小程序端 · 首页</h1>
+      <div class="page-meta">分类网格 + 搜索 + 最近组卷</div>
+
+      <div class="wf-mobile">
+        <div class="wf-mobile-status">
+          <span>9:41</span>
+          <span>📶 🔋 100%</span>
+        </div>
+        <div class="wf-mobile-header">
+          <input class="wf-input" placeholder="🔍 搜索题目" style="width: 75%; font-size: 12px; padding: 6px 10px;" />
+        </div>
+        <div class="wf-mobile-body" style="padding: 12px;">
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px;">
+            <div style="background: #fff; border-radius: 8px; padding: 16px 8px; text-align: center; border: 1px solid #e0e0e0;">
+              <div style="font-size: 28px;">📐</div>
+              <div style="font-size: 12px; margin-top: 6px; font-weight: 500;">高一</div>
+              <div style="font-size: 10px; color: #888;">128 题</div>
+            </div>
+            <div style="background: #fff; border-radius: 8px; padding: 16px 8px; text-align: center; border: 1px solid #e0e0e0;">
+              <div style="font-size: 28px;">📏</div>
+              <div style="font-size: 12px; margin-top: 6px; font-weight: 500;">高二</div>
+              <div style="font-size: 10px; color: #888;">85 题</div>
+            </div>
+            <div style="background: #fff; border-radius: 8px; padding: 16px 8px; text-align: center; border: 1px solid #e0e0e0;">
+              <div style="font-size: 28px;">📊</div>
+              <div style="font-size: 12px; margin-top: 6px; font-weight: 500;">初三</div>
+              <div style="font-size: 10px; color: #888;">67 题</div>
+            </div>
+            <div style="background: #fff; border-radius: 8px; padding: 16px 8px; text-align: center; border: 1px solid #e0e0e0;">
+              <div style="font-size: 28px;">📚</div>
+              <div style="font-size: 12px; margin-top: 6px; font-weight: 500;">初二</div>
+              <div style="font-size: 10px; color: #888;">48 题</div>
+            </div>
+            <div style="background: #fff; border-radius: 8px; padding: 16px 8px; text-align: center; border: 1px solid #e0e0e0;">
+              <div style="font-size: 28px;">📦</div>
+              <div style="font-size: 12px; margin-top: 6px; font-weight: 500;">未分类</div>
+              <div style="font-size: 10px; color: #888;">15 题</div>
+            </div>
+            <div style="background: #fff7e6; border-radius: 8px; padding: 16px 8px; text-align: center; border: 1px dashed #d97b00;">
+              <div style="font-size: 28px;">⭐</div>
+              <div style="font-size: 12px; margin-top: 6px; font-weight: 500;">我的收藏</div>
+              <div style="font-size: 10px; color: #888;">3 题</div>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0 8px;">
+            <div style="font-size: 12px; color: #888; font-weight: 600;">📄 最近组卷</div>
+            <div style="font-size: 11px; color: #3b7ddd;">全部 →</div>
+          </div>
+          <div class="q-card">
+            <div style="font-size: 13px; font-weight: 600;">高一第一次月考数学</div>
+            <div style="font-size: 11px; color: #888; margin-top: 4px;">5 题 · 2026-08-13 创建</div>
+          </div>
+          <div class="q-card">
+            <div style="font-size: 13px; font-weight: 600;">数列专项练习</div>
+            <div style="font-size: 11px; color: #888; margin-top: 4px;">12 题 · 2026-08-10 创建</div>
+          </div>
+        </div>
+        <div class="wf-mobile-tabbar">
+          <div class="wf-mobile-tab active">🏠 首页</div>
+          <div class="wf-mobile-tab">📚 题库</div>
+          <div class="wf-mobile-tab">📄 试卷</div>
+          <div class="wf-mobile-tab">👤 我的</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 小程序题目列表 -->
+    <div class="page-view" id="mp-list">
+      <h1 class="page-title">小程序端 · 题目列表</h1>
+      <div class="page-meta">按分类浏览 · 单击查看详情 · 「＋ 加入试卷」</div>
+
+      <div class="wf-mobile">
+        <div class="wf-mobile-status">
+          <span>9:41</span>
+          <span>📶 🔋 100%</span>
+        </div>
+        <div class="wf-mobile-header" style="justify-content: flex-start;">
+          <span style="margin-right: 8px;">←</span>
+          高一 / 数列
+        </div>
+        <div class="wf-mobile-body" style="padding: 8px;">
+          <div style="background: #fff; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+            <span>共 <strong style="color: #333;">48</strong> 题</span>
+            <span style="color: #3b7ddd;">筛选 ▼</span>
+          </div>
+
+          <div class="q-card">
+            <div style="font-size: 13px; color: #333; line-height: 1.5;">已知等差数列 {aₙ} 的前 n 项和为 Sₙ = n² + n，求通项公式...</div>
+            <div style="display: flex; gap: 4px; margin-top: 6px; font-size: 10px;">
+              <span class="wf-tag blue">数列</span>
+              <span class="wf-tag">★★★</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #888;">
+              <span>2 小时前</span>
+              <span style="color: #3b7ddd; font-weight: 600;">＋ 加入试卷</span>
+            </div>
+          </div>
+
+          <div class="q-card">
+            <div style="font-size: 13px; color: #333; line-height: 1.5;">在等比数列中，若 a₂ = 4，a₅ = 32，求公比 q...</div>
+            <div style="display: flex; gap: 4px; margin-top: 6px; font-size: 10px;">
+              <span class="wf-tag blue">数列</span>
+              <span class="wf-tag">★★★</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #888;">
+              <span>昨天</span>
+              <span style="color: #3b7ddd; font-weight: 600;">＋ 加入试卷</span>
+            </div>
+          </div>
+
+          <div class="q-card">
+            <div style="font-size: 13px; color: #333; line-height: 1.5;">求数列 1, 3, 6, 10, 15... 的通项公式</div>
+            <div class="wf-image-placeholder inline" style="margin-top: 4px; min-height: 24px; padding: 2px 8px; font-size: 10px;">[题目配图]</div>
+            <div style="display: flex; gap: 4px; margin-top: 6px; font-size: 10px;">
+              <span class="wf-tag blue">数列</span>
+              <span class="wf-tag">★★★</span>
+              <span class="wf-tag blue">含图</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #888;">
+              <span>2 天前</span>
+              <span style="color: #3b7ddd; font-weight: 600;">＋ 加入试卷</span>
+            </div>
+          </div>
+        </div>
+        <div class="wf-mobile-tabbar">
+          <div class="wf-mobile-tab">🏠 首页</div>
+          <div class="wf-mobile-tab active">📚 题库</div>
+          <div class="wf-mobile-tab">📄 试卷</div>
+          <div class="wf-mobile-tab">👤 我的</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 小程序题目详情 -->
+    <div class="page-view" id="mp-detail">
+      <h1 class="page-title">小程序端 · 题目详情</h1>
+      <div class="page-meta">查看完整题目 · 加入试卷 / 收藏</div>
+
+      <div class="wf-mobile">
+        <div class="wf-mobile-status">
+          <span>9:41</span>
+          <span>📶 🔋 100%</span>
+        </div>
+        <div class="wf-mobile-header" style="justify-content: flex-start;">
+          <span style="margin-right: 8px;">←</span>
+          题目详情
+        </div>
+        <div class="wf-mobile-body" style="padding: 12px;">
+          <div style="background: #fff; border-radius: 6px; padding: 14px; margin-bottom: 12px;">
+            <div style="display: flex; gap: 4px; margin-bottom: 10px;">
+              <span class="wf-tag blue">高一/数列</span>
+              <span class="wf-tag">★★★</span>
+              <span class="wf-tag">解答题</span>
+            </div>
+            <div style="font-size: 14px; line-height: 1.7; color: #222;">
+              已知等差数列 {aₙ} 的前 n 项和为 Sₙ = n² + n，求通项公式 aₙ。
+            </div>
+            <div class="wf-image-placeholder" style="min-height: 100px; margin: 12px 0;">[题目配图]</div>
+            <div style="font-size: 13px; color: #444; line-height: 1.7; padding-top: 10px; border-top: 1px dashed #eee;">
+              <strong>答案：</strong>aₙ = 2n
+            </div>
+          </div>
+
+          <div style="background: #fff; border-radius: 6px; padding: 8px 0; box-shadow: 0 -2px 8px rgba(0,0,0,0.05); display: flex; gap: 0;">
+            <button class="wf-button ghost" style="flex: 1; border-radius: 0;">⭐ 收藏</button>
+            <button class="wf-button" style="flex: 2; border-radius: 0;">＋ 加入试卷</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 小程序我的试卷 -->
+    <div class="page-view" id="mp-papers">
+      <h1 class="page-title">小程序端 · 我的试卷</h1>
+      <div class="page-meta">已组试卷列表 · 长按编辑/删除</div>
+
+      <div class="wf-mobile">
+        <div class="wf-mobile-status">
+          <span>9:41</span>
+          <span>📶 🔋 100%</span>
+        </div>
+        <div class="wf-mobile-header" style="justify-content: center;">
+          我的试卷
+        </div>
+        <div class="wf-mobile-body" style="padding: 12px;">
+          <button class="wf-button" style="width: 100%; margin-bottom: 12px; padding: 10px;">＋ 新建试卷</button>
+
+          <div class="q-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div style="flex: 1;">
+                <div style="font-size: 14px; font-weight: 600;">高一第一次月考数学</div>
+                <div style="font-size: 11px; color: #888; margin-top: 4px;">5 题 · 25 分 · 2026-08-13</div>
+              </div>
+              <div style="color: #888; font-size: 18px;">⋯</div>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: 8px;">
+              <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">编辑</button>
+              <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">导出</button>
+              <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">分享</button>
+            </div>
+          </div>
+
+          <div class="q-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div style="flex: 1;">
+                <div style="font-size: 14px; font-weight: 600;">数列专项练习</div>
+                <div style="font-size: 11px; color: #888; margin-top: 4px;">12 题 · 60 分 · 2026-08-10</div>
+              </div>
+              <div style="color: #888; font-size: 18px;">⋯</div>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: 8px;">
+              <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">编辑</button>
+              <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">导出</button>
+              <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">分享</button>
+            </div>
+          </div>
+
+          <div class="q-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div style="flex: 1;">
+                <div style="font-size: 14px; font-weight: 600;">三角函数基础测试</div>
+                <div style="font-size: 11px; color: #888; margin-top: 4px;">8 题 · 40 分 · 2026-08-05</div>
+              </div>
+              <div style="color: #888; font-size: 18px;">⋯</div>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: 8px;">
+              <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">编辑</button>
+              <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">导出</button>
+              <button class="wf-button ghost" style="padding: 4px 10px; font-size: 11px;">分享</button>
+            </div>
+          </div>
+        </div>
+        <div class="wf-mobile-tabbar">
+          <div class="wf-mobile-tab">🏠 首页</div>
+          <div class="wf-mobile-tab">📚 题库</div>
+          <div class="wf-mobile-tab active">📄 试卷</div>
+          <div class="wf-mobile-tab">👤 我的</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 小程序试卷导出 -->
+    <div class="page-view" id="mp-export">
+      <h1 class="page-title">小程序端 · 试卷导出</h1>
+      <div class="page-meta">试卷预览 + 导出格式 + 分享链接</div>
+
+      <div class="wf-mobile">
+        <div class="wf-mobile-status">
+          <span>9:41</span>
+          <span>📶 🔋 100%</span>
+        </div>
+        <div class="wf-mobile-header" style="justify-content: flex-start;">
+          <span style="margin-right: 8px;">←</span>
+          试卷详情
+        </div>
+        <div class="wf-mobile-body" style="padding: 8px;">
+          <div style="background: #fff; border-radius: 6px; padding: 16px; margin-bottom: 12px;">
+            <div style="text-align: center; font-weight: 600; font-size: 14px; margin-bottom: 12px;">高一第一次月考数学试卷</div>
+            <div style="font-size: 11px; color: #888; border-bottom: 1px dashed #ddd; padding-bottom: 8px; margin-bottom: 12px;">
+              姓名：_________ 班级：_________ 得分：_________
+            </div>
+            <div style="font-size: 12px; line-height: 1.7; color: #333;">
+              1. 已知等差数列 {aₙ} 的前 n 项和为...<br><br>
+              2. 在等比数列中...<br><br>
+              3. 求数列 1, 3, 6, 10...<br>
+              <span class="wf-image-placeholder inline" style="margin: 4px 0; min-height: 20px;">[图]</span>
+            </div>
+          </div>
+
+          <div style="background: #fff; border-radius: 6px; padding: 14px;">
+            <div style="font-size: 12px; color: #888; margin-bottom: 8px; font-weight: 600;">📤 导出 / 分享</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+              <button class="wf-button">📄 PDF</button>
+              <button class="wf-button secondary">🖼️ JPG</button>
+            </div>
+            <button class="wf-button ghost" style="width: 100%; margin-bottom: 8px;">🔗 生成分享链接（Web 端下载）</button>
+            <div style="font-size: 10px; color: #888; margin-top: 10px; line-height: 1.5;">
+              💡 PDF/JPG 保存到手机相册<br>
+              分享链接发到微信群，点开可在浏览器下载
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // 侧栏切换
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+      document.querySelectorAll('.page-view').forEach(v => v.classList.remove('active'));
+      item.classList.add('active');
+      document.getElementById(item.dataset.target).classList.add('active');
+      // 滚动到顶部
+      document.querySelector('.canvas').scrollTop = 0;
+    });
+  });
+</script>
+
+</body>
+</html>
