@@ -1,13 +1,16 @@
 <script setup>
 import LessonList from './components/LessonList.vue'
+import UploadImage from './components/UploadImage.vue'
 </script>
 
 <template>
-  <header><h1>📚 教培题库 · 课程列表</h1></header>
-  <main><LessonList /></main>
+  <div class="app">
+    <h1>📚 教培题库 · 课程列表</h1>
+    <LessonList />
+    <UploadImage />
+  </div>
 </template>
 
-<style scoped>
-header { text-align: center; padding: 24px; background: #f5f5f5; }
-main { max-width: 720px; margin: 24px auto; padding: 0 16px; }
+<style>
+.app { max-width: 800px; margin: 0 auto; padding: 24px; font-family: system-ui; }
 </style>

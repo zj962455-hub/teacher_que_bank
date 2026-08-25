@@ -37,3 +37,6 @@ dist/
 # 编辑器/构建产物
 *.local
 .vite/
+
+# 本地软链(不跟踪)
+teacher_question_bank
