@@ -1,3 +1,27 @@
+> ⚠️ **DEPRECATED · 2026-08-26**
+>
+> **Mathpix 已弃用,不再作为项目 OCR 引擎使用。**
+>
+> **废弃原因**:Mathpix 新版要求**创建组织才能生成 API key**(需要付费),旧版 API 已无法访问,免费个人账号拿不到 key,这条路走不通。
+>
+> **当前 OCR 方案**:**自托管 PaddleOCR(阿里云 ECS · Anolis 3)**,部署在 `8.160.177.222:8080`。
+> 详细部署见 `projects/teacher-question-bank/deploy/paddleocr/`,配置文档见 `docs/paddleocr-ecs-setup.md`(待写)。
+>
+> **优势**:
+> - 零 token / API key 风险,完全自托管
+> - 长期可控,不受 Mathpix 政策变化影响
+> - 阿里云 ECS 2C4G 即可,部署成本低
+> - 中文 OCR 准确率高(适合高中信信场景)
+> - 数学公式 + 表格识别(API 返回结构化 blocks)
+>
+> **代价**:
+> - 公式识别稍弱于 Mathpix(高中信信公式少,够用)
+> - 需要维护自己的 ECS(老大已确认承担)
+>
+> 以下是**弃用前的选型记录**,作为决策历史保留(121 行原文)。
+
+---
+
 # Mathpix 账号注册 + API Key 申请
 
 > 教培题库的 OCR + 公式识别靠 Mathpix 提供。**第五课会用到 API key**。
@@ -90,7 +114,7 @@ response = requests.post(
         "formats": ["text", "latex"]
     }
 )
-print(response.json())
+print(response.json)
 ```
 
 跑成功就能正式用了。
@@ -119,3 +143,13 @@ print(response.json())
 3. 如果卡在支付（国际信用卡问题）—— 告诉我，我们换方案
 
 不急，第五课用之前搞定就行。
+
+---
+
+## 🗒 弃用追溯(2026-08-26)
+
+- **触发**:老大评估 PaddleOCR 替代方案(参考 OpenMathpix 与 mathpix-markdown-it 两个开源工具)
+- **决策**:2026-08-26 21:07(00:00 后 ECS 部署成功 OCR 端到端测试通过),Mathpix 路线正式弃用
+- **替代**:阿里云 ECS 自托管 PaddleOCR PP-StructureV3,部署在 `projects/teacher-question-bank/deploy/paddleocr/`
+- **API endpoint**:`http://8.160.177.222:8080/api/v1/ocr/image`
+- **lesson-06 影响**:`docs/lesson-06-notes.md` + `teacher_question_bank/app/services/ocr.py` 需要同步改造

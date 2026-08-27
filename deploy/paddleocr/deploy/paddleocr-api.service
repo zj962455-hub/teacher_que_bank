@@ -1,0 +1,36 @@
+[Unit]
+Description=PaddleOCR API service (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=paddleocr
+Group=paddleocr
+WorkingDirectory=/opt/paddleocr/app
+EnvironmentFile=/etc/paddleocr/api.env
+ExecStart=/opt/paddleocr/.venv/bin/uvicorn main:app \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --workers 1 \
+  --log-level info \
+  --no-access-log
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/paddleocr-api/stdout.log
+StandardError=append:/var/log/paddleocr-api/stderr.log
+
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/log/paddleocr-api
+
+# 资源限制(防止 PaddleOCR OOM 把整个 ECS 拖死)
+MemoryMax=3500M
+MemoryHigh=3000M
+TasksMax=2
+CPUQuota=180%
+
+[Install]
+WantedBy=multi-user.target

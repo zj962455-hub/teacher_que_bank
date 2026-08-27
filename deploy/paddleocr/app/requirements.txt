@@ -1,0 +1,13 @@
+# PaddleOCR API 依赖 · 锁定版本避免 break
+# Python 3.10+
+# CPU only(2C4G 无 GPU,装 paddlepaddle 不要 paddlepaddle-gpu)
+
+paddleocr==2.7.3
+paddlepaddle==2.6.2
+numpy<2.0  # 锁定 1.x,opencv 4.6 ABI 兼容(paddlepaddle 2.6.2 不支持 NumPy 2.x)
+opencv-python-headless<4.8  # 锁 4.x,NumPy 1.x ABI;headless 5.x 要求 NumPy 2.x
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9
+pydantic==2.7.4
+Pillow==10.4.0

@@ -25,7 +25,7 @@
 | 数据库 | PostgreSQL 15 | 结构化数据主流 |
 | 小程序 | uni-app | 一份代码多端 |
 | 部署 | gunicorn + systemd + Nginx | Python 标准 |
-| OCR | Mathpix API | 已锁 |
+| OCR | **自托管 PaddleOCR** ★ 2026-08-26 拍板 | ECS `lanhu-lab.top` · 部署见 `deploy/paddleocr/` |
 | 公式 | KaTeX | 已锁 |
 | PDF | Playwright（Python 版） | 渲染 KaTeX 公式 |
 | 代码 | Git + GitHub | 仓库 `teacher_que_bank` |
@@ -64,10 +64,10 @@ Phase 5: 打磨上线               1-2 周
 |---|---|---|---|
 | 1 | 环境搭建 + Hello World | Python venv / FastAPI 启动 | 浏览器看 "Hello" |
 | 2 | FastAPI 入门 | 路由 / 参数 / 响应模型 | 3 个 API 端点 |
-| 3 | Vue 3 入门 | 组件 / 模板 / ref/reactive | 一个简单列表页 |
+| 3 | Vue 3 入门 | 组件 / 模板 / ref/reactive | 一个简单列表页（**已收工 · scoped CSS 风格**） |
 | 4 | 前后端打通 | axios / CORS | Vue 调 FastAPI 显示 |
-| 5 | 上传图片 | FormData / File | 前后端上传 + 预览 |
-| 6 | 调 Mathpix OCR | Mathpix Python SDK | 图片 → 文字 + 公式 |
+| 5 | 上传图片 | FormData / File | 前后端上传 + 预览（**已收工 · UploadImage.vue 原生 CSS**） |
+| 6 | 调 PaddleOCR OCR | 后端代理调自托管 PaddleOCR | 图片 → 文字 + 公式（**前端接 naive UI · 2026-08-27 拍板**） |
 | 7 | KaTeX 渲染公式 | KaTeX 集成 Vue | 公式漂亮显示 |
 | 8 | 存数据库 | PostgreSQL + SQLModel | 题目持久化 |
 | 9 | 导出 PDF | Playwright 服务端 | PDF 含公式 |
