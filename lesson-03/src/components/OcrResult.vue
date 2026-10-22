@@ -3,8 +3,9 @@ import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import axios from 'axios'
 import {
   NCard, NSpace, NButton, NTag, NTabs, NTabPane,
-  NSpin, NAlert, NEmpty, NImage, NText, NSelect, NDivider,
+  NSpin, NAlert, NEmpty, NImage, NText, NSelect,
 } from 'naive-ui'
+import OcrBlockList from './OcrBlockList.vue'   // ← 新增:抽出的 block 列表
 
 const API = 'http://localhost:8000'
 
@@ -246,24 +247,12 @@ async function copyMarkdown() {
         <div style="flex: 1; min-width: 0;">
           <NTabs type="line" animated size="small">
             <NTabPane name="text" tab="① 纯文本">
-              <div style="max-height: 360px; overflow-y: auto;">
-                <div
-                  v-for="(b, i) in allBlocks"
-                  :key="i"
-                  class="ocr-block"
-                  :class="{ active: hoverIndex === allBlocks.indexOf(b) }"
-                  @mouseenter="hoverIndex = allBlocks.indexOf(b)"
-                  @mouseleave="hoverIndex = -1"
-                >
-                  <NTag size="small" :bordered="false" :type="b.type === 'text' ? 'default' : b.type === 'formula' ? 'success' : 'warning'">
-                    {{ b.type }}
-                  </NTag>
-                  <span style="font-size: 13px;">{{ b.type === 'formula' ? b.latex : (b.text || '[表格]') }}</span>
-                  <NText depth="3" style="font-size: 11px; margin-left: 6px;">
-                    {{ Math.round(b.confidence * 100) }}%
-                  </NText>
-                </div>
-              </div>
+              <OcrBlockList
+                :blocks="allBlocks"
+                render-mode="simple"
+                :hover-index="hoverIndex"
+                @hover="hoverIndex = $event"
+              />
               <NText depth="3" style="font-size: 12px">
                 共 {{ allBlocks.length }} 个块 · {{ result?.stats?.elapsed_ms }}ms · {{ result?.stats?.model }}
               </NText>
@@ -278,22 +267,12 @@ async function copyMarkdown() {
               </NSpace>
             </NTabPane>
             <NTabPane name="table" tab="③ 结构(含表格)">
-              <div style="max-height: 360px; overflow-y: auto;">
-                <div
-                  v-for="(b, i) in allBlocks"
-                  :key="i"
-                  class="ocr-block"
-                  :class="{ active: hoverIndex === allBlocks.indexOf(b) }"
-                  @mouseenter="hoverIndex = allBlocks.indexOf(b)"
-                  @mouseleave="hoverIndex = -1"
-                >
-                  <div v-if="b.type === 'text'">{{ b.text }}</div>
-                  <div v-else-if="b.type === 'formula'" style="font-family: monospace; color: #18a058">
-                    {{ b.latex }}
-                  </div>
-                  <div v-else-if="b.type === 'table'" v-html="b.html" />
-                </div>
-              </div>
+              <OcrBlockList
+                :blocks="allBlocks"
+                render-mode="rich"
+                :hover-index="hoverIndex"
+                @hover="hoverIndex = $event"
+              />
             </NTabPane>
           </NTabs>
         </div>
@@ -312,19 +291,5 @@ async function copyMarkdown() {
   transition: all 0.08s ease-out;
   border-radius: 2px;
 }
-
-/* 结果块:可 hover + active 态 */
-.ocr-block {
-  padding: 6px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  margin-bottom: 4px;
-  transition: background 0.1s;
-}
-.ocr-block:hover,
-.ocr-block.active {
-  background: rgba(24, 160, 88, 0.08);
-  border-color: rgba(24, 160, 88, 0.3);
-}
+/* 注:block 列表的 hover 样式已搬到 OcrBlockList.vue(父组件 scoped 样式不作用到子组件 DOM) */
 </style>
