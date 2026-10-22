@@ -3,8 +3,10 @@ import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import axios from 'axios'
 import {
   NCard, NSpace, NButton, NTag, NTabs, NTabPane,
-  NSpin, NAlert, NEmpty, NImage, NText,
+  NSpin, NAlert, NEmpty, NImage, NText, NSelect, NDivider,
 } from 'naive-ui'
+
+const API = 'http://localhost:8000'
 
 // === Props:由 UploadImage 上传成功后回传 ===
 const props = defineProps({
@@ -18,7 +20,15 @@ const result = ref(null)        // PaddleOCR blocks + stats
 const error = ref(null)
 let pollTimer = null
 
+// === 任务 4 新增状态 ===
+const hoverIndex = ref(-1)      // 当前 hover 的 block 下标,-1 = 没 hover
+const imgSize = ref({ w: 0, h: 0 })  // 原图真实像素尺寸(naturalWidth/Height)
+const history = ref([])         // 历史 OCR 记录
+const historyOptions = ref([])  // 下拉选项
+
 // === 计算属性 ===
+const allBlocks = computed(() => result.value?.blocks ?? [])
+
 const textBlocks = computed(() =>
   result.value?.blocks.filter(b => b.type === 'text') ?? []
 )
@@ -29,6 +39,74 @@ const tableBlocks = computed(() =>
   result.value?.blocks.filter(b => b.type === 'table') ?? []
 )
 
+// === 当前高亮的 block ===
+const hoverBlock = computed(() =>
+  hoverIndex.value >= 0 ? allBlocks.value[hoverIndex.value] : null
+)
+
+// === 高亮框样式:像素坐标 → 百分比(不写 JS 换算,交给 CSS 等比缩放)===
+// bbox = [x1, y1, x2, y2],基于原图像素;除以原图尺寸转成百分比,
+// 这样无论图片被缩放到多少,红框都精准贴合。
+const highlightStyle = computed(() => {
+  const b = hoverBlock.value
+  const { w, h } = imgSize.value
+  if (!b?.bbox || !w || !h) return { display: 'none' }
+
+  const [x1, y1, x2, y2] = b.bbox
+  return {
+    left: (x1 / w * 100) + '%',
+    top: (y1 / h * 100) + '%',
+    width: ((x2 - x1) / w * 100) + '%',
+    height: ((y2 - y1) / h * 100) + '%',
+  }
+})
+
+// 图片加载完拿真实尺寸
+function onImageLoad(e) {
+  imgSize.value = {
+    w: e.target.naturalWidth,
+    h: e.target.naturalHeight,
+  }
+}
+
+// === 历史记录(任务 3 的持久化成果)===
+async function loadHistory() {
+  try {
+    const res = await axios.get(`${API}/api/ocr/history`, { params: { limit: 20 } })
+    history.value = res.data.items ?? []
+    historyOptions.value = history.value.map(item => ({
+      label: `${item.image_url.split('/').pop()} · ${item.created_at.slice(0, 16).replace('T', ' ')}`,
+      value: item.task_id,
+    }))
+  } catch (e) {
+    // 历史拉不到不影响主流程,静默即可
+  }
+}
+
+// 切换历史记录:直接复用结果,不重跑 OCR
+async function selectHistory(tid) {
+  if (!tid) return
+  const item = history.value.find(h => h.task_id === tid)
+  if (!item) return
+
+  taskId.value = item.task_id
+  result.value = item.result
+  status.value = item.status
+  error.value = null
+  hoverIndex.value = -1
+  // 切历史时同步切原图
+  if (item.image_url && item.image_url !== props.imageUrl) {
+    emit('update:imageUrl', item.image_url)
+  }
+}
+
+// 切历史要同步换图 → 需要通知父组件
+const emit = defineEmits(['update:imageUrl'])
+
+onMounted(() => {
+  loadHistory()
+})
+
 // === 开始 OCR ===
 async function startOcr() {
   if (!props.imageUrl) {
@@ -38,9 +116,10 @@ async function startOcr() {
   status.value = 'processing'
   error.value = null
   result.value = null
-  
+  hoverIndex.value = -1
+
   try {
-    const res = await axios.post('http://localhost:8000/api/ocr/', {
+    const res = await axios.post(`${API}/api/ocr/`, {
       image_url: props.imageUrl,
     })
     taskId.value = res.data.task_id
@@ -62,6 +141,7 @@ function startPolling() {
         status.value = 'completed'
         result.value = data.result
         stopPolling()
+        loadHistory()   // 新记录入库 → 刷下拉
       } else if (data.status === 'failed') {
         status.value = 'failed'
         error.value = data.error || 'OCR 识别失败'
@@ -83,6 +163,7 @@ function stopPolling() {
   }
 }
 
+// OCR 跑完后把新记录刷进历史下拉(任务 3 的成果)
 onUnmounted(stopPolling)
 
 // === 渲染 Markdown(MVP:简单拼接 text blocks;lesson-07 接 KaTeX 渲染公式)===
@@ -108,22 +189,26 @@ async function copyMarkdown() {
 <template>
   <NCard title="🔍 OCR 识别结果" size="small">
     <NSpace vertical size="medium">
-      <!-- 顶部:状态 + 原图 -->
+      <!-- 顶部:状态 + 历史下拉 + 开始按钮 -->
       <NSpace align="center">
         <NTag :type="status === 'completed' ? 'success' : status === 'failed' ? 'error' : 'info'">
           {{ status === 'idle' ? '待识别' : status === 'processing' ? '识别中...' : status === 'completed' ? '已完成' : '失败' }}
         </NTag>
-        <NImage
-          v-if="imageUrl"
-          :src="`http://localhost:8000${imageUrl}`"
-          width="80"
-          height="80"
-          object-fit="cover"
-          style="border-radius: 4px"
-        />
         <NButton type="primary" :disabled="status === 'processing' || !imageUrl" @click="startOcr">
           {{ status === 'completed' ? '🔄 重新识别' : '🚀 开始识别' }}
         </NButton>
+        <NSpace v-if="historyOptions.length" align="center">
+          <NText depth="3" style="font-size: 12px">历史：</NText>
+          <NSelect
+            :options="historyOptions"
+            :value="taskId"
+            placeholder="选一条历史记录"
+            size="small"
+            style="width: 260px"
+            clearable
+            @update:value="selectHistory"
+          />
+        </NSpace>
       </NSpace>
 
       <!-- 错误 -->
@@ -134,33 +219,112 @@ async function copyMarkdown() {
         <NEmpty description="PaddleOCR 正在识别(平均 5 秒)..." />
       </NSpin>
 
-      <!-- 结果:三 tab -->
-      <NTabs v-if="status === 'completed'" type="line" animated>
-        <NTabPane name="text" tab="① 纯文本">
-          <pre style="white-space: pre-wrap; font-family: system-ui">{{ plainText }}</pre>
-          <NText depth="3" style="font-size: 12px">
-            共 {{ textBlocks.length }} 个文本块 · {{ result?.stats?.elapsed_ms }}ms · {{ result?.stats?.model }}
-          </NText>
-        </NTabPane>
-        <NTabPane name="formula" tab="② 带公式(Markdown)">
-          <pre style="white-space: pre-wrap; font-family: monospace">{{ withFormulas }}</pre>
-          <NSpace>
-            <NButton size="small" @click="copyMarkdown">📋 复制 Markdown</NButton>
-            <NText depth="3" style="font-size: 12px">
-              {{ formulaBlocks.length }} 个公式块(lesson-07 接 KaTeX 渲染)
-            </NText>
-          </NSpace>
-        </NTabPane>
-        <NTabPane name="table" tab="③ 结构(含表格)">
-          <div v-for="(b, i) in result?.blocks" :key="i">
-            <div v-if="b.type === 'text'">{{ b.text }}</div>
-            <div v-else-if="b.type === 'formula'" style="font-family: monospace; color: #18a058">
-              {{ b.latex }}
-            </div>
-            <div v-else-if="b.type === 'table'" v-html="b.html" />
+      <!-- 任务 4:左右分栏 — 左原图(带 bbox 高亮) · 右结果 -->
+      <div v-if="status === 'completed'" style="display: flex; gap: 16px; align-items: flex-start;">
+        <!-- 左:原图 + 红框高亮 -->
+        <div style="flex: 0 0 45%; min-width: 0;">
+          <div style="position: relative; display: inline-block; max-width: 100%; border: 1px solid #d9d9d9; border-radius: 4px; overflow: hidden;">
+            <img
+              v-if="imageUrl"
+              :src="`${API}${imageUrl}`"
+              alt="原图"
+              style="display: block; width: 100%; height: auto;"
+              @load="onImageLoad"
+            />
+            <!-- 高亮框:绝对定位 + 百分比,跟着图片缩放 -->
+            <div
+              class="ocr-highlight-box"
+              :style="highlightStyle"
+            />
           </div>
-        </NTabPane>
-      </NTabs>
+          <NText depth="3" style="font-size: 12px; display: block; margin-top: 4px;">
+            原图 {{ imgSize.w }}×{{ imgSize.h }}px · 把鼠标移到右侧内容看对应区域
+          </NText>
+        </div>
+
+        <!-- 右:识别结果(hover 触发左侧高亮) -->
+        <div style="flex: 1; min-width: 0;">
+          <NTabs type="line" animated size="small">
+            <NTabPane name="text" tab="① 纯文本">
+              <div style="max-height: 360px; overflow-y: auto;">
+                <div
+                  v-for="(b, i) in allBlocks"
+                  :key="i"
+                  class="ocr-block"
+                  :class="{ active: hoverIndex === allBlocks.indexOf(b) }"
+                  @mouseenter="hoverIndex = allBlocks.indexOf(b)"
+                  @mouseleave="hoverIndex = -1"
+                >
+                  <NTag size="small" :bordered="false" :type="b.type === 'text' ? 'default' : b.type === 'formula' ? 'success' : 'warning'">
+                    {{ b.type }}
+                  </NTag>
+                  <span style="font-size: 13px;">{{ b.type === 'formula' ? b.latex : (b.text || '[表格]') }}</span>
+                  <NText depth="3" style="font-size: 11px; margin-left: 6px;">
+                    {{ Math.round(b.confidence * 100) }}%
+                  </NText>
+                </div>
+              </div>
+              <NText depth="3" style="font-size: 12px">
+                共 {{ allBlocks.length }} 个块 · {{ result?.stats?.elapsed_ms }}ms · {{ result?.stats?.model }}
+              </NText>
+            </NTabPane>
+            <NTabPane name="formula" tab="② 带公式(Markdown)">
+              <pre style="white-space: pre-wrap; font-family: monospace">{{ withFormulas }}</pre>
+              <NSpace>
+                <NButton size="small" @click="copyMarkdown">📋 复制 Markdown</NButton>
+                <NText depth="3" style="font-size: 12px">
+                  {{ formulaBlocks.length }} 个公式块(lesson-07 接 KaTeX 渲染)
+                </NText>
+              </NSpace>
+            </NTabPane>
+            <NTabPane name="table" tab="③ 结构(含表格)">
+              <div style="max-height: 360px; overflow-y: auto;">
+                <div
+                  v-for="(b, i) in allBlocks"
+                  :key="i"
+                  class="ocr-block"
+                  :class="{ active: hoverIndex === allBlocks.indexOf(b) }"
+                  @mouseenter="hoverIndex = allBlocks.indexOf(b)"
+                  @mouseleave="hoverIndex = -1"
+                >
+                  <div v-if="b.type === 'text'">{{ b.text }}</div>
+                  <div v-else-if="b.type === 'formula'" style="font-family: monospace; color: #18a058">
+                    {{ b.latex }}
+                  </div>
+                  <div v-else-if="b.type === 'table'" v-html="b.html" />
+                </div>
+              </div>
+            </NTabPane>
+          </NTabs>
+        </div>
+      </div>
     </NSpace>
   </NCard>
 </template>
+
+<style scoped>
+/* 高亮框:红框 + 半透明底 + 指针事件穿透(不然会挡住 hover) */
+.ocr-highlight-box {
+  position: absolute;
+  border: 2px solid #f5222d;
+  background: rgba(245, 34, 45, 0.12);
+  pointer-events: none;
+  transition: all 0.08s ease-out;
+  border-radius: 2px;
+}
+
+/* 结果块:可 hover + active 态 */
+.ocr-block {
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  margin-bottom: 4px;
+  transition: background 0.1s;
+}
+.ocr-block:hover,
+.ocr-block.active {
+  background: rgba(24, 160, 88, 0.08);
+  border-color: rgba(24, 160, 88, 0.3);
+}
+</style>
