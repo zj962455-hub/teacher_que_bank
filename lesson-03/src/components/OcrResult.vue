@@ -6,6 +6,8 @@ import {
   NSpin, NAlert, NEmpty, NImage, NText, NSelect,
 } from 'naive-ui'
 import OcrBlockList from './OcrBlockList.vue'   // ← 新增:抽出的 block 列表
+import QuestionEditor from './QuestionEditor.vue'   // ← 任务 5:题目编辑器
+import { message } from '../composables/discreteApi'   // ← 任务 5A:全局 toast
 
 const API = 'http://localhost:8000'
 
@@ -26,6 +28,7 @@ const hoverIndex = ref(-1)      // 当前 hover 的 block 下标,-1 = 没 hover
 const imgSize = ref({ w: 0, h: 0 })  // 原图真实像素尺寸(naturalWidth/Height)
 const history = ref([])         // 历史 OCR 记录
 const historyOptions = ref([])  // 下拉选项
+const showEditor = ref(false)    // 任务 5:编辑器默认折叠
 
 // === 计算属性 ===
 const allBlocks = computed(() => result.value?.blocks ?? [])
@@ -179,11 +182,20 @@ const withFormulas = computed(() =>
     .join('\n') ?? ''
 )
 
-// === 一键复制 ===
+// === 一键复制(任务 5A:改用 toast 替掉 alert) ===
+// alert() 会阻塞页面、样式无法控制、macOS 上像系统弹窗很突兀
+// toast 从顶部滑入、自动消失、不打断操作
+async function copyText(text, label) {
+  try {
+    await navigator.clipboard.writeText(text)
+    message.success(`已复制${label}到剪贴板`)
+  } catch (e) {
+    message.error(`复制失败：${e.message}`)
+  }
+}
+
 async function copyMarkdown() {
-  await navigator.clipboard.writeText(withFormulas.value)
-  // 提示用户已复制(lesson-31 UI 美化时换 NMessage)
-  alert('已复制 Markdown 到剪贴板')
+  await copyText(withFormulas.value, ' Markdown')
 }
 </script>
 
@@ -210,6 +222,9 @@ async function copyMarkdown() {
             @update:value="selectHistory"
           />
         </NSpace>
+        <NButton v-if="status === 'completed'" size="small" @click="showEditor = !showEditor">
+          {{ showEditor ? '📝 收起编辑器' : '📝 转题目编辑器' }}
+        </NButton>
       </NSpace>
 
       <!-- 错误 -->
@@ -277,6 +292,15 @@ async function copyMarkdown() {
           </NTabs>
         </div>
       </div>
+
+      <!-- 任务 5:题目编辑器(默认折叠,点顶部按钮展开) -->
+      <QuestionEditor
+        v-if="showEditor && status === 'completed'"
+        :plain-text="plainText"
+        :with-formulas="withFormulas"
+        :blocks="allBlocks"
+        @close="showEditor = false"
+      />
     </NSpace>
   </NCard>
 </template>
