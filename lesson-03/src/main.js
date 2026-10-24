@@ -1,6 +1,12 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 
+// === KaTeX 样式（lesson-07）===
+// ⚠️ 必须引入！KaTeX 输出的 HTML 依赖这些 class 做排版
+//    不引的话公式会挤成一团、上下标位置全乱。
+// 字体文件由 katex 包自带的 woff2 提供，会被 Vite 打包进 dist。
+import 'katex/dist/katex.min.css'
+
 /**
  * 为什么不用 <NMessageProvider>
  * -----------------------------

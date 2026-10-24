@@ -22,6 +22,7 @@ import {
   classify,
   SUBJECT_OPTIONS, TYPE_OPTIONS, GRADE_OPTIONS, DIFFICULTY_OPTIONS,
 } from '../utils/classifier'
+import { renderMathText } from '../utils/mathRenderer'   // ← lesson-07:KaTeX 预览
 
 // === Props：OCR 结果 ===
 const props = defineProps({
@@ -101,16 +102,11 @@ function resetMeta() {
 }
 
 // === 预览：把 Markdown 的 $...$ 转成可读形式 ===
-const previewText = computed(() => {
-  return content.value
-    // $x^2$ → x²（简单的上标转 Unicode，只覆盖常见数字幂次）
-    .replace(/\$([^$]*)\$/g, (_, formula) => {
-      return formula
-        .replace(/\^2/g, '²')
-        .replace(/\^3/g, '³')
-        .replace(/\^\{(\d+)\}/g, (m, n) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[n] || `^${n}`)
-    })
-})
+// === 预览（lesson-07:真正用 KaTeX 渲染）===
+// 之前是简陋的 ^2 → ² 字符替换，只能处理数字幂次，
+// 遇到 \frac \sqrt \sum 就完全没法看。
+// 现在统一走 KaTeX，公式才是它该有的样子。
+const previewHtml = computed(() => renderMathText(content.value))
 
 // === 复制功能（任务 5A）===
 async function copyText(text, label) {
@@ -265,9 +261,9 @@ function resetContent() {
             line-height: 1.7;
             background: #fafafa;
           "
-        >
-          {{ previewText }}
-        </div>
+          class="editor-preview"
+          v-html="previewHtml"
+        ></div>
       </div>
     </div>
 

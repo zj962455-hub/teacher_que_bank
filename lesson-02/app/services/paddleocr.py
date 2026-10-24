@@ -5,6 +5,8 @@ import mimetypes
 import requests
 from pathlib import Path
 
+from app.services.math_parser import enrich_blocks
+
 # === 任务 2:常量 ===
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB(跟 nginx + paddleocr app 一致)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
@@ -140,5 +142,10 @@ def recognize(image_path: str) -> dict:
             f"OCR 业务失败:{data.get('error', '未知错误')}",
             status_code=500,
         )
-    
+
+    # === lesson-07:把 text block 里的 Unicode 数学字符拆成 formula block ===
+    # PaddleOCR 对简单公式会当成普通文字输出(如 "x²" 是 Unicode 不是 LaTeX),
+    # 这里统一转成 latex 字段,前端 KaTeX 才能渲染。
+    enrich_blocks(data)
+
     return data

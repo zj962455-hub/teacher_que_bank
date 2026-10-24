@@ -21,7 +21,9 @@
  * 受控的好处：子组件只负责「告诉父组件我 hover 了谁」，不自己存 hover 状态。
  * 这样 tab 切换时 hover 不会因为下标含义不同而错乱，父组件永远是唯一真相源。
  */
+import { ref, computed } from 'vue'
 import { NTag, NText } from 'naive-ui'
+import { renderLatex, renderMathText } from '../utils/mathRenderer'
 
 // === Props ===
 const props = defineProps({
@@ -64,19 +66,50 @@ function onEnter(block) {
 function onLeave() {
   emit('hover', -1)
 }
+
+/**
+ * 渲染每个 block 的内容（lesson-07 KaTeX）
+ * ------------------------------------------------
+ * - type=formula → 块级 KaTeX 渲染
+ * - type=text    → 文本里内嵌的 $...$ 混排渲染
+ * - type=table   → PaddleOCR 的 HTML 表格，原样
+ *
+ * 为什么要放 computed 而不在 template 里 v-if
+ * --------------------------------------------
+ * KaTeX 每次渲染都要 parse LaTeX，有开销。
+ * 放 computed 里能吃到 Vue 的缓存 —— 父组件 hover 状态变化时，
+ * 这个 computed 不会重算（依赖没变），公式不会反复重渲染。
+ *
+ * ⚠️ 坑：v-for 的第二个参数别叫 indexOf
+ * ------------------------------------
+ * Vue 模板编译后的作用域里，indexOf 会跟 Array.prototype.indexOf 撞名，
+ * 运行时报 "indexOf is not a function"（2026-10-24 实测踩到）。
+ * 这里用 blockIndex。
+ */
+const renderedContent = computed(() => {
+  return props.blocks.map(b => {
+    if (b.type === 'formula') {
+      return { html: renderLatex(b.latex, true), isFormula: true }
+    }
+    if (b.type === 'table') {
+      return { html: b.html || '', isFormula: false }
+    }
+    return { html: renderMathText(b.text || ''), isFormula: false }
+  })
+})
 </script>
 
 <template>
   <div :style="{ maxHeight: `${maxHeight}px`, overflowY: 'auto' }">
     <div
-      v-for="b in blocks"
+      v-for="(b, blockIndex) in blocks"
       :key="globalIndexOf(b)"
       class="ocr-block"
       :class="{ active: globalIndexOf(b) === hoverIndex }"
       @mouseenter="onEnter(b)"
       @mouseleave="onLeave"
     >
-      <!-- ===== simple 模式：type 标签 + 文本 + 置信度 ===== -->
+      <!-- ===== simple 模式：type 标签 + 渲染内容 + 置信度 ===== -->
       <template v-if="renderMode === 'simple'">
         <NTag
           size="small"
@@ -85,7 +118,12 @@ function onLeave() {
         >
           {{ b.type }}
         </NTag>
-        <span style="font-size: 13px;">{{ b.type === 'formula' ? b.latex : (b.text || '[表格]') }}</span>
+        <!-- KaTeX 渲染输出（v-html） -->
+        <span
+          class="ocr-block-content"
+          :class="{ 'is-formula': b.type === 'formula' }"
+          v-html="renderedContent[blockIndex]?.html"
+        />
         <NText depth="3" style="font-size: 11px; margin-left: 6px;">
           {{ Math.round(b.confidence * 100) }}%
         </NText>
@@ -93,14 +131,11 @@ function onLeave() {
 
       <!-- ===== rich 模式：按 type 分别渲染 ===== -->
       <template v-else>
-        <div v-if="b.type === 'text'">{{ b.text }}</div>
         <div
-          v-else-if="b.type === 'formula'"
-          style="font-family: monospace; color: #18a058"
-        >
-          {{ b.latex }}
-        </div>
-        <div v-else-if="b.type === 'table'" v-html="b.html" />
+          class="ocr-block-content"
+          :class="{ 'is-formula': b.type === 'formula' }"
+          v-html="renderedContent[blockIndex]?.html"
+        />
       </template>
     </div>
   </div>
@@ -124,5 +159,25 @@ function onLeave() {
 .ocr-block.active {
   background: rgba(24, 160, 88, 0.08);
   border-color: rgba(24, 160, 88, 0.3);
+}
+
+/* 渲染内容容器 */
+.ocr-block-content {
+  font-size: 13px;
+  margin-left: 6px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* 公式块：独占一行居中 */
+.ocr-block-content.is-formula {
+  display: block;
+  margin: 6px 0;
+  text-align: center;
+}
+
+/* KaTeX 输出的字体在 macOS 上要显式指定，否则会掉回默认字体 */
+.ocr-block-content :deep(.katex) {
+  font-size: 1.05em;
 }
 </style>
