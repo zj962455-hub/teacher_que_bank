@@ -37,25 +37,44 @@ SUPERSCRIPTS = {
     "⁰": "^{0}", "¹": "^{1}", "²": "^{2}", "³": "^{3}", "⁴": "^{4}",
     "⁵": "^{5}", "⁶": "^{6}", "⁷": "^{7}", "⁸": "^{8}", "⁹": "^{9}",
     "⁺": "^{+}", "⁻": "^{-}", "⁼": "^{\\pm}", "⁽": "^{(}", "⁾": ")^{}",
+    # --- 字母上标(Unicode 组合上下标,求和/导数常用)---
+    "ⁱ": "^{i}", "ⁿ": "^{n}", "ᵃ": "^{a}", "ᵇ": "^{b}", "ᶜ": "^{c}",
+    "ᵈ": "^{d}", "ᵉ": "^{e}", "ᶠ": "^{f}", "ᵍ": "^{g}", "ʰ": "^{h}",
+    "ⱼ": "^{j}", "ᵏ": "^{k}", "ˡ": "^{l}", "ᵐ": "^{m}", "ᵒ": "^{o}",
+    "ᵖ": "^{p}", "ʳ": "^{r}", "ˢ": "^{s}", "ᵗ": "^{t}", "ᵘ": "^{u}",
+    "ᵛ": "^{v}", "ʷ": "^{w}", "ˣ": "^{x}", "ʸ": "^{y}", "ᶻ": "^{z}",
 }
 
 SUBSCRIPTS = {
     "₀": "_{0}", "₁": "_{1}", "₂": "_{2}", "₃": "_{3}", "₄": "_{4}",
     "₅": "_{5}", "₆": "_{6}", "₇": "_{7}", "₈": "_{8}", "₉": "_{9}",
     "₊": "_{+}", "₋": "_{-}", "₌": "_{=}", "₍": "_{(}", "₎": ")_{}",
+    # --- 字母下标(Unicode 组合上下标,求和下限常用)---
+    "ₐ": "_{a}", "ₑ": "_{e}", "ₕ": "_{h}", "ᵢ": "_{i}", "ⱼ": "_{j}",
+    "ₖ": "_{k}", "ₗ": "_{l}", "ₘ": "_{m}", "ₙ": "_{n}", "ₒ": "_{o}",
+    "ₚ": "_{p}", "ᵣ": "_{r}", "ₛ": "_{s}", "ₜ": "_{t}", "ᵤ": "_{u}",
+    "ᵥ": "_{v}", "ₓ": "_{x}",
 }
 
-# 希腊字母
+# 希腊字母（大小写全覆盖 + 常见变体）
+# 注意:小写 epsilon/phi/rho/theta 有两种写法,varepsilon/varphi 是印刷体
 GREEK = {
+    # --- 小写 ---
     "α": "\\alpha", "β": "\\beta", "γ": "\\gamma", "δ": "\\delta",
-    "ε": "\\varepsilon", "ζ": "\\zeta", "η": "\\eta", "θ": "\\theta",
-    "ι": "\\iota", "κ": "\\kappa", "λ": "\\lambda", "μ": "\\mu",
-    "ν": "\\nu", "ξ": "\\xi", "π": "\\pi", "ρ": "\\rho",
-    "σ": "\\sigma", "τ": "\\tau", "υ": "\\upsilon", "φ": "\\varphi",
-    "χ": "\\chi", "ψ": "\\psi", "ω": "\\omega",
-    "Γ": "\\Gamma", "Δ": "\\Delta", "Θ": "\\Theta", "Λ": "\\Lambda",
-    "Ξ": "\\Xi", "Π": "\\Pi", "Σ": "\\Sigma", "Φ": "\\Phi",
-    "Ψ": "\\Psi", "Ω": "\\Omega",
+    "ε": "\\varepsilon", "ϵ": "\\epsilon", "ζ": "\\zeta", "η": "\\eta",
+    "θ": "\\theta", "ϑ": "\\vartheta", "ι": "\\iota", "κ": "\\kappa",
+    "λ": "\\lambda", "μ": "\\mu", "ν": "\\nu", "ξ": "\\xi",
+    "ο": "\\omicron", "π": "\\pi", "ρ": "\\rho", "ϱ": "\\varrho",
+    "σ": "\\sigma", "ς": "\\varsigma", "τ": "\\tau", "υ": "\\upsilon",
+    "φ": "\\varphi", "ϕ": "\\phi", "χ": "\\chi", "ψ": "\\psi",
+    "ω": "\\omega",
+    # --- 大写 ---
+    "Α": "\\Alpha", "Β": "\\Beta", "Γ": "\\Gamma", "Δ": "\\Delta",
+    "Ε": "\\Epsilon", "Ζ": "\\Zeta", "Η": "\\Eta", "Θ": "\\Theta",
+    "Ι": "\\Iota", "Κ": "\\Kappa", "Λ": "\\Lambda", "Μ": "\\Mu",
+    "Ν": "\\Nu", "Ξ": "\\Xi", "Ο": "\\Omicron", "Π": "\\Pi",
+    "Ρ": "\\Rho", "Σ": "\\Sigma", "Τ": "\\Tau", "Υ": "\\Upsilon",
+    "Φ": "\\Phi", "Χ": "\\Chi", "Ψ": "\\Psi", "Ω": "\\Omega",
 }
 
 # 运算符与符号
@@ -71,6 +90,32 @@ OPERATORS = {
     "⇔": "\\Leftrightarrow", "∀": "\\forall", "∃": "\\exists",
     "¬": "\\neg", "∧": "\\land", "∨": "\\lor",
     "°": "^\\circ", "％": "\\%", "‰": "\\permil",
+    # --- 双字符形式(逻辑/集合常用) ---
+    "⇒": "\\Rightarrow", "⇐": "\\Leftarrow", "⇔": "\\Leftrightarrow",
+    "↔": "\\leftrightarrow", "⇅": "\\Updownarrow",
+    "≪": "\\ll", "≫": "\\gg", "≶": "\\lessgtr", "≷": "\\gtrless",
+    # --- 集合/逻辑补充 ---
+    "∴": "\\therefore", "∵": "\\because",
+    "⊙": "\\odot", "⊗": "\\otimes", "⊕": "\\oplus",
+    "⊤": "\\top", "⊥": "\\perp", "⊣": "\\dashv",
+    # --- 省略号 ---
+    "⋯": "\\cdots", "⋮": "\\vdots", "⋱": "\\ddots",
+    # --- 撇号(导数) ---
+    "′": "^\\prime", "″": "^{\\prime\\prime}",
+    # --- 其他常用 ---
+    "ℝ": "\\mathbb{R}", "ℕ": "\\mathbb{N}", "ℤ": "\\mathbb{Z}",
+    "ℚ": "\\mathbb{Q}", "ℂ": "\\mathbb{C}",
+}
+
+# === Unicode 分数( vulgar fraction )===
+# 这些字符本身就是"分子/分母"的形式,直接转成 \frac
+FRACTIONS = {
+    "½": "\\frac{1}{2}", "⅓": "\\frac{1}{3}", "⅔": "\\frac{2}{3}",
+    "¼": "\\frac{1}{4}", "¾": "\\frac{3}{4}",
+    "⅕": "\\frac{1}{5}", "⅖": "\\frac{2}{5}", "⅗": "\\frac{3}{5}",
+    "⅘": "\\frac{4}{5}", "⅙": "\\frac{1}{6}", "⅚": "\\frac{5}{6}",
+    "⅐": "\\frac{1}{7}", "⅛": "\\frac{1}{8}", "⅜": "\\frac{3}{8}",
+    "⅝": "\\frac{5}{8}", "⅞": "\\frac{7}{8}",
 }
 
 # 希腊字母也要能被识别为"数学字符"
@@ -86,9 +131,45 @@ MATH_CHARS = (
     " "  # 空格(公式内部)
     + "".join(SUPERSCRIPTS.keys())
     + "".join(SUBSCRIPTS.keys())
+    + "".join(FRACTIONS.keys())
     + GREEK_CHARS
     + "".join(OPERATORS.keys())
 )
+
+
+# === 组合上下标序列的正则 ===
+# Unicode 的组合上下标(如 ∑ 的下限 "ᵢ₌₁") 是一整组字符,
+# 逐字符转换会得到 "_{i}_{=}_{1}" → LaTeX 报 "Double subscript"。
+# 所以要先识别连续序列, 整体包成一个 _{...} / ^{...}。
+_SUPERSCRIPT_SEQ_RE = re.compile(f"[{re.escape(''.join(SUPERSCRIPTS.keys()))}]+")
+_SUBSCRIPT_SEQ_RE = re.compile(f"[{re.escape(''.join(SUBSCRIPTS.keys()))}]+")
+
+
+def _merge_script_sequences(text: str) -> str:
+    """把连续的上下标字符合并成一个组
+
+    "ᵢ₌₁" → "_{i=1}"
+    "ⁿ"   → "^{n}"
+    "xₖ₊₁" → "x_{k+1}"
+    """
+
+    def sup_repl(m: re.Match) -> str:
+        content = "".join(
+            SUPERSCRIPTS[c][2:-1] if c in SUPERSCRIPTS else c  # 去掉 ^{ } 包装
+            for c in m.group(0)
+        )
+        return "^{" + content + "}"
+
+    def sub_repl(m: re.Match) -> str:
+        content = "".join(
+            SUBSCRIPTS[c][2:-1] if c in SUBSCRIPTS else c  # 去掉 _{ } 包装
+            for c in m.group(0)
+        )
+        return "_{" + content + "}"
+
+    text = _SUPERSCRIPT_SEQ_RE.sub(sup_repl, text)
+    text = _SUBSCRIPT_SEQ_RE.sub(sub_repl, text)
+    return text
 
 
 def unicode_to_latex(text: str) -> str:
@@ -103,6 +184,9 @@ def unicode_to_latex(text: str) -> str:
         return text
 
     result = text
+    # ⚠️ 第一步:先合并组合上下标序列
+    # "ᵢ₌₁" 这种连续上下标必须整体转, 逐字符转会产生 "_{i}_{=}_{1}" → Double subscript 错误
+    result = _merge_script_sequences(result)
     # 顺序有讲究:先替换组合符号(√ ∑ 等),再替换希腊字母,最后上下标
     #
     # ⚠️ 关键:命令类替换必须带尾随空格
@@ -110,6 +194,10 @@ def unicode_to_latex(text: str) -> str:
     # LaTeX 里 \timesb 会被当成"名为 timesb 的未知命令"→ 渲染报错。
     # 所以 \times 后面要跟空格:a\times b。
     # 上下标标记 ^{} _{} 自带花括号,后面直接跟字母是合法的,不用加空格。
+    # 分数:½ → \frac{1}{2}(先处理,含花括号,后面跟字符不会歧义)
+    for ch, latex in FRACTIONS.items():
+        result = result.replace(ch, latex)
+
     # 根号要特殊处理:\sqrt{x} 而不是 \sqrt x
     # (\sqrt 2 在 LaTeX 里能渲染,但 \sqrt 2x 的根号范围会歧义 —— 是 √2x 还是 √(2x)?)
     result = re.sub(r"√\s*([^\s,.;:!?()\[\]{}+*=<>-])", r"\\sqrt{\1}", result)
@@ -151,6 +239,8 @@ def _looks_like_formula(chunk: str) -> bool:
 
     # 规则 1:明确数学符号
     if any(c in chunk for c in SUPERSCRIPTS) or any(c in chunk for c in SUBSCRIPTS):
+        return True
+    if any(c in chunk for c in FRACTIONS):
         return True
     if any(c in chunk for c in GREEK):
         return True
