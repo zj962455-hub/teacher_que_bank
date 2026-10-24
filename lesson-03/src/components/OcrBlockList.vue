@@ -161,19 +161,30 @@ const renderedContent = computed(() => {
   border-color: rgba(24, 160, 88, 0.3);
 }
 
+/*
+ * 块布局：type 标签 · 内容 · 置信度 同一行
+ * ------------------------------------------
+ * ⚠️ 之前 .ocr-block-content.is-formula 用了 display:block，
+ *    公式独占一行 → 后面的置信度被挤到下一行，出现"孤零零的 86%"。
+ *    改成 flex 布局后三者同行，公式用 flex:1 占满剩余空间并居中。
+ */
+.ocr-block {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* 渲染内容容器 */
 .ocr-block-content {
   font-size: 13px;
-  margin-left: 6px;
-  display: inline-block;
-  vertical-align: middle;
+  min-width: 0;   /* 允许 flex 子项收缩,长内容不会撑破容器 */
 }
 
-/* 公式块：独占一行居中 */
+/* 公式块：占据剩余空间并居中 */
 .ocr-block-content.is-formula {
-  display: block;
-  margin: 6px 0;
+  flex: 1;
   text-align: center;
+  padding: 4px 0;
 }
 
 /* KaTeX 输出的字体在 macOS 上要显式指定，否则会掉回默认字体 */
