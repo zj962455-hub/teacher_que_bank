@@ -22,12 +22,22 @@ from sqlmodel import Session, create_engine
 load_dotenv()
 
 # === 数据库地址 ===
-# 本地开发:postgres://rrobot@localhost:5432/teacher_question_bank
-# 部署时(lesson-10)改成带密码的完整 URL
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg://rrobot@localhost:5432/teacher_question_bank",
-)
+# ⚠️ 必填，不给默认值
+# ---------------------------------
+# 之前这里写死了 fallback（本地开发的 rrobot@localhost），
+# 结果生产环境如果 EnvironmentFile 没生效，就会静默连到错误的库，
+# 报错还很难查（"Ident authentication failed for user rrobot"）。
+#
+# 现在：拿不到就立刻报错，让问题在启动时暴露。
+#   - 本地开发：lesson-02/.env 里配 DATABASE_URL
+#   - 生产：systemd 的 EnvironmentFile=/etc/teacherbank/app.env
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL 未配置！\n"
+        "  本地开发：检查 lesson-02/.env\n"
+        "  生产环境：检查 systemd 的 EnvironmentFile=/etc/teacherbank/app.env"
+    )
 
 # === 引擎 ===
 # echo=True 会打印所有 SQL(调试用),生产要关

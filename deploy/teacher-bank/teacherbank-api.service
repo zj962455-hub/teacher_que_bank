@@ -1,0 +1,59 @@
+# 题库后端 systemd unit · teacher-question-bank
+# 装到: /etc/systemd/system/teacherbank-api.service
+#
+# 跟 PaddleOCR 那套保持一致的部署风格:
+#   独立系统用户 → /opt 放代码 → /etc 放配置 → /var/log 放日志
+
+[Unit]
+Description=Teacher Question Bank API (FastAPI + SQLModel)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=teacherbank
+Group=teacherbank
+WorkingDirectory=/opt/teacher-bank/app
+
+# 配置(含 DATABASE_URL / PADDLEOCR_API_KEY)
+EnvironmentFile=/etc/teacherbank/app.env
+
+# ⚠️ --workers 1:内存只有 3.5GB,而且 Playwright 渲染 PDF 很吃内存
+#   多 worker 会各自拉一份 Chromium → OOM
+#   要并发就在前面加 nginx + gunicorn(但那样 Playwright 也要改)
+ExecStart=/opt/teacher-bank/.venv/bin/uvicorn app.main:app \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --workers 1 \
+  --log-level info \
+  --no-access-log
+
+Restart=on-failure
+RestartSec=5
+
+# 慢启动:Playwright 首次加载要时间
+TimeoutStartSec=60
+# PDF 导出可能要 30 秒+,给够
+TimeoutStopSec=30
+
+StandardOutput=append:/var/log/teacherbank/stdout.log
+StandardError=append:/var/log/teacherbank/stderr.log
+
+# === 安全加固 ===
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/log/teacherbank /opt/teacher-bank/app/uploads
+
+# === 资源限制 ===
+# 防止 PDF 渲染把整机拖死(Chromium 峰值 300-500MB)
+MemoryMax=700M
+MemoryHigh=600M
+
+# Chromium 需要 /tmp(PrivateTmp=true 会给独立 tmpfs)
+Environment=HOME=/home/teacherbank
+Environment=PLAYWRIGHT_BROWSERS_PATH=/home/teacherbank/.cache/ms-playwright
+
+[Install]
+WantedBy=multi-user.target

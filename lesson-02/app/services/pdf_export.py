@@ -108,10 +108,21 @@ def _render_pdf(html_path: Path) -> bytes:
 
     try:
         with sync_playwright() as p:
+            # ⚠️ channel="chromium" 必须写
+            # ----------------------------------------------
+            # Playwright 1.49+ 的 launch() 在 headless 模式下默认用
+            # **chromium_headless_shell**（精简版，~90MB）。
+            # 我们只装了完整版 chromium（~400MB），不写这个参数会报
+            # "Please run playwright install" —— 明明装过了。
+            #
+            # 而且 PDF 打印需要完整版的功能（headless_shell 不支持部分 API），
+            # 所以指定 channel 是正解，不是绕过。
             browser = p.chromium.launch(
+                channel="chromium",
                 args=[
                     # 容器/Docker 里常见问题：沙箱需要禁用
                     "--no-sandbox",
+                    # 省 /dev/shm（小内存机器必加，ECS 上 /dev/shm 默认只有 64MB）
                     "--disable-dev-shm-usage",
                 ],
             )

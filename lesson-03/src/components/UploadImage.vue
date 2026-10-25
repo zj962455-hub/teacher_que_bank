@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
+import { API_BASE, API } from '../api/config'
 
 // === 状态 ===
 const fileList = ref([])              // 用户选的 File 数组
@@ -88,7 +89,7 @@ async function upload() {
       const formData = new FormData()
       formData.append('file', f)
       return axios.post(
-        'http://localhost:8000/api/upload/',
+        `${API}/upload/`,
         formData,
         {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -113,7 +114,7 @@ async function upload() {
 async function loadHistory() {
   loadingHistory.value = true
   try {
-    const res = await axios.get('http://localhost:8000/api/upload/list')
+    const res = await axios.get(`${API}/upload/list`)
     historyList.value = res.data
   } catch (e) {
     error.value = `加载历史失败: ${e.message}`
@@ -199,7 +200,7 @@ function reset() {
     <div v-if="uploadedList.length > 0" class="uploaded">
       <h4>✅ 已上传 {{ uploadedList.length }} 张:</h4>
         <div v-for="(u, i) in uploadedList" :key="i" class="uploaded-item">
-          <img :src="`http://localhost:8000${u.url}`" :alt="`已上传 ${i+1}`" />
+          <img :src="`${API_BASE}${u.url}`" :alt="`已上传 ${i+1}`" />
           <p class="url">URL: <code>{{ u.url }}</code></p>
         </div>
     </div>
@@ -218,7 +219,7 @@ function reset() {
     </div>
     <div v-else class="history-grid">
       <div v-for="h in historyList" :key="h.filename" class="history-item">
-        <img :src="`http://localhost:8000${h.url}`" :alt="h.filename" />
+        <img :src="`${API_BASE}${h.url}`" :alt="h.filename" />
         <p class="history-filename">{{ h.filename }}</p>
       </div>
     </div>

@@ -3,8 +3,7 @@
  */
 
 import axios from 'axios'
-
-const API = 'http://localhost:8000/api'
+import { API } from './config'
 
 const http = axios.create({
   baseURL: API,

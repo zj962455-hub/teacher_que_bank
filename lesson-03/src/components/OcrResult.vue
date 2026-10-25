@@ -11,7 +11,7 @@ import { message } from '../composables/discreteApi'   // ← 任务 5A:全局 t
 import { stripMathMarkers } from '../utils/mathRenderer'   // ← 任务 3:更新 plain 字段
 import { createQuestionFromOcr } from '../api/questions'   // ← lesson-08:一键入库
 
-const API = 'http://localhost:8000'
+import { API_BASE, API } from '../api/config'
 
 // === Props:由 UploadImage 上传成功后回传 ===
 const props = defineProps({
@@ -141,7 +141,7 @@ async function startOcr() {
 function startPolling() {
   pollTimer = setInterval(async () => {
     try {
-      const res = await axios.get(`http://localhost:8000/api/ocr/status/${taskId.value}`)
+      const res = await axios.get(`${API}/ocr/status/${taskId.value}`)
       const data = res.data
       
       if (data.status === 'completed') {

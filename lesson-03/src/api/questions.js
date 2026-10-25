@@ -11,8 +11,7 @@
  */
 
 import axios from 'axios'
-
-const API = 'http://localhost:8000/api'
+import { API } from './config'
 
 /** 创建 axios 实例（统一 baseURL + 超时） */
 const http = axios.create({

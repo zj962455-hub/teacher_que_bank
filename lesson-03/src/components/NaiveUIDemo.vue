@@ -183,7 +183,7 @@ function viewRow(row)  { message.info(`查看题目 #${row.id}: ${row.title}`) }
 function deleteRow(row) { mockQuestions.value = mockQuestions.value.filter(q => q.id !== row.id); message.success(`已删除 #${row.id}`) }
 
 // === 上传(走 lesson-05 后端) ===
-const uploadUrl = 'http://localhost:8000/api/upload/'
+const uploadUrl = `${API}/upload/`
 </script>
 
 <template>

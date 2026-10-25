@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
+import { API } from '../api/config'
 
 // === 响应式数据 ===
 const lessons = ref([])              // 初始空数组,从 API 加载
@@ -47,7 +48,7 @@ async function loadCourses() {
   loading.value = true
   error.value = null
   try {
-    const res = await axios.get('http://localhost:8000/api/courses/', {
+    const res = await axios.get(`${API}/courses/`, {
   timeout: 3000,  // 3 秒超时
 })
     lessons.value = res.data
@@ -66,7 +67,7 @@ async function openCourseDetail(courseId) {
   modalError.value = null
   modalLoading.value = true
   try {
-    const res = await axios.get(`http://localhost:8000/api/courses/${courseId}`, { timeout: 3000 })
+    const res = await axios.get(`${API}/courses/${courseId}`, { timeout: 3000 })
     selectedCourse.value = res.data
   } catch (e) {
     if (e.response?.status === 404) {
