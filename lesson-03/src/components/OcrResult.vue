@@ -9,6 +9,7 @@ import OcrBlockList from './OcrBlockList.vue'   // ← 新增:抽出的 block �
 import QuestionEditor from './QuestionEditor.vue'   // ← 任务 5:题目编辑器
 import { message } from '../composables/discreteApi'   // ← 任务 5A:全局 toast
 import { stripMathMarkers } from '../utils/mathRenderer'   // ← 任务 3:更新 plain 字段
+import { createQuestionFromOcr } from '../api/questions'   // ← lesson-08:一键入库
 
 const API = 'http://localhost:8000'
 
@@ -30,6 +31,7 @@ const imgSize = ref({ w: 0, h: 0 })  // 原图真实像素尺寸(naturalWidth/He
 const history = ref([])         // 历史 OCR 记录
 const historyOptions = ref([])  // 下拉选项
 const showEditor = ref(false)    // 任务 5:编辑器默认折叠
+const saving = ref(false)         // lesson-08:入库中
 
 // === 计算属性 ===
 const allBlocks = computed(() => result.value?.blocks ?? [])
@@ -106,7 +108,7 @@ async function selectHistory(tid) {
 }
 
 // 切历史要同步换图 → 需要通知父组件
-const emit = defineEmits(['update:imageUrl'])
+const emit = defineEmits(['update:imageUrl', 'question-saved'])
 
 onMounted(() => {
   loadHistory()
@@ -222,6 +224,25 @@ const buildPlainText = computed(() => {
     .join('\n')
 })
 
+// === lesson-08:一键入库 ===
+// 后端自己从 ocr_store 读 blocks + 跑分类器,前端只传 task_id
+async function saveToBank() {
+  if (!taskId.value) {
+    message.error('还没有识别结果')
+    return
+  }
+  saving.value = true
+  try {
+    const res = await createQuestionFromOcr(taskId.value)
+    message.success(`已入库（第 ${res.data.question.id} 题）`)
+    emit('question-saved')
+  } catch (e) {
+    message.error(`入库失败：${e.response?.data?.detail || e.message}`)
+  } finally {
+    saving.value = false
+  }
+}
+
 // === 一键复制(任务 5A:改用 toast 替掉 alert) ===
 // alert() 会阻塞页面、样式无法控制、macOS 上像系统弹窗很突兀
 // toast 从顶部滑入、自动消失、不打断操作
@@ -269,6 +290,15 @@ async function copyPlainText() {
         </NSpace>
         <NButton v-if="status === 'completed'" size="small" @click="showEditor = !showEditor">
           {{ showEditor ? '📝 收起编辑器' : '📝 转题目编辑器' }}
+        </NButton>
+        <NButton
+          v-if="status === 'completed'"
+          size="small"
+          type="primary"
+          :loading="saving"
+          @click="saveToBank"
+        >
+          💾 存入题库
         </NButton>
       </NSpace>
 

@@ -40,3 +40,6 @@ dist/
 
 # 本地软链(不跟踪)
 teacher_question_bank
+
+# 数据库备份(本地文件,不入 git)
+backups/
