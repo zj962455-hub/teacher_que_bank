@@ -22,7 +22,7 @@
  * 这样 tab 切换时 hover 不会因为下标含义不同而错乱，父组件永远是唯一真相源。
  */
 import { ref, computed } from 'vue'
-import { NTag, NText } from 'naive-ui'
+import { NTag, NText, NInput, NButton, NSpace } from 'naive-ui'
 import { renderLatex, renderMathText } from '../utils/mathRenderer'
 
 // === Props ===
@@ -44,8 +44,12 @@ const props = defineProps({
   maxHeight: { type: Number, default: 360 },
 })
 
+// === 任务 3：公式编辑态 ===
+const editingIndex = ref(-1)    // 正在编辑的 block 下标，-1 = 没在编辑
+const editingLatex = ref('')    // 编辑框里的 LaTeX 源码
+
 // === Emits：把 hover 事件抛给父组件 ===
-const emit = defineEmits(['hover'])
+const emit = defineEmits(['hover', 'update-formula'])
 
 /**
  * 找到 block 在 blocks 数组里的**全局下标**
@@ -66,6 +70,35 @@ function onEnter(block) {
 function onLeave() {
   emit('hover', -1)
 }
+
+// === 任务 3：公式编辑 ===
+
+/** 点击公式 → 进入编辑态 */
+function startEdit(index, block) {
+  if (block.type !== 'formula') return
+  editingIndex.value = index
+  editingLatex.value = block.latex || ''
+}
+
+/** 取消编辑（不改数据） */
+function cancelEdit() {
+  editingIndex.value = -1
+  editingLatex.value = ''
+}
+
+/** 保存编辑 → 通知父组件更新 */
+function saveEdit() {
+  if (editingIndex.value < 0) return
+  emit('update-formula', {
+    index: editingIndex.value,
+    latex: editingLatex.value,
+  })
+  editingIndex.value = -1
+  editingLatex.value = ''
+}
+
+/** 编辑框里的实时预览 */
+const editPreviewHtml = computed(() => renderLatex(editingLatex.value, true))
 
 /**
  * 渲染每个 block 的内容（lesson-07 KaTeX）
@@ -109,8 +142,26 @@ const renderedContent = computed(() => {
       @mouseenter="onEnter(b)"
       @mouseleave="onLeave"
     >
+      <!-- ===== 编辑态：LaTeX 源码输入 + 实时预览 ===== -->
+      <div v-if="editingIndex === blockIndex" class="ocr-formula-editor">
+        <NInput
+          v-model:value="editingLatex"
+          type="textarea"
+          :rows="2"
+          placeholder="LaTeX 源码，例如 x^{2} + 2x + 1"
+          @keydown.meta.enter="saveEdit"
+          @keydown.ctrl.enter="saveEdit"
+        />
+        <div class="ocr-formula-preview" v-html="editPreviewHtml" />
+        <NSpace size="small">
+          <NButton size="tiny" type="primary" @click="saveEdit">保存</NButton>
+          <NButton size="tiny" quaternary @click="cancelEdit">取消</NButton>
+          <NText depth="3" style="font-size: 11px;">⌘/Ctrl + Enter 保存</NText>
+        </NSpace>
+      </div>
+
       <!-- ===== simple 模式：type 标签 + 渲染内容 + 置信度 ===== -->
-      <template v-if="renderMode === 'simple'">
+      <template v-else-if="renderMode === 'simple'">
         <NTag
           size="small"
           :bordered="false"
@@ -118,11 +169,12 @@ const renderedContent = computed(() => {
         >
           {{ b.type }}
         </NTag>
-        <!-- KaTeX 渲染输出（v-html） -->
+        <!-- KaTeX 渲染输出（v-html）；公式可点击进入编辑 -->
         <span
           class="ocr-block-content"
-          :class="{ 'is-formula': b.type === 'formula' }"
+          :class="{ 'is-formula': b.type === 'formula', 'is-editable': b.type === 'formula' }"
           v-html="renderedContent[blockIndex]?.html"
+          @click="startEdit(blockIndex, b)"
         />
         <NText depth="3" style="font-size: 11px; margin-left: 6px;">
           {{ Math.round(b.confidence * 100) }}%
@@ -133,8 +185,9 @@ const renderedContent = computed(() => {
       <template v-else>
         <div
           class="ocr-block-content"
-          :class="{ 'is-formula': b.type === 'formula' }"
+          :class="{ 'is-formula': b.type === 'formula', 'is-editable': b.type === 'formula' }"
           v-html="renderedContent[blockIndex]?.html"
+          @click="startEdit(blockIndex, b)"
         />
       </template>
     </div>
@@ -190,5 +243,33 @@ const renderedContent = computed(() => {
 /* KaTeX 输出的字体在 macOS 上要显式指定，否则会掉回默认字体 */
 .ocr-block-content :deep(.katex) {
   font-size: 1.05em;
+}
+
+/* 公式可点击提示 */
+.ocr-block-content.is-editable {
+  cursor: pointer;
+  border-bottom: 1px dashed rgba(24, 160, 88, 0.5);
+  padding-bottom: 1px;
+}
+.ocr-block-content.is-editable:hover {
+  background: rgba(24, 160, 88, 0.06);
+}
+
+/* 公式编辑面板 */
+.ocr-formula-editor {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0;
+}
+
+.ocr-formula-preview {
+  border: 1px dashed #d9d9d9;
+  border-radius: 4px;
+  padding: 6px 10px;
+  min-height: 32px;
+  background: #fafafa;
+  text-align: center;
 }
 </style>

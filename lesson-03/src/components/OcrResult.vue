@@ -8,6 +8,7 @@ import {
 import OcrBlockList from './OcrBlockList.vue'   // ← 新增:抽出的 block 列表
 import QuestionEditor from './QuestionEditor.vue'   // ← 任务 5:题目编辑器
 import { message } from '../composables/discreteApi'   // ← 任务 5A:全局 toast
+import { stripMathMarkers } from '../utils/mathRenderer'   // ← 任务 3:更新 plain 字段
 
 const API = 'http://localhost:8000'
 
@@ -182,6 +183,45 @@ const withFormulas = computed(() =>
     .join('\n') ?? ''
 )
 
+// === 任务 3:公式编辑 → 更新 result 里的 latex ===
+// 为什么必须往父组件的 result 写？
+// -----------------------------------------
+// result 是父组件持有的。子组件改了不改父组件，父组件下次重渲染就还原了。
+// 而且「复制 JSON」用的也是父组件的 result —— 不同步的话复制出来的还是旧公式。
+function onFormulaUpdate({ index, latex }) {
+  const block = result.value?.blocks?.[index]
+  if (!block) return
+
+  block.latex = latex
+  // 同步更新 plain（后端加的字段），否则复制纯文本还是旧内容
+  block.plain = stripMathMarkers(latex)
+
+  message.success('公式已更新')
+}
+
+// === 任务 2:拼「带公式排版的纯文本」 ===
+// ------------------------------------------------------------------
+// withFormulas 是 Markdown 版(带 $...$ 和 ^{2}),老师复制到 Word 里不合适。
+// plainText 是后端拼 text block 的,**不含公式**(公式被拆成独立 block 了)。
+// 所以要自己遍历 blocks:公式用 plain 字段(后端算好的 LaTeX→Unicode),
+// 文字用 text。
+//
+// 公式的 plain 字段来自后端 math_parser.latex_to_plain();
+// 历史记录(旧数据没这字段)降级用 latex,后端已补上补算逻辑。
+const buildPlainText = computed(() => {
+  const blocks = result.value?.blocks ?? []
+  if (!blocks.length) return plainText.value
+
+  return blocks
+    .map(b => {
+      if (b.type === 'formula') return b.plain ?? b.latex ?? ''
+      if (b.type === 'table') return b.html ?? ''
+      return b.text ?? ''
+    })
+    .filter(Boolean)
+    .join('\n')
+})
+
 // === 一键复制(任务 5A:改用 toast 替掉 alert) ===
 // alert() 会阻塞页面、样式无法控制、macOS 上像系统弹窗很突兀
 // toast 从顶部滑入、自动消失、不打断操作
@@ -196,6 +236,11 @@ async function copyText(text, label) {
 
 async function copyMarkdown() {
   await copyText(withFormulas.value, ' Markdown')
+}
+
+// 复制纯文本（公式用 Unicode: x² 而不是 x^{2}）
+async function copyPlainText() {
+  await copyText(buildPlainText.value, '纯文本')
 }
 </script>
 
@@ -267,10 +312,16 @@ async function copyMarkdown() {
                 render-mode="simple"
                 :hover-index="hoverIndex"
                 @hover="hoverIndex = $event"
+                @update-formula="onFormulaUpdate"
               />
-              <NText depth="3" style="font-size: 12px">
-                共 {{ allBlocks.length }} 个块 · {{ result?.stats?.elapsed_ms }}ms · {{ result?.stats?.model }}
-              </NText>
+              <NSpace align="center" justify="space-between" style="margin-top: 6px;">
+                <NText depth="3" style="font-size: 12px">
+                  共 {{ allBlocks.length }} 个块 · {{ result?.stats?.elapsed_ms }}ms · {{ result?.stats?.model }}
+                </NText>
+                <NButton size="small" type="primary" @click="copyPlainText">
+                  📋 复制纯文本
+                </NButton>
+              </NSpace>
             </NTabPane>
             <NTabPane name="formula" tab="② 带公式(Markdown)">
               <pre style="white-space: pre-wrap; font-family: monospace">{{ withFormulas }}</pre>
@@ -287,6 +338,7 @@ async function copyMarkdown() {
                 render-mode="rich"
                 :hover-index="hoverIndex"
                 @hover="hoverIndex = $event"
+                @update-formula="onFormulaUpdate"
               />
             </NTabPane>
           </NTabs>

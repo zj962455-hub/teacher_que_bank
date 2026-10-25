@@ -108,6 +108,35 @@ function resetMeta() {
 // 现在统一走 KaTeX，公式才是它该有的样子。
 const previewHtml = computed(() => renderMathText(content.value))
 
+// === 任务 2:拼「带公式排版的纯文本」 ===
+// ------------------------------------------------------------------
+// 为什么不能直接用 props.plainText？
+//   plainText 是后端把 text block 的 text 拼起来的，**不含公式信息**
+//   （因为公式被拆成了独立的 formula block）。
+//
+// 老师复制到 Word 里时想要的是：
+//   已知f(x) = x² + 2x + 1
+//   求f(2) 的值
+// 也就是公式用 Unicode 符号（x²），不是 LaTeX（x^{2}），也不是丢掉。
+//
+// 公式的 plain 字段是后端算好的（latex_to_plain 的结果）。
+const buildPlainText = computed(() => {
+  const blocks = props.blocks || []
+  if (!blocks.length) return props.plainText || ''
+
+  return blocks
+    .map(b => {
+      if (b.type === 'formula') {
+        // 后端已算好 plain；历史记录（没有 plain 字段）降级用 latex
+        return b.plain ?? b.latex ?? ''
+      }
+      if (b.type === 'table') return b.html ?? ''
+      return b.text ?? ''
+    })
+    .filter(Boolean)
+    .join('\n')
+})
+
 // === 复制功能（任务 5A）===
 async function copyText(text, label) {
   try {
@@ -120,7 +149,8 @@ async function copyText(text, label) {
 }
 
 function copyPlain() {
-  copyText(props.plainText || content.value, '纯文本')
+  // 优先用带公式排版的版本（任务 2）
+  copyText(buildPlainText.value || content.value, '纯文本')
 }
 
 function copyFormula() {
@@ -133,7 +163,10 @@ function copyJson() {
     type: meta.value.type,
     grade: meta.value.grade,
     difficulty: meta.value.difficulty,
-    content: content.value,
+    // content 用纯文本版（公式是 x² 不是 x^{2}）—— 老师拿去直接用
+    content: buildPlainText.value || content.value,
+    // Markdown 版单独放一个字段,需要 LaTeX 语法的下游（比如导 PDF）时用
+    contentMarkdown: props.withFormulas || content.value,
     original: {
       plain: props.plainText,
       withFormulas: props.withFormulas,

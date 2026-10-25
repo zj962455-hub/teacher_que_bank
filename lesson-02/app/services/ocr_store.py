@@ -22,10 +22,38 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.services.math_parser import latex_to_plain
+
 # === 存储根目录 ===
 # Path(__file__) = lesson-02/app/services/ocr_store.py
 # parents[2] = lesson-02/  → 拼 uploads/ocr/
 OCR_STORE_DIR = Path(__file__).resolve().parents[2] / "uploads" / "ocr"
+
+
+def _backfill_plain(record: dict) -> None:
+    """给缺失 plain 字段的历史记录补算
+
+    背景
+    ----
+    plain 字段是 lesson-07 任务 2 加的(LaTeX -> Unicode 纯文本),
+    是在 OCR 当场算好存进 JSON 的。
+    **在 plain 字段上线之前保存的历史记录没有这个字段**。
+
+    不补算的话,前端 buildPlainText 会 fallback 到 latex,
+    老师复制出来就是 "x^{2}" 而不是 "x²"。
+
+    幂等:有值就跳过。
+    """
+    # ⚠️ blocks 在 record["result"]["blocks"],不是 record["blocks"]
+    #    （record 是整个任务记录,result 才是 OCR 原始返回）
+    for block in record.get("result", {}).get("blocks", []):
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") != "formula":
+            continue
+        if not block.get("plain"):
+            latex = block.get("latex", "")
+            block["plain"] = latex_to_plain(latex) if latex else ""
 
 
 # === 启动时把已完成的记录读回内存 ===
@@ -46,6 +74,7 @@ def _load_all() -> dict[str, dict]:
         task_id = data.get("task_id")
         # 只要 completed,processing/failed 重启后已经没有意义了
         if task_id and data.get("status") == "completed":
+            _backfill_plain(data)
             loaded[task_id] = data
 
     return loaded

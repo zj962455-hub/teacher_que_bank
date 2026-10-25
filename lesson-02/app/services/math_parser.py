@@ -215,6 +215,198 @@ def unicode_to_latex(text: str) -> str:
 
     return result
 
+# === LaTeX → 纯文本 的反向映射表 ===
+# 直接从上面正向表反转生成,不用手写第二份
+# 正向表的值带尾随空格(为了 LaTeX 命令安全),这里要 strip 掉
+LATEX_TO_UNICODE: dict[str, str] = {}
+for _ch, _latex in OPERATORS.items():
+    LATEX_TO_UNICODE.setdefault(_latex.strip(), _ch)
+for _ch, _latex in GREEK.items():
+    LATEX_TO_UNICODE.setdefault(_latex.strip(), _ch)
+
+# 上下标反向表: '^{2}' → '²'  去掉 ^{ } 包装后是 '2'
+SUPERSCRIPT_REVERSE: dict[str, str] = {
+    v[2:-1]: k for k, v in SUPERSCRIPTS.items() if v.startswith("^{") and v.endswith("}")
+}
+SUBSCRIPT_REVERSE: dict[str, str] = {
+    v[2:-1]: k for k, v in SUBSCRIPTS.items() if v.startswith("_{") and v.endswith("}")
+}
+
+# 黑板粗体: \mathbb{R} → R
+BLACKBOARD_RE = re.compile(r"\\mathbb\{([A-Z])\}")
+
+# 分数: \frac{分子}{分母}(参数可嵌套)
+FRAC_RE = re.compile(r"\\frac\s*\{")
+# 根号: \sqrt[n]{x} 或 \sqrt{x}
+SQRT_RE = re.compile(r"\\sqrt")
+
+
+def _extract_brace_arg(text: str, start: int) -> tuple[str, int]:
+    """从 text[start] 处的 '{' 提取花括号内容(支持嵌套)
+
+    返回 (内容, 结束位置索引)
+    """
+    if start >= len(text) or text[start] != "{":
+        return "", start
+
+    depth = 0
+    i = start
+    while i < len(text):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1:i], i + 1
+        i += 1
+
+    # 没闭合 → 返回到结尾
+    return text[start + 1:], len(text)
+
+
+def _latex_frac_to_plain(text: str) -> str:
+    """\frac{分子}{分母} → 分子/分母
+
+    关键:分数必须保留 '/',否则 "1/2" 变成 "12",语义完全变了。
+    嵌套分数也要处理:\frac{\frac{1}{2}}{3} → 1/2/3
+    """
+    while True:
+        m = FRAC_RE.search(text)
+        if not m:
+            break
+
+        num, pos = _extract_brace_arg(text, m.end() - 1)
+
+        # 跳过空白找分母
+        while pos < len(text) and text[pos] == " ":
+            pos += 1
+        if pos < len(text) and text[pos] == "{":
+            den, pos = _extract_brace_arg(text, pos)
+        else:
+            den = ""
+
+        text = text[:m.start()] + f"{num}/{den}" + text[pos:]
+
+    return text
+
+
+def _latex_sqrt_to_plain(text: str) -> str:
+    r"""\sqrt{x} → √x ;\sqrt[n]{x} → (n)√(x)"""
+    result = ""
+    i = 0
+
+    while i < len(text):
+        if text.startswith("\\sqrt", i):
+            j = i + 5
+            while j < len(text) and text[j] == " ":
+                j += 1
+
+            # 可选的 [n](n 次根)
+            root_index = ""
+            if j < len(text) and text[j] == "[":
+                k = text.find("]", j)
+                if k != -1:
+                    root_index = text[j + 1:k]
+                    j = k + 1
+                    while j < len(text) and text[j] == " ":
+                        j += 1
+
+            if j < len(text) and text[j] == "{":
+                arg, j = _extract_brace_arg(text, j)
+            else:
+                arg = ""
+
+            if root_index:
+                result += f"({root_index})√({arg})"
+            else:
+                result += f"√{arg}"
+            i = j
+        else:
+            result += text[i]
+            i += 1
+
+    return result
+
+
+def _latex_scripts_to_plain(text: str) -> str:
+    """^{2} → ² ;_{1} → ₁
+
+    组合下标(_{i=1})Unicode 没有对应字符 → 保留 _{i=1} 原样。
+    """
+    def sup_repl(m: re.Match) -> str:
+        content = m.group(1)
+        if all(ch in SUPERSCRIPT_REVERSE for ch in content):
+            return "".join(SUPERSCRIPT_REVERSE[ch] for ch in content)
+        return m.group(0)  # 无法完整转换 → 保留原样
+
+    def sub_repl(m: re.Match) -> str:
+        content = m.group(1)
+        if all(ch in SUBSCRIPT_REVERSE for ch in content):
+            return "".join(SUBSCRIPT_REVERSE[ch] for ch in content)
+        return m.group(0)
+
+    text = re.sub(r"\^\{([^{}]*)\}", sup_repl, text)
+    text = re.sub(r"_\{([^{}]*)\}", sub_repl, text)
+    return text
+
+
+def latex_to_plain(latex: str) -> str:
+    r"""把 LaTeX 转成普通文本(给复制到 Word / 微信用)
+
+    老师复制到 Word 里时,^{} 花括号和反斜杠命令都是噪音,
+    要的是「看起来像公式」但纯文本的写法。
+
+    ⚠️ 核心原则:转换必须保持数学语义
+    ------------------------------------
+    之前用「暴力剥花括号」的实现:
+        \frac{1}{2} → "12"   ← 老师会看成"十二",完全错了
+        a\times b   → "ab"   ← 乘号丢了
+        x\leq y     → "xy"   ← 不等号丢了
+    所以运算符必须映射成对应的 Unicode 符号,不能直接删。
+
+    >>> latex_to_platex("x^{2}")
+    'x²'
+    >>> latex_to_plain("x^{2}")
+    'x²'
+    >>> latex_to_plain("\\frac{1}{2}")
+    '1/2'
+    >>> latex_to_plain("a\\times b")
+    'a×b'
+    """
+    if not latex:
+        return latex
+
+    result = latex
+
+    # 顺序有讲究:
+    # 1. 黑板粗体(带花括号,先处理掉免得被后面的花括号清理误伤)
+    result = BLACKBOARD_RE.sub(r"\1", result)
+
+    # 2. 分数(内部含花括号,必须先处理)
+    result = _latex_frac_to_plain(result)
+
+    # 3. 根号(带花括号)
+    result = _latex_sqrt_to_plain(result)
+
+    # 4. 上下标(带花括号)
+    result = _latex_scripts_to_plain(result)
+
+    # 5. 剩余命令 → Unicode 符号(\times → ×, \pi → π)
+    # ⚠️ 用正则而不是 replace:正向表的值带尾随空格(为 LaTeX 命令安全),
+    #    直接 replace 会留下多余空格("a\times b" → "a× b")。
+    #    \s* 把命令后面的空白一起吃掉。
+    for latex_cmd, unicode_ch in LATEX_TO_UNICODE.items():
+        result = re.sub(re.escape(latex_cmd) + r"\s*", unicode_ch, result)
+
+    # 6. 清理残留
+    result = result.replace("\\ ", " ")     # LaTeX 的强制空格命令
+    result = result.replace("\\!", "")        # 负间距命令
+    result = result.replace("\\,", " ")        # 细空格命令
+    result = result.replace("{", "").replace("}", "")
+    result = re.sub(r"\\[a-zA-Z]+", "", result)   # 剩下的未知命令直接去掉
+    result = result.replace("\\", "")               # 孤立的反斜杠
+
+    return result
 
 def _is_math_char(ch: str) -> bool:
     """判断字符是否属于数学片段"""
@@ -355,6 +547,7 @@ def split_text_block_into_blocks(block: dict[str, Any]) -> list[dict[str, Any]]:
             out.append({
                 "type": "formula",
                 "latex": unicode_to_latex(seg.strip()),
+                "plain": latex_to_plain(unicode_to_latex(seg.strip())),
                 "bbox": block.get("bbox"),
                 "confidence": block.get("confidence"),
             })
