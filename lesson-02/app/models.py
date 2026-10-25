@@ -24,7 +24,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
 
 
 class Question(SQLModel, table=True):
@@ -77,6 +77,87 @@ class Question(SQLModel, table=True):
             return json.loads(self.blocks_json)
         except json.JSONDecodeError:
             return []
+
+
+class Paper(SQLModel, table=True):
+    """一张试卷（组卷）
+
+    decisions.md 的 MVP 目标:
+    「图片 OCR + 公式自动识别」→ 老师组卷 → 导出 PDF
+
+    试卷跟题目的关系是多对多（一张卷可以有多道题，一道题也能进多张卷），
+    所以中间需要 PaperQuestion 关联表。
+    """
+
+    __tablename__ = "papers"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # 标题 —— 老师可自定义（「高一数学第一单元测试」这种）
+    title: str = Field(default="未命名试卷", max_length=200)
+
+    # 副标题（可选）—— 姓名/班级/日期那行
+    subtitle: str = Field(default="", max_length=200)
+
+    # 关联的题目（多对多）
+    questions: list["PaperQuestion"] = Relationship(
+        back_populates="paper",
+        cascade_delete=True,
+    )
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class PaperQuestion(SQLModel, table=True):
+    """试卷里的一道题（关联表）
+
+    为什么要独立一张表而不是 Paper 里存 id 列表：
+    1. **顺序**（第几题）—— 存 list 改一次顺序要整个更新
+    2. **自定义题号** —— 老师可能想要「一、」「(1)」「第一题」不同格式
+    3. **分值** —— 组卷常见需求
+    """
+
+    __tablename__ = "paper_questions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    paper_id: int = Field(foreign_key="papers.id", index=True)
+    question_id: int = Field(foreign_key="questions.id", index=True)
+
+    # 排序（0 开始）
+    order_index: int = Field(default=0)
+
+    # 自定义题号 —— 空则用自动生成的序号
+    label: str = Field(default="", max_length=50)
+
+    # 分值（0 = 不显示）
+    score: float = Field(default=0.0)
+
+    # 关联
+    paper: Optional[Paper] = Relationship(back_populates="questions")
+    question: Optional[Question] = Relationship()
+
+
+# === 中文数字（自动题号用） ===
+# 一 二 三 ... 十 十一 ... 二十
+CN_NUMBERS = [
+    "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
+    "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十",
+    "二十一", "二十二", "二十三", "二十四", "二十五", "二十六", "二十七", "二十八",
+    "二十九", "三十",
+]
+
+
+def auto_label(index: int) -> str:
+    """自动题号（0-based → 「一、」「二、」）
+
+    组卷默认用中文数字 + 顿号（数学卷的惯例）。
+    超过 30 题就退回阿拉伯数字。
+    """
+    if 0 <= index < len(CN_NUMBERS):
+        return f"{CN_NUMBERS[index]}、"
+    return f"{index + 1}."
 
 
 # === 建表 ===

@@ -83,12 +83,21 @@ const columns = computed(() => [
   {
     title: '操作',
     key: 'actions',
-    width: 90,
-    render: (row) => h(NPopconfirm, {
-      onPositiveClick: () => handleDelete(row),
-    }, {
-      default: () => h(NButton, { size: 'tiny', quaternary: true, type: 'error' }, { default: () => '删除' }),
-      trigger: () => h(NButton, { size: 'tiny', quaternary: true, type: 'error' }, { default: () => '删除' }),
+    width: 130,
+    render: (row) => h(NSpace, { size: 4, wrap: false }, {
+      default: () => [
+        h(NButton, {
+          size: 'tiny',
+          quaternary: true,
+          onClick: () => emit('edit', row),
+        }, { default: () => '编辑' }),
+        h(NPopconfirm, {
+          onPositiveClick: () => handleDelete(row),
+        }, {
+          default: () => h(NButton, { size: 'tiny', quaternary: true, type: 'error' }, { default: () => '删除' }),
+          trigger: () => h(NButton, { size: 'tiny', quaternary: true, type: 'error' }, { default: () => '删除' }),
+        }),
+      ],
     }),
   },
 ])
@@ -151,6 +160,9 @@ async function handleDelete(row) {
 //    必须用 defineExpose 显式暴露,否则父组件 ref.value.refresh() 会报
 //    "refresh is not a function"
 defineExpose({ refresh })
+
+// edit 事件:父组件打开编辑器编辑这道题
+const emit = defineEmits(['edit'])
 
 function refresh() {
   page.value = 1

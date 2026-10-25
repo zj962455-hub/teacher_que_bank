@@ -18,6 +18,7 @@ import {
   NDivider, NGrid, NGridItem,
 } from 'naive-ui'
 import { message } from '../composables/discreteApi'
+import { updateQuestion } from '../api/questions'   // ← lesson-09:保存到题库
 import {
   classify,
   SUBJECT_OPTIONS, TYPE_OPTIONS, GRADE_OPTIONS, DIFFICULTY_OPTIONS,
@@ -29,12 +30,23 @@ const props = defineProps({
   plainText: { type: String, default: '' },      // 纯文本（无公式）
   withFormulas: { type: String, default: '' },   // 带公式（$...$）
   blocks: { type: Array, default: () => [] },    // OCR blocks 数组
+
+  // === lesson-09:编辑模式 ===
+  // 'ocr'  = lesson-06 那样,编辑 OCR 结果后复制（默认）
+  // 'edit' = 编辑题库里已存的题目,保存回数据库
+  mode: {
+    type: String,
+    default: 'ocr',
+    validator: v => ['ocr', 'edit'].includes(v),
+  },
+  // edit 模式下要保存的题目 id
+  questionId: { type: Number, default: null },
 })
 
 // === 状态 ===
 // 用 discreteApi 的全局实例，而不是 useMessage()
 // useMessage() 必须配合 <NMessageProvider>，而本项目没用 Provider（见 main.js 注释）
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'saved'])
 
 // 编辑框内容
 // ⚠️ 优先用 withFormulas 而不是 plainText
@@ -137,6 +149,24 @@ const buildPlainText = computed(() => {
     .join('\n')
 })
 
+// === lesson-09:保存到题库(edit 模式) ===
+async function saveToDatabase() {
+  if (!props.questionId) {
+    message.error('缺少题目 ID')
+    return
+  }
+  try {
+    await updateQuestion(props.questionId, {
+      content_plain: buildPlainText.value,
+      content_markdown: props.withFormulas || content.value,
+    })
+    message.success('已保存到题库')
+    emit('saved')
+  } catch (e) {
+    message.error(`保存失败：${e.response?.data?.detail || e.message}`)
+  }
+}
+
 // === 复制功能（任务 5A）===
 async function copyText(text, label) {
   try {
@@ -189,7 +219,7 @@ function resetContent() {
   <NCard size="small" style="margin-top: 12px;">
     <template #header>
       <NSpace align="center" justify="space-between">
-        <span>📝 题目编辑器</span>
+        <span>{{ mode === 'edit' ? '✏️ 编辑题目' : '📝 题目编辑器' }}</span>
         <NSpace>
           <NButton size="tiny" @click="emit('close')">收起</NButton>
         </NSpace>
@@ -313,6 +343,14 @@ function resetContent() {
       </NButton>
       <NButton size="small" quaternary @click="resetContent">
         ↺ 重置回原文
+      </NButton>
+      <NButton
+        v-if="mode === 'edit'"
+        size="small"
+        type="primary"
+        @click="saveToDatabase"
+      >
+        💾 保存到题库
       </NButton>
     </NSpace>
   </NCard>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ paper.title }}</title>
+
+  <!--
+    KaTeX 静态资源（本地,不依赖 CDN）
+    ---------------------------------------
+    路径是相对路径 → 临时 HTML 文件要跟 static/katex/ 同级,
+    或者用绝对 file:// 路径。pdf_export.py 保证了这一点。
+
+    为什么不用 CDN:
+    1. 部署到 ECS 后如果网络受限,公式会渲染失败(变成 LaTeX 源码)
+    2. 老师组卷是长期使用,不能因为外网问题就导不出
+  -->
+  <link rel="stylesheet" href="katex/katex.min.css">
+
+  <style>
+    /* ===== A4 纸张尺寸 ===== */
+    @page {
+      size: A4;
+      margin: 18mm 16mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Songti SC", "SimSun", "STSong", serif;
+      font-size: 13pt;
+      line-height: 1.9;
+      color: #1a1a1a;
+      margin: 0;
+      /* 打印时不要有背景色干扰 */
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ===== 标题区 ===== */
+    h1 {
+      text-align: center;
+      font-size: 19pt;
+      font-weight: 600;
+      margin: 0 0 6px;
+      letter-spacing: 1px;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 10.5pt;
+      color: #666;
+      margin: 0 0 18px;
+    }
+
+    /* 标题下的分隔线 */
+    .divider {
+      border: none;
+      border-top: 1px solid #333;
+      margin: 0 0 16px;
+    }
+
+    /* ===== 题目区 ===== */
+    .question {
+      margin-bottom: 16px;
+      page-break-inside: avoid;   /* 题目不要被分页切开 */
+      break-inside: avoid;
+    }
+
+    .question-head {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    /* 题号 */
+    .label {
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    /* 题干内容 */
+    .content {
+      flex: 1;
+      white-space: pre-wrap;   /* 保留换行 */
+      word-break: break-word;
+    }
+
+    /* 分值(右上角) */
+    .score {
+      float: right;
+      font-size: 10.5pt;
+      color: #666;
+    }
+
+    /* ===== 公式 ===== */
+    /* KaTeX 渲染的公式不要被分页切开 */
+    .katex-display {
+      margin: 8px 0 !important;
+      page-break-inside: avoid;
+    }
+
+    /* 行内公式跟基线对齐 */
+    .katex {
+      font-size: 1.02em;
+    }
+
+    /* ===== 页脚 ===== */
+    .footer {
+      position: fixed;
+      bottom: -10mm;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 9pt;
+      color: #999;
+    }
+
+    /* ===== 空状态 ===== */
+    .empty {
+      text-align: center;
+      color: #999;
+      padding: 60px 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- ===== 标题 ===== -->
+  <h1>{{ paper.title }}</h1>
+  {% if paper.subtitle %}
+  <p class="subtitle">{{ paper.subtitle }}</p>
+  {% endif %}
+  <hr class="divider">
+
+  <!-- ===== 题目 ===== -->
+  {% if items %}
+  {% for item in items %}
+  <div class="question">
+    <div class="question-head">
+      <span class="label">{{ item.label }}</span>
+      <span class="content">{{ item.content }}</span>
+      {% if item.score %}
+      <span class="score">{{ item.score }} 分</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="empty">这张试卷还没有题目</div>
+  {% endif %}
+
+  <!-- ===== 页脚 ===== -->
+  <div class="footer">{{ paper.title }} · 共 {{ items|length }} 题</div>
+
+  <!--
+    KaTeX 自动渲染
+    --------------
+    后端是 Python,没有 KaTeX 渲染能力(也不需要)——
+    模板里放的是 markdown 原文(公式是 $...$ 标记),
+    让 Chromium 里的 KaTeX 渲染。
+
+    renderMathInElement 会扫描 body 里的 $...$ / $$...$$ 并替换成公式 HTML。
+    JINJA 模板默认转义 HTML,所以题干里的 < > & 是安全的,
+    而 $ 标记原样保留给 KaTeX。
+  -->
+  <script src="katex/katex.min.js"></script>
+  <script src="katex/auto-render.min.js"></script>
+  <script>
+    // 等待 DOM 就绪后渲染公式
+    function renderAll() {
+      renderMathInElement(document.body, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },   // 块级公式
+          { left: "$",  right: "$",  display: false },   // 行内公式
+        ],
+        throwOnError: false,     // 公式语法错时显示原文,不炸整页
+        errorColor: "#cc0000",
+        ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code"],
+      });
+      // 标记渲染完成 → Playwright 侧 wait_for_function 等这个
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          window.__katexDone = true;
+        });
+      });
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", renderAll);
+    } else {
+      renderAll();
+    }
+  </script>
+</body>
+</html>
