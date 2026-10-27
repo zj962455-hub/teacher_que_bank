@@ -53,7 +53,15 @@ MemoryHigh=600M
 
 # Chromium 需要 /tmp(PrivateTmp=true 会给独立 tmpfs)
 Environment=HOME=/home/teacherbank
-Environment=PLAYWRIGHT_BROWSERS_PATH=/home/teacherbank/.cache/ms-playwright
+
+# ⚠️ PLAYWRIGHT_BROWSERS_PATH 必须在 /opt 下，不能放 /home
+# ----------------------------------------------------
+# unit 里有 ProtectHome=true,systemd 会把整个 /home 屏蔽掉
+# (连 Environment=HOME=... 也读不到)→
+# 浏览器放 /home/teacherbank/.cache/ 时报
+# "Executable doesn't exist at /home/teacherbank/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome"
+# 解法:浏览器装到 /opt/teacher-bank/.playwright,/opt 不受 ProtectHome 影响
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/teacher-bank/.playwright
 
 [Install]
 WantedBy=multi-user.target
