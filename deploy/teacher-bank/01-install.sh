@@ -21,8 +21,15 @@ set -euo pipefail
 APP_ROOT="/opt/teacher-bank"
 APP_USER="teacherbank"
 DB_NAME="teacher_question_bank"
-DB_USER="teacherbank"
-DB_PASSWORD="tb_app_2026"
+DB_USER="${DB_USER:-teacherbank}"
+# ⚠️ 密码不写死 —— 部署时用环境变量传入
+#    export DB_PASSWORD='<强密码>'; bash 01-install.sh
+#    或直接写进服务器上的 /etc/teacherbank/app.env（chmod 600，不入 git）
+if [ -z "${DB_PASSWORD:-}" ]; then
+  echo "❌ 未设置 DB_PASSWORD 环境变量"
+  echo "   用法: export DB_PASSWORD='<强密码>' && bash 01-install.sh"
+  exit 1
+fi
 DOMAIN="${SSL_DOMAIN:-tqb.lanhu-lab.top}"
 SSL_EMAIL="${SSL_EMAIL:-admin@${DOMAIN}}"
 SKIP_CERTBOT="${SKIP_CERTBOT:-0}"
@@ -145,6 +152,30 @@ echo "  ✓ 服务已启动"
 
 # ============ 8. nginx + 证书 ============
 echo "[8/8] nginx + HTTPS..."
+
+# ⚠️ firewalld 默认只放行 ssh —— 不开 80/443，站点从公网完全连不上
+# （本机 curl 127.0.0.1 一切正常，nginx 也监听 0.0.0.0:80，但外部 connection refused）
+if systemctl is-active --quiet firewalld; then
+  firewall-cmd --permanent --add-service=http  >/dev/null 2>&1 || true
+  firewall-cmd --permanent --add-service=https >/dev/null 2>&1 || true
+  firewall-cmd --reload >/dev/null 2>&1 || true
+  echo "  ✓ firewalld 已放行 80/443"
+fi
+
+# ⚠️ ECS 无 IPv6 出口，但 gai 默认优先 IPv6 → certbot 连 LE 端点先卡 IPv6 超时
+# → 签发/续期全失败（"Read timed out"）。强制 IPv4 优先。
+if ! grep -q "^precedence ::ffff:0:0/96" /etc/gai.conf 2>/dev/null; then
+  cat >> /etc/gai.conf <<'EOF'
+
+# ECS 无 IPv6 出口，强制 IPv4 优先（certbot 连 Let's Encrypt 用）
+precedence ::ffff:0:0/96  100
+EOF
+  echo "  ✓ gai.conf 已设为 IPv4 优先"
+fi
+
+# certbot 的 nginx 插件要往 webroot 写挑战文件
+mkdir -p /var/www/html/.well-known/acme-challenge
+
 cp "$(dirname "$0")/nginx-teacherbank.conf" /etc/nginx/conf.d/teacherbank.conf
 sed -i "s/tqb\.lanhu-lab\.top/$DOMAIN/g" /etc/nginx/conf.d/teacherbank.conf
 nginx -t && systemctl reload nginx
@@ -154,8 +185,14 @@ if [ "$SKIP_CERTBOT" = "1" ]; then
   echo "  · 跳过 certbot(SKIP_CERTBOT=1)"
 else
   echo "  签发 HTTPS 证书..."
-  certbot --nginx -d "$DOMAIN" --email "$SSL_EMAIL" --agree-tos --no-eff-email \
-    --redirect || echo "  ⚠️ certbot 失败(可能 DNS 没解析),稍后手动跑"
+  # LE 端点从国内 ECS 出去会抖动，重试几次再放弃
+  for i in 1 2 3 4 5; do
+    certbot --nginx -d "$DOMAIN" --email "$SSL_EMAIL" --agree-tos --no-eff-email \
+      --redirect && break
+    echo "  ⚠️ certbot 第 $i 次失败(LE 端点超时?),10 秒后重试"
+    sleep 10
+  done
+  certbot certificates 2>&1 | grep -E "Certificate Name|Expiry" | sed 's/^/  /'
 fi
 
 echo ""

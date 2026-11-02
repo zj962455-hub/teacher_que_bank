@@ -1,7 +1,7 @@
 # 教师题库系统 · 部署手册
 
 > 目标服务器：阿里云 ECS 2C4G（8.160.177.222）· Alibaba Cloud Linux 3
-> 线上入口：`https://tqb.lanhu-lab.top`（⏳ ICP 备案审核中）· 备用 `http://8.160.177.222/`
+> 线上入口：`https://tqb.lanhu-lab.top`（✅ ICP 备案已通过 · HTTPS 证书已签）· 备用 `https://8.160.177.222/`
 > 详细教学见 `docs/lesson-10-notes.md`
 
 ---
@@ -160,6 +160,50 @@ tail -30 /var/log/paddleocr-api/stderr.log
 
 **ICP 备案没通过**。阿里云在公网入口拦截未备案域名。
 **临时方案**：用 `http://8.160.177.222/`（IP 不拦）。
+✅ 2026-11-02 起本项目备案已通过，Beaver 拦截已解除。
+
+### 外部访问 `Connection refused`（本机 curl 一切正常）
+
+**firewalld 只放行了 ssh**。nginx 明明监听 `0.0.0.0:80`，iptables/nft 看起来也全 ACCEPT，但公网就是连不上。
+
+```bash
+firewall-cmd --list-services        # 只看到 cockpit dhcpv6-client ssh
+firewall-cmd --permanent --add-service=http
+firewall-cmd --permanent --add-service=https
+firewall-cmd --reload
+```
+
+⚠️ 排查时容易误判：`iptables -S` 输出全 ACCEPT、`nft list ruleset` 也看不出问题 —— 因为 firewalld 用的是独立的 nftables 表。
+**判定法**：`nc -vz <IP> 80` + 看 `firewall-cmd --list-services`，不要只看 iptables。
+
+### certbot 报错 `Read timed out`（连 acme-v02.api.letsencrypt.org 超时）
+
+**ECS 没有 IPv6 出口，但系统 gai 默认优先 IPv6** —— certbot 先试 IPv6，卡到超时才回退。
+
+```bash
+ip -6 route show                  # 只有 ::1 和 fe80:: → 没有 IPv6 出口
+curl -4 ...                       # IPv4 强制后正常
+```
+
+修法（写进 `/etc/gai.conf`）：
+```
+precedence ::ffff:0:0/96  100
+```
+
+⚠️ 另一个坑：**LE 端点从国内 ECS 出去会抖动**，同一天可能 3 次里只成 1 次。签发和续期都要重试循环。
+
+### 证书续期一直失败 `Some challenges have failed`
+
+看 `journalctl -u certbot-renew.service`：如果是备案期间留下的，那是 Beaver 拦的；
+备案通过后还失败，就查上面两条（firewalld + IPv6）。
+
+演练续期：
+```bash
+certbot renew --dry-run --no-random-sleep-on-renew
+```
+
+⚠️ `/var/www/html` 必须存在（certbot 的 nginx 插件要往里写挑战文件）：
+`mkdir -p /var/www/html/.well-known/acme-challenge`
 
 ### 内存吃紧
 
@@ -200,6 +244,32 @@ cd /opt/teacher-bank && bash deploy/teacher-bank/01-install.sh
 su - postgres -c "psql -c \"SET password_encryption='scram-sha-256'; ALTER ROLE teacherbank PASSWORD '新密码';\""
 # 然后同步改 /etc/teacherbank/app.env 并重启
 ```
+
+### ⚠️ 历史泄露说明（2026-11-02）
+
+commit `f07fbca`（部署到 ECS）曾把一个数据库口令硬编码进 `01-install.sh`。**该口令已于 2026-11-02 23:51 轮换失效**，线上不再使用。
+
+在 Git 历史里搜到 `tb_app_2026` 的，请当作**已废弃的无效值**，不要再尝试使用。保留历史是为了不破坏 commit hash 与可回溯性。
+
+已做的加固：
+- `01-install.sh` 不再硬编码口令，改为必须由环境变量 `DB_PASSWORD` 传入，缺失则直接退出
+- 口令轮换 + `/etc/teacherbank/app.env` 同步（权限 600）+ 服务重启验证
+- 数据库仅监听 `127.0.0.1` / `::1`，外网不可达
+
+---
+
+## 🌐 上线状态（2026-11-02）
+
+| 项 | 状态 |
+|---|---|
+| ICP 备案 | ✅ 已通过 · Beaver 拦截解除 |
+| DNS | ✅ `lanhu-lab.top` / `tqb.lanhu-lab.top` → 8.160.177.222 |
+| HTTPS 证书 | ✅ `tqb.lanhu-lab.top` 到期 2027-01-31（自动续期已验证） |
+| 主域名证书 | ✅ `lanhu-lab.top` 到期 2026-11-25 · 自动续期已修复（IPv6 优先导致） |
+| firewalld | ✅ 已放行 80/443 |
+| 全链路 | ✅ 前端 / API / OCR（PP-StructureV3）/ PDF 导出 均 200 |
+
+**待办**：公安联网备案（beian.mps.gov.cn · ICP 通过后 30 日内）· 网站页脚展示 ICP 备案号 + 公安备案号。
 
 ---
 
