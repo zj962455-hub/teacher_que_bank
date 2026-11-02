@@ -6,6 +6,7 @@ import OcrResult from './components/OcrResult.vue'
 import QuestionBank from './components/QuestionBank.vue'   // ← lesson-08 题库列表
 import QuestionEditor from './components/QuestionEditor.vue'  // ← lesson-09 题目编辑
 import PaperEditor from './components/PaperEditor.vue'      // ← lesson-09 组卷
+import SiteFooter from './components/SiteFooter.vue'          // ← 备案号页脚
 
 // === 任务 4:OcrResult 需要能换图,所以提到 App.vue 管理 ===
 // 初始还是 lesson-06 主体写死的路径;上传成功后再由 UploadImage 回调覆盖
@@ -50,5 +51,8 @@ function openQuestionEditor(row) {
       @close="editingQuestion = null"
       @saved="onQuestionSaved"
     />
+
+    <!-- 页脚 · ICP 备案号(公安联网备案要求公示) -->
+    <SiteFooter />
   </div>
 </template>
