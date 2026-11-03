@@ -278,3 +278,50 @@ commit `f07fbca`（部署到 ECS）曾把一个数据库口令硬编码进 `01-i
 - 教学文档：`docs/lesson-10-notes.md`
 - OCR 部署：`deploy/paddleocr/01-install.sh` · `reinstall-paddleocr.sh`
 - 前端构建：`lesson-03/`（`npm run build`，产物在 `dist/`）
+
+---
+
+## 👥 用户体系（lesson-11 · 2026-11-03）
+
+### 建号
+
+```bash
+# 服务器上跑（需要 app.env 里的 DATABASE_URL）
+set -a; . /etc/teacherbank/app.env; set +a
+cd /opt/teacher-bank/app
+
+# 建两个测试账号（弱口令 + 不强制改密，仅测试用）
+/opt/teacher-bank/.venv/bin/python -m app.scripts.create_users --force --no-force-change
+
+# 建正式账号（强口令 + 首登强制改密）
+/opt/teacher-bank/.venv/bin/python -m app.scripts.create_users \
+    --user zhang:张老师:Abc12345
+```
+
+密码规则：**大写 + 小写 + 数字 + ≥8 位**。不合规直接拒绝（`--force` 可跳过，仅限测试）。
+
+### 迁移（改表结构必读）
+
+⚠️ **`create_all` 不会给已存在的表加列** —— 加列必须跑迁移脚本：
+
+```bash
+set -a; . /etc/teacherbank/app.env; set +a
+psql -h 127.0.0.1 -U teacherbank -d teacher_question_bank \
+    -v ON_ERROR_STOP=1 -f /opt/teacher-bank/app/app/migrations/001_add_users.sql
+```
+
+顺序：**先建表 → 再建号 → 再跑迁移**（迁移里的存量归属靠 `username='test1'` 查 id，账号不存在会 `RAISE EXCEPTION` 回滚）。
+
+### 目录结构（容易踩）
+
+```
+/opt/teacher-bank/app/          ← WorkingDirectory
+├── app/                        ← 真正的 python 包(lesson-02/app → app/app)
+│   ├── models.py
+│   ├── migrations/001_add_users.sql
+│   └── scripts/create_users.py
+├── templates/
+└── web/                        ← 前端产物(不在 app 下)
+```
+
+⚠️ rsync 时目标是 **`app/app/`**，不是 `app/` —— rsync 到 `app/` 会多出一层嵌套，服务加载不到。
