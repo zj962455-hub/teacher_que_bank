@@ -24,7 +24,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Question
+from app.models import Question, User
+from app.services.auth import get_current_user
 from app.services.classifier import build_content_versions, classify_blocks
 
 router = APIRouter(
@@ -70,6 +71,7 @@ class QuestionUpdate(BaseModel):
 @router.get("/")
 def list_questions(
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
     subject: Optional[str] = Query(default=None, description="按学科筛选"),
     question_type: Optional[str] = Query(default=None, description="按题型筛选"),
     grade: Optional[str] = Query(default=None, description="按学段筛选"),
@@ -78,8 +80,11 @@ def list_questions(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ):
-    """题目列表（支持筛选 + 分页）"""
-    stmt = select(Question)
+    """题目列表（支持筛选 + 分页）
+
+    只返回当前登录用户自己的题目 —— 数据隔离的第一道门。
+    """
+    stmt = select(Question).where(Question.user_id == (current_user.id or 0))
 
     if subject:
         stmt = stmt.where(Question.subject == subject)
@@ -99,7 +104,7 @@ def list_questions(
     items = session.exec(stmt).all()
 
     # 总数(不带 limit/offset,用于前端分页)
-    count_stmt = select(Question)
+    count_stmt = select(Question).where(Question.user_id == (current_user.id or 0))
     if subject:
         count_stmt = count_stmt.where(Question.subject == subject)
     if question_type:
@@ -123,11 +128,13 @@ def list_questions(
 # === 详情 ===
 # 完整路径: GET /api/questions/{question_id}
 @router.get("/{question_id}")
-def get_question(question_id: int, session: Session = Depends(get_session)):
+def get_question(
+    question_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """单题详情"""
-    question = session.get(Question, question_id)
-    if not question:
-        raise HTTPException(status_code=404, detail="题目不存在")
+    question = _get_own_question(question_id, session, current_user)
     return _to_dict(question)
 
 
@@ -137,6 +144,7 @@ def get_question(question_id: int, session: Session = Depends(get_session)):
 def create_question(
     payload: QuestionCreate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """新建题目"""
     versions = build_content_versions(payload.blocks)
@@ -144,6 +152,7 @@ def create_question(
     # 分类：前端传了就用前端的（用户可能手动改过），没传就后端自动算
     auto = classify_blocks(payload.blocks)
     question = Question(
+        user_id=current_user.id or 0,
         subject=payload.subject or auto["subject"],
         question_type=payload.question_type or auto["type"],
         grade=payload.grade or auto["grade"],
@@ -165,7 +174,11 @@ def create_question(
 # === 从 OCR 一键入库 ===
 # 完整路径: POST /api/questions/from-ocr/{task_id}
 @router.post("/from-ocr/{task_id}")
-def create_from_ocr(task_id: str, session: Session = Depends(get_session)):
+def create_from_ocr(
+    task_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """从 OCR 结果一键入库
 
     后端自己读 ocr_store 的记录 + 跑分类器,
@@ -186,6 +199,7 @@ def create_from_ocr(task_id: str, session: Session = Depends(get_session)):
     auto = classify_blocks(blocks)
 
     question = Question(
+        user_id=current_user.id or 0,
         subject=auto["subject"],
         question_type=auto["type"],
         grade=auto["grade"],
@@ -214,11 +228,10 @@ def update_question(
     question_id: int,
     payload: QuestionUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """更新题目"""
-    question = session.get(Question, question_id)
-    if not question:
-        raise HTTPException(status_code=404, detail="题目不存在")
+    question = _get_own_question(question_id, session, current_user)
 
     data = payload.model_dump(exclude_unset=True)
 
@@ -254,11 +267,13 @@ def update_question(
 # === 删除 ===
 # 完整路径: DELETE /api/questions/{question_id}
 @router.delete("/{question_id}")
-def delete_question(question_id: int, session: Session = Depends(get_session)):
+def delete_question(
+    question_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """删除题目"""
-    question = session.get(Question, question_id)
-    if not question:
-        raise HTTPException(status_code=404, detail="题目不存在")
+    question = _get_own_question(question_id, session, current_user)
 
     session.delete(question)
     session.commit()
@@ -267,6 +282,18 @@ def delete_question(question_id: int, session: Session = Depends(get_session)):
 
 
 # === 辅助函数 ===
+def _get_own_question(question_id: int, session: Session, user: User) -> Question:
+    """取题目并校验归属
+
+    别人的题目一律当「不存在」而不是「403」——
+    让外人无法通过状态码差异探测出某个 id 存不存在。
+    """
+    question = session.get(Question, question_id)
+    if not question or question.user_id != (user.id or 0):
+        raise HTTPException(status_code=404, detail="题目不存在")
+    return question
+
+
 def datetime_now():
     """当前时间（带时区）
 
