@@ -63,6 +63,43 @@ class User(SQLModel, table=True):
     last_login_at: Optional[datetime] = Field(default=None)
 
 
+class Session_(SQLModel, table=True):
+    """登录会话
+
+    为什么用服务端 Session 而不是无状态签名 token：
+    - **能立即踢下线** —— 删一行记录即失效。备案要写「可单独停用及封禁特定账号」，
+      无状态 token 做不到（封号后旧 token 还能用到过期）。
+    - 服务重启不丢登录态。
+    - 审计可查（谁在什么时间、从哪台设备登过）。
+    """
+
+    __tablename__ = "sessions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # 哪个用户的会话
+    user_id: int = Field(foreign_key="users.id", index=True, nullable=False)
+
+    # token 的哈希（**不存明文 token** —— 库被拖走也拿不到可用凭证）
+    # 校验时对传入的 token 做同样的哈希再比对
+    token_hash: str = Field(index=True, unique=True, max_length=64)
+
+    # 会话过期时间
+    expires_at: datetime = Field(index=True)
+
+    # 最后一次使用时间（用于「长期未活动自动失效」）
+    last_used_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # 创建时间
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # 登录来源 IP（审计用，可空）
+    ip: str = Field(default="", max_length=45)
+
+    # 客户端 UA（审计用，可空）
+    user_agent: str = Field(default="", max_length=300)
+
+
 class Question(SQLModel, table=True):
     """一道题
 

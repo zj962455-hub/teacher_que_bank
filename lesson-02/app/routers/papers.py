@@ -19,7 +19,8 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Paper, PaperQuestion, Question, auto_label
+from app.models import Paper, PaperQuestion, Question, User, auto_label
+from app.services.auth import get_current_user
 from app.services.pdf_export import PdfExportError, export_paper_pdf
 
 router = APIRouter(
@@ -54,9 +55,16 @@ class PaperQuestionUpdate(BaseModel):
 
 # === 列表 ===
 @router.get("/")
-def list_papers(session: Session = Depends(get_session)):
-    """试卷列表"""
-    papers = session.exec(select(Paper).order_by(Paper.created_at.desc())).all()
+def list_papers(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """试卷列表（只返回当前用户的）"""
+    papers = session.exec(
+        select(Paper)
+        .where(Paper.user_id == (current_user.id or 0))
+        .order_by(Paper.created_at.desc())
+    ).all()
 
     items = []
     for p in papers:
@@ -76,17 +84,22 @@ def list_papers(session: Session = Depends(get_session)):
 
 # === 新建 ===
 @router.post("/")
-def create_paper(payload: PaperCreate, session: Session = Depends(get_session)):
+def create_paper(
+    payload: PaperCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """新建试卷（可同时加题）"""
-    paper = Paper(title=payload.title, subtitle=payload.subtitle)
+    paper = Paper(user_id=current_user.id or 0, title=payload.title, subtitle=payload.subtitle)
     session.add(paper)
     session.commit()
     session.refresh(paper)
 
-    # 按传入顺序加题
+    # 按传入顺序加题（只能加自己的题）
     for index, qid in enumerate(payload.question_ids):
-        if not session.get(Question, qid):
-            continue  # 题目不存在就跳过（不因为一个坏 id 整个失败）
+        question = session.get(Question, qid)
+        if not question or question.user_id != (current_user.id or 0):
+            continue  # 题目不存在或不是自己的就跳过（不因为一个坏 id 整个失败）
         session.add(PaperQuestion(
             paper_id=paper.id,
             question_id=qid,
@@ -102,11 +115,13 @@ def create_paper(payload: PaperCreate, session: Session = Depends(get_session)):
 
 # === 详情 ===
 @router.get("/{paper_id}")
-def get_paper(paper_id: int, session: Session = Depends(get_session)):
+def get_paper(
+    paper_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """试卷详情（含题目列表 + 题号）"""
-    paper = session.get(Paper, paper_id)
-    if not paper:
-        raise HTTPException(status_code=404, detail="试卷不存在")
+    paper = _get_own_paper(paper_id, session, current_user)
     return _paper_detail(paper, session)
 
 
@@ -116,11 +131,10 @@ def update_paper(
     paper_id: int,
     payload: PaperUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """更新试卷基本信息（标题/副标题）"""
-    paper = session.get(Paper, paper_id)
-    if not paper:
-        raise HTTPException(status_code=404, detail="试卷不存在")
+    paper = _get_own_paper(paper_id, session, current_user)
 
     if payload.title is not None:
         paper.title = payload.title
@@ -139,11 +153,13 @@ def update_paper(
 
 # === 删除 ===
 @router.delete("/{paper_id}")
-def delete_paper(paper_id: int, session: Session = Depends(get_session)):
+def delete_paper(
+    paper_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """删除试卷（关联的题目记录一起删）"""
-    paper = session.get(Paper, paper_id)
-    if not paper:
-        raise HTTPException(status_code=404, detail="试卷不存在")
+    paper = _get_own_paper(paper_id, session, current_user)
 
     # 先删关联（外键约束）
     for pq in session.exec(
@@ -163,14 +179,14 @@ def add_question(
     paper_id: int,
     payload: PaperQuestionCreate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """往试卷里加一道题"""
-    paper = session.get(Paper, paper_id)
-    if not paper:
-        raise HTTPException(status_code=404, detail="试卷不存在")
+    paper = _get_own_paper(paper_id, session, current_user)
 
+    # 只能加自己的题 —— 不然能通过组卷引用别人的题
     question = session.get(Question, payload.question_id)
-    if not question:
+    if not question or question.user_id != (current_user.id or 0):
         raise HTTPException(status_code=404, detail="题目不存在")
 
     # 排在最后
@@ -207,8 +223,11 @@ def update_paper_question(
     pq_id: int,
     payload: PaperQuestionUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """改某道题在试卷里的题号/分值/顺序"""
+    _get_own_paper(paper_id, session, current_user)
+
     pq = session.get(PaperQuestion, pq_id)
     if not pq or pq.paper_id != paper_id:
         raise HTTPException(status_code=404, detail="试卷里的题目不存在")
@@ -236,8 +255,15 @@ def update_paper_question(
 
 # === 移除题 ===
 @router.delete("/{paper_id}/questions/{pq_id}")
-def remove_question(paper_id: int, pq_id: int, session: Session = Depends(get_session)):
+def remove_question(
+    paper_id: int,
+    pq_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """从试卷里移除一道题"""
+    _get_own_paper(paper_id, session, current_user)
+
     pq = session.get(PaperQuestion, pq_id)
     if not pq or pq.paper_id != paper_id:
         raise HTTPException(status_code=404, detail="试卷里的题目不存在")
@@ -250,14 +276,16 @@ def remove_question(paper_id: int, pq_id: int, session: Session = Depends(get_se
 
 # === 导出 PDF ===
 @router.get("/{paper_id}/export.pdf")
-def export_pdf(paper_id: int, session: Session = Depends(get_session)):
+def export_pdf(
+    paper_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """导出试卷 PDF
 
     返回 PDF 二进制（Content-Type: application/pdf + 附件下载头）
     """
-    paper = session.get(Paper, paper_id)
-    if not paper:
-        raise HTTPException(status_code=404, detail="试卷不存在")
+    paper = _get_own_paper(paper_id, session, current_user)
 
     detail = _paper_detail(paper, session)
     if not detail["questions"]:
@@ -298,6 +326,18 @@ def export_pdf(paper_id: int, session: Session = Depends(get_session)):
 
 
 # === 辅助 ===
+def _get_own_paper(paper_id: int, session: Session, user: User) -> Paper:
+    """取试卷并校验归属
+
+    别人的试卷一律当「不存在」而不是「403」——
+    让外人无法通过状态码差异探测出某个 id 存不存在。
+    """
+    paper = session.get(Paper, paper_id)
+    if not paper or paper.user_id != (user.id or 0):
+        raise HTTPException(status_code=404, detail="试卷不存在")
+    return paper
+
+
 def _paper_detail(paper: Paper, session: Session) -> dict:
     """试卷详情（题目 + 题号 + 分值）"""
     pqs = session.exec(
