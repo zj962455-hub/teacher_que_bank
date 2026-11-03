@@ -27,6 +27,42 @@ from typing import Any, Optional
 from sqlmodel import Field, Relationship, SQLModel
 
 
+class User(SQLModel, table=True):
+    """用户账户（邀请制注册）
+
+    账号不是自助注册的 —— 由管理员预创建后分发，登录后可自行改密。
+
+    软删除：删除账号 = ``is_active=False``（停用登录），数据保留。
+    这样题目/试卷不会因为人走了而丢失，也满足备案「可单独停用账号」的要求。
+    """
+
+    __tablename__ = "users"
+
+    # === 主键 ===
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # === 身份 ===
+    # 登录名，全局唯一（index + unique 双重保险：unique 才是真正的约束）
+    username: str = Field(index=True, unique=True, max_length=50)
+
+    # 显示名（老师互相认识的名字，可以是真实姓名或昵称）
+    display_name: str = Field(default="", max_length=50)
+
+    # === 凭证 ===
+    # bcrypt 哈希，永不存明文 —— bcrypt 自带 salt
+    password_hash: str = Field(max_length=255)
+
+    # 首次登录是否强制改密（管理员分发初始密码后置 True）
+    must_change_password: bool = Field(default=True)
+
+    # 账号是否启用（软删除开关）
+    is_active: bool = Field(default=True)
+
+    # === 元信息 ===
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_login_at: Optional[datetime] = Field(default=None)
+
+
 class Question(SQLModel, table=True):
     """一道题
 
@@ -38,6 +74,10 @@ class Question(SQLModel, table=True):
 
     # === 主键 ===
     id: Optional[int] = Field(default=None, primary_key=True)
+
+    # === 归属 ===
+    # 哪个用户的题 —— 数据隔离的依据（NOT NULL：不允许无主数据）
+    user_id: int = Field(foreign_key="users.id", index=True, nullable=False)
 
     # === 分类（lesson-06 任务 5C 的自动分类结果）===
     subject: str = Field(default="未知", index=True, max_length=20)
@@ -92,6 +132,10 @@ class Paper(SQLModel, table=True):
     __tablename__ = "papers"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+
+    # === 归属 ===
+    # 哪个用户的卷 —— 数据隔离的依据（NOT NULL：不允许无主数据）
+    user_id: int = Field(foreign_key="users.id", index=True, nullable=False)
 
     # 标题 —— 老师可自定义（「高一数学第一单元测试」这种）
     title: str = Field(default="未命名试卷", max_length=200)
