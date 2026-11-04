@@ -31,7 +31,10 @@ app.add_middleware(
 )
 
 os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# ⚠️ lesson-11:不再静态挂载 /uploads
+#   StaticFiles 不认识 token —— 知道 URL 就能下载任何人的图片。
+#   改为带鉴权的路由 routers/upload.py:GET /api/uploads/{filename}。
+#   nginx 那层也要同步改（见 deploy/teacher-bank/nginx-teacherbank.conf）。
 
 # === lesson-09:KaTeX 静态资源 ===
 # PDF 导出时 Chromium 用 file:// 读这些文件(不走 HTTP,避免死锁),

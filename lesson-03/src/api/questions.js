@@ -10,14 +10,11 @@
  * 统一放这里，组件只管调方法。
  */
 
-import axios from 'axios'
-import { API } from './config'
+import { http } from './auth'
 
 /** 创建 axios 实例（统一 baseURL + 超时） */
-const http = axios.create({
-  baseURL: API,
-  timeout: 15000,
-})
+// ⚠️ 用 auth.js 的共享实例 —— 它会自动注入 Authorization 头。
+//    自己 create 出来的实例不带 token → 后端返 401。
 
 /**
  * 题目列表
