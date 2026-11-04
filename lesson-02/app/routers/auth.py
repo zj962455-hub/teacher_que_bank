@@ -16,12 +16,15 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import User
+from app.models import Question, Paper, Session_, Upload, User
 from app.services.auth import (
     check_password_strength,
     create_session,
@@ -48,6 +51,15 @@ class LoginRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     old_password: str = Field(max_length=128)
     new_password: str = Field(max_length=128)
+
+
+class UpdateProfileRequest(BaseModel):
+    """修改个人资料
+
+    目前只开放显示名 —— 用户名是登录凭据,改了会导致
+    账号历史对不上（溯源串、审计日志都记着旧用户名）,所以不开放改。
+    """
+    display_name: str = Field(default="", max_length=50)
 
 
 class UserOut(BaseModel):
@@ -195,6 +207,120 @@ def change_password(
         "message": "密码已修改",
         "revoked_sessions": revoked,
     }
+
+
+# === 个人中心 ===
+
+@router.patch("/profile", response_model=UserOut)
+def update_profile(
+    payload: UpdateProfileRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """修改个人资料（目前只支持显示名）"""
+    display_name = payload.display_name.strip()
+    if len(display_name) > 50:
+        raise HTTPException(status_code=400, detail="显示名最长 50 字")
+
+    user.display_name = display_name
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return UserOut(
+        id=user.id or 0,
+        username=user.username,
+        display_name=user.display_name,
+        must_change_password=False,
+        last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
+    )
+
+
+@router.get("/stats")
+def my_stats(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """我的数据统计（个人中心展示用）
+
+    只统计当前用户自己的 —— 与列表接口同一套隔离口径。
+    """
+    from sqlalchemy import func
+
+    uid = user.id or 0
+
+    question_count = len(session.exec(
+        select(Question).where(Question.user_id == uid)
+    ).all())
+
+    paper_count = len(session.exec(
+        select(Paper).where(Paper.user_id == uid)
+    ).all())
+
+    upload_count = len(session.exec(
+        select(Upload).where(Upload.user_id == uid)
+    ).all())
+
+    # 题目按学科分组
+    rows = session.exec(
+        select(Question.subject, func.count())
+        .where(Question.user_id == uid)
+        .group_by(Question.subject)
+    ).all()
+
+    return {
+        "questions": question_count,
+        "papers": paper_count,
+        "uploads": upload_count,
+        "by_subject": [{"subject": s, "count": c} for s, c in rows],
+    }
+
+
+@router.get("/sessions")
+def my_sessions(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """我的登录会话（个人中心展示用）
+
+    让用户看到「现在有哪几台设备登着我的账号」——
+    这是「可单独停用及封禁」的一部分。
+    """
+    records = session.exec(
+        select(Session_)
+        .where(Session_.user_id == (user.id or 0))
+        .order_by(Session_.last_used_at.desc())
+    ).all()
+
+    now = datetime.now(timezone.utc)
+    return [
+        {
+            "id": r.id,
+            "created_at": r.created_at.isoformat(),
+            "last_used_at": r.last_used_at.isoformat(),
+            "expires_at": r.expires_at.isoformat(),
+            "ip": r.ip,
+            "user_agent": r.user_agent[:120],
+            "expired": r.expires_at <= now,
+        }
+        for r in records
+    ]
+
+
+@router.delete("/sessions/{session_id}")
+def revoke_session_by_id(
+    session_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """注销某个会话（自己踢自己别的设备）"""
+    record = session.get(Session_, session_id)
+    if record is None or record.user_id != (user.id or 0):
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    session.delete(record)
+    session.commit()
+    return {"ok": True, "revoked": session_id}
 
 
 # === 当前用户 ===

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { NButton, NModal } from 'naive-ui'
 import LessonList from './components/LessonList.vue'
 import UploadImage from './components/UploadImage.vue'
 import OcrResult from './components/OcrResult.vue'
@@ -8,6 +9,7 @@ import QuestionEditor from './components/QuestionEditor.vue'  // ← lesson-09 �
 import PaperEditor from './components/PaperEditor.vue'      // ← lesson-09 组卷
 import SiteFooter from './components/SiteFooter.vue'          // ← 备案号页脚
 import LoginPanel from './components/LoginPanel.vue'          // ← lesson-11 登录
+import ProfilePanel from './components/ProfilePanel.vue'      // ← lesson-11 个人中心
 import { getToken, getCachedUser, fetchMe, setUnauthorizedHandler } from './api/auth'
 
 // === lesson-11:登录门禁 ===
@@ -16,6 +18,10 @@ import { getToken, getCachedUser, fetchMe, setUnauthorizedHandler } from './api/
 // （渲染了也全是 401 白屏）。
 const loggedIn = ref(!!getToken())
 const currentUser = ref(getCachedUser())
+
+// === 个人中心面板 ===
+// 用「面板」而不是独立路由 —— 切面板不丢当前页面状态
+const showProfile = ref(false)
 
 // 启动时校验 token 还有效（本地有 token 但服务端已过期的情况）
 onMounted(async () => {
@@ -38,6 +44,18 @@ setUnauthorizedHandler(() => {
 function onLoggedIn(user) {
   currentUser.value = user
   loggedIn.value = true
+}
+
+// 登出（个人中心里点的，或改密后被踢下线）
+function onLoggedOut() {
+  loggedIn.value = false
+  currentUser.value = null
+  showProfile.value = false
+}
+
+// 个人中心里改了显示名 → 顶栏同步
+function onProfileUpdated(user) {
+  currentUser.value = user
 }
 
 // === 任务 4:OcrResult 需要能换图,所以提到 App.vue 管理 ===
@@ -73,9 +91,44 @@ function openQuestionEditor(row) {
       <SiteFooter />
     </template>
 
+<style scoped>
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.top-title {
+  margin: 0;
+}
+</style>
+
     <!-- 已登录：业务界面 -->
     <template v-else>
-      <h1>📚 教培题库 · 课程列表</h1>
+      <!-- 顶栏：当前用户 + 个人中心入口 -->
+      <div class="top-bar">
+        <h1 class="top-title">📚 教培题库 · 课程列表</h1>
+        <NButton quaternary size="small" @click="showProfile = true">
+          👤 {{ currentUser?.display_name || currentUser?.username || '我' }}
+        </NButton>
+      </div>
+
+      <!-- 个人中心面板 -->
+      <NModal
+        v-model:show="showProfile"
+        preset="card"
+        title="个人中心"
+        style="max-width: 800px"
+        :bordered="false"
+      >
+        <ProfilePanel
+          :user="currentUser"
+          @logged-out="onLoggedOut"
+          @profile-updated="onProfileUpdated"
+        />
+      </NModal>
       <LessonList />
       <UploadImage @uploaded="onUploaded" />
       <OcrResult v-model:image-url="currentImage" @question-saved="onQuestionSaved" />
@@ -97,5 +150,33 @@ function openQuestionEditor(row) {
       <!-- 页脚 · ICP 备案号(公安联网备案要求公示) -->
       <SiteFooter />
     </template>
+
+<style scoped>
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.top-title {
+  margin: 0;
+}
+</style>
   </div>
 </template>
+
+<style scoped>
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.top-title {
+  margin: 0;
+}
+</style>
