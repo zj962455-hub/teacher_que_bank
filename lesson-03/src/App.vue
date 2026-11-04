@@ -1,27 +1,31 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { NButton, NModal } from 'naive-ui'
-import LessonList from './components/LessonList.vue'
-import UploadImage from './components/UploadImage.vue'
-import OcrResult from './components/OcrResult.vue'
-import QuestionBank from './components/QuestionBank.vue'   // ← lesson-08 题库列表
-import QuestionEditor from './components/QuestionEditor.vue'  // ← lesson-09 题目编辑
-import PaperEditor from './components/PaperEditor.vue'      // ← lesson-09 组卷
-import SiteFooter from './components/SiteFooter.vue'          // ← 备案号页脚
-import LoginPanel from './components/LoginPanel.vue'          // ← lesson-11 登录
-import ProfilePanel from './components/ProfilePanel.vue'      // ← lesson-11 个人中心
+/**
+ * App.vue — 应用外壳 + 登录门禁
+ *
+ * 页面结构对齐 MVP 原型（2026-11-05 决策）
+ * ----------------------------------------
+ * 原型是 9 个独立 Web 页面，现在用 vue-router 拆开：
+ *   ① 登录页        ② 题库首页(仪表盘)   ③ 题目列表
+ *   ④ 新建题目      ⑤ 题目详情          ⑥ 分类管理
+ *   ⑦ 组卷页        ⑧ 试卷预览/导出     ⑨ 个人中心
+ *
+ * 登录门禁
+ * --------
+ * 后端所有业务接口都要 Authorization 头，没 token 直接 401。
+ * 未登录时只渲染登录页，业务组件**不渲染**（渲染了也全是 401 白屏）。
+ */
+import { ref, onMounted, provide } from 'vue'
+import { NButton, NConfigProvider, zhCN, dateZhCN } from 'naive-ui'
+import { RouterView, useRouter, useRoute } from 'vue-router'
+import LoginPanel from './components/LoginPanel.vue'
+import SiteFooter from './components/SiteFooter.vue'
 import { getToken, getCachedUser, fetchMe, setUnauthorizedHandler } from './api/auth'
 
-// === lesson-11:登录门禁 ===
-// 后端所有业务接口都要 Authorization 头，没 token 直接 401。
-// 所以前端先判断登录态：没登录就只显示登录面板，不渲染业务组件
-// （渲染了也全是 401 白屏）。
+const router = useRouter()
+const route = useRoute()
+
 const loggedIn = ref(!!getToken())
 const currentUser = ref(getCachedUser())
-
-// === 个人中心面板 ===
-// 用「面板」而不是独立路由 —— 切面板不丢当前页面状态
-const showProfile = ref(false)
 
 // 启动时校验 token 还有效（本地有 token 但服务端已过期的情况）
 onMounted(async () => {
@@ -39,18 +43,20 @@ onMounted(async () => {
 setUnauthorizedHandler(() => {
   loggedIn.value = false
   currentUser.value = null
+  if (route.name !== 'login') router.replace({ name: 'login' })
 })
 
 function onLoggedIn(user) {
   currentUser.value = user
   loggedIn.value = true
+  router.replace({ name: 'dashboard' })
 }
 
 // 登出（个人中心里点的，或改密后被踢下线）
 function onLoggedOut() {
   loggedIn.value = false
   currentUser.value = null
-  showProfile.value = false
+  router.replace({ name: 'login' })
 }
 
 // 个人中心里改了显示名 → 顶栏同步
@@ -58,125 +64,99 @@ function onProfileUpdated(user) {
   currentUser.value = user
 }
 
-// === 任务 4:OcrResult 需要能换图,所以提到 App.vue 管理 ===
-// 初始还是 lesson-06 主体写死的路径;上传成功后再由 UploadImage 回调覆盖
-// ⚠️ 初始为空 —— 静态挂载时代写死的 /uploads/test-question.png
-//    在服务器上根本不存在，且图片接口现在要鉴权
-const currentImage = ref('')
+// 顶栏导航
+const NAV_ITEMS = [
+  { name: 'dashboard', label: '首页' },
+  { name: 'questions', label: '题库' },
+  { name: 'capture', label: '录题' },
+  { name: 'categories', label: '分类' },
+  { name: 'papers', label: '组卷' },
+]
 
-function onUploaded(url) {
-  currentImage.value = url
-}
-
-// OCR 卡片入库成功 → 刷新题库列表
-const bankRef = ref(null)
-
-function onQuestionSaved() {
-  bankRef.value?.refresh()
-}
-
-// lesson-09:打开题目编辑器(编辑题库里已存的题)
-const editingQuestion = ref(null)
-
-function openQuestionEditor(row) {
-  editingQuestion.value = row
+function go(name) {
+  router.push({ name })
 }
 </script>
 
 <template>
-  <div class="app">
-    <!-- 未登录：只显示登录面板（业务组件不渲染，否则全是 401） -->
-    <template v-if="!loggedIn">
-      <LoginPanel @logged-in="onLoggedIn" />
-      <SiteFooter />
-    </template>
+  <NConfigProvider :locale="zhCN" :date-locale="dateZhCN">
+    <div class="app">
+      <!-- 未登录：只显示登录页 -->
+      <template v-if="!loggedIn">
+        <LoginPanel @logged-in="onLoggedIn" />
+        <SiteFooter />
+      </template>
 
-<style scoped>
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
+      <!-- 已登录：顶栏 + 路由视图 -->
+      <template v-else>
+        <header class="top-bar">
+          <div class="top-left">
+            <span class="brand">📚 教培题库</span>
+            <nav class="nav">
+              <NButton
+                v-for="item in NAV_ITEMS"
+                :key="item.name"
+                quaternary
+                size="small"
+                :type="route.name === item.name ? 'primary' : 'default'"
+                @click="go(item.name)"
+              >
+                {{ item.label }}
+              </NButton>
+            </nav>
+          </div>
+          <NButton quaternary size="small" @click="go('profile')">
+            👤 {{ currentUser?.display_name || currentUser?.username || '我' }}
+          </NButton>
+        </header>
 
-.top-title {
-  margin: 0;
-}
-</style>
+        <main class="page">
+          <RouterView />
+        </main>
 
-    <!-- 已登录：业务界面 -->
-    <template v-else>
-      <!-- 顶栏：当前用户 + 个人中心入口 -->
-      <div class="top-bar">
-        <h1 class="top-title">📚 教培题库 · 课程列表</h1>
-        <NButton quaternary size="small" @click="showProfile = true">
-          👤 {{ currentUser?.display_name || currentUser?.username || '我' }}
-        </NButton>
-      </div>
-
-      <!-- 个人中心面板 -->
-      <NModal
-        v-model:show="showProfile"
-        preset="card"
-        title="个人中心"
-        style="max-width: 800px"
-        :bordered="false"
-      >
-        <ProfilePanel
-          :user="currentUser"
-          @logged-out="onLoggedOut"
-          @profile-updated="onProfileUpdated"
-        />
-      </NModal>
-      <LessonList />
-      <UploadImage @uploaded="onUploaded" />
-      <OcrResult v-model:image-url="currentImage" @question-saved="onQuestionSaved" />
-      <QuestionBank ref="bankRef" @edit="openQuestionEditor" />
-      <PaperEditor />
-
-      <!-- lesson-09:编辑题库里已存的题目 -->
-      <QuestionEditor
-        v-if="editingQuestion"
-        mode="edit"
-        :question-id="editingQuestion.id"
-        :plain-text="editingQuestion.content_plain"
-        :with-formulas="editingQuestion.content_markdown"
-        :blocks="editingQuestion.blocks"
-        @close="editingQuestion = null"
-        @saved="onQuestionSaved"
-      />
-
-      <!-- 页脚 · ICP 备案号(公安联网备案要求公示) -->
-      <SiteFooter />
-    </template>
-
-<style scoped>
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.top-title {
-  margin: 0;
-}
-</style>
-  </div>
+        <!-- 页脚 · ICP 备案号(公安联网备案要求公示) -->
+        <SiteFooter />
+      </template>
+    </div>
+  </NConfigProvider>
 </template>
 
 <style scoped>
+.app {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
 .top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e8e8e8;
 }
 
-.top-title {
-  margin: 0;
+.top-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+}
+
+.page {
+  min-height: 60vh;
 }
 </style>

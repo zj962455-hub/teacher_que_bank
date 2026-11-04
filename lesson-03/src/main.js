@@ -1,10 +1,11 @@
 import { createApp } from 'vue'
 import App from './App.vue'
+import router from './router'
 
 // === KaTeX 样式（lesson-07）===
 // ⚠️ 必须引入！KaTeX 输出的 HTML 依赖这些 class 做排版
 //    不引的话公式会挤成一团、上下标位置全乱。
-// 字体文件由 katex 包自带的 woff2 提供，会被 Vite 打包进 dist。
+//    字体文件由 katex 包自带的 woff2 提供，会被 Vite 打包进 dist。
 import 'katex/dist/katex.min.css'
 
 /**
@@ -25,4 +26,4 @@ import 'katex/dist/katex.min.css'
  * 本项目选方案 2 —— 组件复用多，方案 1 会让每个组件都依赖 Provider 存在。
  * 实例定义见 src/composables/discreteApi.js
  */
-createApp(App).mount('#app')
+createApp(App).use(router).mount('#app')
