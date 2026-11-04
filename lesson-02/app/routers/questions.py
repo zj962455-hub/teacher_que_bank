@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Question, User
+from app.models import PaperQuestion, Question, User
 from app.services.auth import get_current_user
 from app.services.classifier import build_content_versions, classify_blocks
 
@@ -47,6 +47,23 @@ class QuestionCreate(BaseModel):
     image_path: str = Field(default="", max_length=500)
     ocr_task_id: str = Field(default="", max_length=100)
     # 分类：前端可以传（用户手动改过），不传就后端自动分类
+    subject: Optional[str] = None
+    question_type: Optional[str] = None
+    grade: Optional[str] = None
+    difficulty: Optional[str] = None
+
+
+class BatchDeleteRequest(BaseModel):
+    """批量删除"""
+    ids: list[int] = Field(default_factory=list, max_length=200)
+
+
+class BatchUpdateRequest(BaseModel):
+    """批量改分类/难度
+
+    只传要改的字段,没传的保持原样。
+    """
+    ids: list[int] = Field(default_factory=list, max_length=200)
     subject: Optional[str] = None
     question_type: Optional[str] = None
     grade: Optional[str] = None
@@ -82,6 +99,166 @@ def _normalize_image_path(path: str) -> str:
     if path.startswith("/uploads/"):
         return "/api/uploads/" + path[len("/uploads/"):]
     return path
+
+
+# === 分类树（左侧章节树的数据源）===
+@router.get("/categories")
+def category_tree(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """按学科/学段/难度三维聚合出章节树
+
+    原型的「章节树」本质是题目的多维归类 ——
+    这里用已有字段拼出来,不额外建表（数据量小时够用,
+    以后真要拖拽维护再单独建 categories 表）。
+
+    返回结构：
+    {
+      "tree": [
+        {"key":"数学","label":"数学","count":12,"children":[
+            {"key":"数学/高中","label":"高中","count":8,"children":[
+                {"key":"数学/高中/简单","label":"简单","count":3,"count":3}
+            ]}
+        ]}
+      ],
+      "total": 30
+    }
+    """
+    from sqlalchemy import func
+
+    uid = current_user.id or 0
+
+    # 一次把当前用户的题目全捞出来,在 Python 里聚合 ——
+    # 数据量小(几千题)时比三次 group by 简单得多
+    rows = session.exec(
+        select(Question.subject, Question.grade, Question.difficulty)
+        .where(Question.user_id == uid)
+    ).all()
+
+    tree: dict[str, dict] = {}
+    for subject, grade, difficulty in rows:
+        node = tree.setdefault(
+            subject,
+            {"key": subject, "label": subject, "count": 0, "children": {}},
+        )
+        node["count"] += 1
+
+        gnode = node["children"].setdefault(
+            grade,
+            {"key": f"{subject}/{grade}", "label": grade, "count": 0, "children": {}},
+        )
+        gnode["count"] += 1
+
+        dnode = gnode["children"].setdefault(
+            difficulty,
+            {"key": f"{subject}/{grade}/{difficulty}", "label": difficulty, "count": 0},
+        )
+        dnode["count"] += 1
+
+    def to_list(children: dict) -> list:
+        out = []
+        for node in children.values():
+            item = {
+                "key": node["key"],
+                "label": node["label"],
+                "count": node["count"],
+            }
+            if node.get("children"):
+                item["children"] = to_list(node["children"])
+            out.append(item)
+        return out
+
+    return {
+        "tree": to_list(tree),
+        "total": sum(n["count"] for n in tree.values()),
+    }
+
+
+# === 批量操作 ===
+@router.post("/batch/delete")
+def batch_delete(
+    payload: BatchDeleteRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """批量删除题目
+
+    只删当前用户的 —— 别人的 id 静默跳过(不当成错误),
+    返回实际删了多少条。
+    """
+    if not payload.ids:
+        return {"deleted": 0, "skipped": 0}
+
+    deleted = 0
+    skipped = 0
+    for qid in payload.ids:
+        question = session.get(Question, qid)
+        if question is None or question.user_id != (current_user.id or 0):
+            skipped += 1
+            continue
+        # 关联的试卷记录先清掉(外键约束)
+        for pq in session.exec(
+            select(PaperQuestion).where(PaperQuestion.question_id == qid)
+        ).all():
+            session.delete(pq)
+        session.delete(question)
+        deleted += 1
+
+    session.commit()
+    return {"deleted": deleted, "skipped": skipped}
+
+
+@router.post("/batch/update")
+def batch_update(
+    payload: BatchUpdateRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """批量改分类/难度"""
+    if not payload.ids:
+        return {"updated": 0, "skipped": 0}
+
+    from datetime import datetime, timezone
+
+    updated = 0
+    skipped = 0
+    for qid in payload.ids:
+        question = session.get(Question, qid)
+        if question is None or question.user_id != (current_user.id or 0):
+            skipped += 1
+            continue
+        if payload.subject is not None:
+            question.subject = payload.subject
+        if payload.question_type is not None:
+            question.question_type = payload.question_type
+        if payload.grade is not None:
+            question.grade = payload.grade
+        if payload.difficulty is not None:
+            question.difficulty = payload.difficulty
+        question.updated_at = datetime.now(timezone.utc)
+        session.add(question)
+        updated += 1
+
+    session.commit()
+    return {"updated": updated, "skipped": skipped}
+
+
+# === 最近编辑（仪表盘用）===
+@router.get("/recent")
+def recent_questions(
+    limit: int = Query(default=6, ge=1, le=20),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """最近编辑的题目（仪表盘「最近编辑」卡片）"""
+    items = session.exec(
+        select(Question)
+        .where(Question.user_id == (current_user.id or 0))
+        .order_by(Question.updated_at.desc())
+        .limit(limit)
+    ).all()
+    return {"items": [_to_dict(q) for q in items]}
 
 
 # === 列表 ===
