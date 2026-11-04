@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import axios from 'axios'
-import { API_BASE, API } from '../api/config'
+import { http, fetchImageBlobUrl } from '../api/auth'
 
 // === 状态 ===
 const fileList = ref([])              // 用户选的 File 数组
@@ -18,6 +17,28 @@ const MAX_SIZE = 5 * 1024 * 1024      // 文件大小限制 5 MB
 const isDragging = ref(false)         // 拖入状态(用于视觉反馈)
 const historyList = ref([])           // 上传历史(简易画廊)
 const loadingHistory = ref(false)     // 加载历史中
+// 图片的 blob URL 映射(filename → blob: URL)
+const imageUrls = ref({})            // ⚠️ 图片接口要鉴权，<img src> 带不了 Authorization 头
+const blobUrls = []                  // 记下来以便卸载时 revoke
+
+// === 加载图片的 blob URL（带 token） ===
+async function loadImageUrl(url) {
+  if (!url || imageUrls.value[url]) return imageUrls.value[url]
+  try {
+    const blobUrl = await fetchImageBlobUrl(url)
+    blobUrls.push(blobUrl)
+    imageUrls.value = { ...imageUrls.value, [url]: blobUrl }
+    return blobUrl
+  } catch (e) {
+    console.error('图片加载失败:', url, e.message)
+    return ''
+  }
+}
+
+// 历史图鉴的图逐张加载（拿到列表后并行转 blob）
+async function loadHistoryImages(list) {
+  await Promise.all(list.map((item) => loadImageUrl(item.url)))
+}
 
 // === 选文件后立刻预览 ===
 function onFilesChange(e) {
@@ -88,8 +109,8 @@ async function upload() {
     const promises = fileList.value.map((f) => {
       const formData = new FormData()
       formData.append('file', f)
-      return axios.post(
-        `${API}/upload/`,
+      return http.post(
+        '/uploads/',
         formData,
         {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -101,6 +122,8 @@ async function upload() {
     
     const results = await Promise.all(promises)
     uploadedList.value = results.map((r) => r.data)
+    // 图片要带 token 才能读 → 转成 blob URL
+    await loadHistoryImages(uploadedList.value)
     // 刷新历史画廊
     await loadHistory()
   } catch (e) {
@@ -114,8 +137,10 @@ async function upload() {
 async function loadHistory() {
   loadingHistory.value = true
   try {
-    const res = await axios.get(`${API}/upload/list`)
+    const res = await http.get('/uploads/list')
     historyList.value = res.data
+    // 逐张转成带鉴权的 blob URL
+    await loadHistoryImages(res.data)
   } catch (e) {
     error.value = `加载历史失败: ${e.message}`
   } finally {
@@ -200,7 +225,7 @@ function reset() {
     <div v-if="uploadedList.length > 0" class="uploaded">
       <h4>✅ 已上传 {{ uploadedList.length }} 张:</h4>
         <div v-for="(u, i) in uploadedList" :key="i" class="uploaded-item">
-          <img :src="`${API_BASE}${u.url}`" :alt="`已上传 ${i+1}`" />
+          <img :src="imageUrls[u.url] || ''" :alt="`已上传 ${i+1}`" />
           <p class="url">URL: <code>{{ u.url }}</code></p>
         </div>
     </div>
@@ -219,7 +244,7 @@ function reset() {
     </div>
     <div v-else class="history-grid">
       <div v-for="h in historyList" :key="h.filename" class="history-item">
-        <img :src="`${API_BASE}${h.url}`" :alt="h.filename" />
+        <img :src="imageUrls[h.url] || ''" :alt="h.original_name || h.filename" />
         <p class="history-filename">{{ h.filename }}</p>
       </div>
     </div>

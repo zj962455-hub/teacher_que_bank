@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.database import engine  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Paper, PaperQuestion, Question, Session_, User  # noqa: E402
+from app.models import Paper, PaperQuestion, Question, Session_, Upload, User  # noqa: E402
 from app.scripts.create_users import check_password_strength, hash_password, verify_password  # noqa: E402
 from app.services.auth import create_session, get_session_by_token  # noqa: E402
 
@@ -41,7 +41,9 @@ OTHER_PASSWORD = "Other1234"
 def clean_db():
     """每个测试前清干净用户相关数据"""
     with Session(engine) as session:
-        for model in (Session_, PaperQuestion, Paper, Question, User):
+        # ⚠️ 删除顺序要紧：先删引用方，再删被引用方（外键约束）
+        #    顺序错了会报 ForeignKeyViolation
+        for model in (Session_, Upload, PaperQuestion, Paper, Question, User):
             session.exec(delete(model))
         session.commit()
     yield

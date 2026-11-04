@@ -66,6 +66,24 @@ class QuestionUpdate(BaseModel):
     image_path: Optional[str] = None
 
 
+
+def _normalize_image_path(path: str) -> str:
+    """图片路径规范化
+
+    历史数据存的是 ``/uploads/xxx``（静态挂载时代），
+    现在图片走鉴权路由 ``/api/uploads/xxx`` —— 统一成后者。
+
+    只做路径改写，不改文件名（文件名是随机后缀，不可猜）。
+    """
+    if not path:
+        return ""
+    if path.startswith("/api/uploads/"):
+        return path
+    if path.startswith("/uploads/"):
+        return "/api/uploads/" + path[len("/uploads/"):]
+    return path
+
+
 # === 列表 ===
 # 完整路径: GET /api/questions/
 @router.get("/")
@@ -160,7 +178,7 @@ def create_question(
         content_plain=payload.content_plain or versions["plain"],
         content_markdown=payload.content_markdown or versions["markdown"],
         blocks_json=versions["blocks_json"],
-        image_path=payload.image_path,
+        image_path=_normalize_image_path(payload.image_path),
         ocr_task_id=payload.ocr_task_id,
     )
 
@@ -207,7 +225,7 @@ def create_from_ocr(
         content_plain=versions["plain"],
         content_markdown=versions["markdown"],
         blocks_json=versions["blocks_json"],
-        image_path=record.get("image_url", ""),
+        image_path=_normalize_image_path(record.get("image_url", "")),
         ocr_task_id=task_id,
     )
 

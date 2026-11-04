@@ -2,13 +2,10 @@
  * 试卷 API 客户端 — lesson-09
  */
 
-import axios from 'axios'
-import { API } from './config'
+import { http } from './auth'
 
-const http = axios.create({
-  baseURL: API,
-  timeout: 30000,   // PDF 导出要启 Chromium,给足时间
-})
+// ⚠️ 用 auth.js 的共享实例 —— 它会自动注入 Authorization 头。
+//    自己 create 出来的实例不带 token → 后端返 401。
 
 /** 试卷列表 */
 export function listPapers() {

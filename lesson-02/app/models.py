@@ -63,6 +63,49 @@ class User(SQLModel, table=True):
     last_login_at: Optional[datetime] = Field(default=None)
 
 
+class Upload(SQLModel, table=True):
+    """上传的图片记录
+
+    为什么要这张表
+    --------------
+    光有文件名不够 —— **归属信息必须落库**。
+    之前 ``questions.image_path`` 只存了路径字符串，
+    读图片时无法判断「这张图是谁的」，隔离就无从谈起。
+
+    这张表是「文件名 → 归属」的映射：
+    读图片时先查表拿到 user_id，再和当前登录用户比对。
+
+    文件本身仍放磁盘（uploads/），数据库只存元信息。
+    """
+
+    __tablename__ = "uploads"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # === 归属 ===
+    # 哪个用户上传的 —— 读图片时校验这个
+    user_id: int = Field(foreign_key="users.id", index=True, nullable=False)
+
+    # === 文件信息 ===
+    # 磁盘上的文件名（不含目录）
+    filename: str = Field(index=True, unique=True, max_length=255)
+
+    # 对外 URL（前缀 + filename）
+    url: str = Field(max_length=500)
+
+    # 原始文件名（老师上传时的名字，可能含题干关键词）
+    original_name: str = Field(default="", max_length=255)
+
+    # 文件大小（字节）
+    size: int = Field(default=0)
+
+    # MIME 类型
+    content_type: str = Field(default="", max_length=100)
+
+    # === 元信息 ===
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class Session_(SQLModel, table=True):
     """登录会话
 

@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, h } from 'vue'
-import axios from 'axios'
+import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
+import { http, fetchImageBlobUrl } from '../api/auth'
 import {
   NCard, NSpace, NButton, NTag, NTabs, NTabPane,
   NSpin, NAlert, NEmpty, NImage, NText, NSelect,
@@ -11,11 +11,10 @@ import { message } from '../composables/discreteApi'   // ← 任务 5A:全局 t
 import { stripMathMarkers } from '../utils/mathRenderer'   // ← 任务 3:更新 plain 字段
 import { createQuestionFromOcr } from '../api/questions'   // ← lesson-08:一键入库
 
-import { API_BASE, API } from '../api/config'
 
 // === Props:由 UploadImage 上传成功后回传 ===
 const props = defineProps({
-  imageUrl: { type: String, default: '' },  // 例: /uploads/xxx.jpg
+  imageUrl: { type: String, default: '' },  // 例: /api/uploads/xxx.jpg
 })
 
 // === 状态 ===
@@ -79,7 +78,7 @@ function onImageLoad(e) {
 // === 历史记录(任务 3 的持久化成果)===
 async function loadHistory() {
   try {
-    const res = await axios.get(`${API}/api/ocr/history`, { params: { limit: 20 } })
+    const res = await http.get('/ocr/history', { params: { limit: 20 } })
     history.value = res.data.items ?? []
     historyOptions.value = history.value.map(item => ({
       label: `${item.image_url.split('/').pop()} · ${item.created_at.slice(0, 16).replace('T', ' ')}`,
@@ -114,6 +113,25 @@ onMounted(() => {
   loadHistory()
 })
 
+// === 原图 blob URL ===
+// 图片接口要鉴权，<img src> 带不了 Authorization 头 → 用 axios 取 blob
+const imageBlobUrl = ref('')
+
+watch(
+  () => props.imageUrl,
+  async (url) => {
+    imageBlobUrl.value = ''
+    if (!url) return
+    try {
+      imageBlobUrl.value = await fetchImageBlobUrl(url)
+    } catch (e) {
+      // 图片加载失败不致命(可能是还没上传)—— 记一下就行,别刷 error
+      console.warn('原图加载失败:', url, e.message)
+    }
+  },
+  { immediate: true },
+)
+
 // === 开始 OCR ===
 async function startOcr() {
   if (!props.imageUrl) {
@@ -126,7 +144,7 @@ async function startOcr() {
   hoverIndex.value = -1
 
   try {
-    const res = await axios.post(`${API}/api/ocr/`, {
+    const res = await http.post('/ocr/', {
       image_url: props.imageUrl,
     })
     taskId.value = res.data.task_id
@@ -141,7 +159,7 @@ async function startOcr() {
 function startPolling() {
   pollTimer = setInterval(async () => {
     try {
-      const res = await axios.get(`${API}/ocr/status/${taskId.value}`)
+      const res = await http.get(`/ocr/status/${taskId.value}`)
       const data = res.data
       
       if (data.status === 'completed') {
@@ -316,8 +334,8 @@ async function copyPlainText() {
         <div style="flex: 0 0 45%; min-width: 0;">
           <div style="position: relative; display: inline-block; max-width: 100%; border: 1px solid #d9d9d9; border-radius: 4px; overflow: hidden;">
             <img
-              v-if="imageUrl"
-              :src="`${API}${imageUrl}`"
+              v-if="imageUrl && imageBlobUrl"
+              :src="imageBlobUrl"
               alt="原图"
               style="display: block; width: 100%; height: auto;"
               @load="onImageLoad"
