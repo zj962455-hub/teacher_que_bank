@@ -305,6 +305,7 @@ def export_pdf(
         pdf_bytes = export_paper_pdf(
             paper={"title": paper.title, "subtitle": paper.subtitle},
             items=items,
+            trace=_build_trace(current_user, paper),
         )
     except PdfExportError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -326,6 +327,23 @@ def export_pdf(
 
 
 # === 辅助 ===
+def _build_trace(user: User, paper: Paper) -> str:
+    """生成导出溯源标记
+
+    为什么导出的文件要带溯源串
+    --------------------------
+    PDF 落到老师本地后就**脱离系统管控**了 —— 被转发出去时，
+    接收方无法验证来源。这是唯一能定位「谁导出了哪份卷」的线索。
+
+    格式：导出人：张老师 | 试卷：高一数学第一单元测试 | 2026-11-04 19:30
+    """
+    from datetime import datetime, timezone
+
+    who = user.display_name or user.username
+    when = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
+    return f"导出人：{who} | 试卷：{paper.title} | {when}"
+
+
 def _get_own_paper(paper_id: int, session: Session, user: User) -> Paper:
     """取试卷并校验归属
 

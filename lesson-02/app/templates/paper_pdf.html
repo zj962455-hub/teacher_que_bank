@@ -33,6 +33,8 @@
       line-height: 1.9;
       color: #1a1a1a;
       margin: 0;
+      /* 给页脚（固定定位在 bottom:6mm）留出空间，否则最后一道题会压在页脚上 */
+      padding-bottom: 20mm;
       /* 打印时不要有背景色干扰 */
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
@@ -107,14 +109,30 @@
     }
 
     /* ===== 页脚 ===== */
+    /* position:fixed → 每页都印一遍（PDF 特性）
+       ⚠️ bottom 必须是**正数**且在 @page 的下边距（18mm）之内 ——
+       原来的 bottom:-10mm 把页脚推到了纸张外面，PDF 里看不见、也抽不出文字。
+       现在用 6mm（落在 18mm 下边距里），再给正文留 20mm 底部空间避免压字。 */
     .footer {
       position: fixed;
-      bottom: -10mm;
+      bottom: 6mm;
       left: 0;
       right: 0;
       text-align: center;
       font-size: 9pt;
       color: #999;
+    }
+
+    /* ===== 溯源标记 =====
+       导出到本地后就脱离系统管控了 —— 文件被转发出去，
+       接收方无法验证来源。溯源串是「谁在什么时候导出了哪份卷」的唯一线索。
+       样式做得淡一点，不影响打印可读性。 */
+    .trace {
+      display: block;
+      font-size: 7.5pt;
+      color: #bbb;
+      margin-top: 2px;
+      letter-spacing: 0.2px;
     }
 
     /* ===== 空状态 ===== */
@@ -151,7 +169,12 @@
   {% endif %}
 
   <!-- ===== 页脚 ===== -->
-  <div class="footer">{{ paper.title }} · 共 {{ items|length }} 题</div>
+  <div class="footer">
+    {{ paper.title }} · 共 {{ items|length }} 题
+    {% if trace %}
+    <span class="trace">{{ trace }}</span>
+    {% endif %}
+  </div>
 
   <!--
     KaTeX 自动渲染

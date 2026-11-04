@@ -56,27 +56,30 @@ class PdfExportError(Exception):
 def render_paper_html(
     paper: dict[str, Any],
     items: list[dict[str, Any]],
+    trace: str = "",
 ) -> str:
     """把试卷渲染成 HTML 字符串
 
     Args:
         paper: {"title": ..., "subtitle": ...}
         items: [{"label": "一、", "content": "题干 markdown", "score": 5.0}]
+        trace: 溯源标记（导出人 + 时间），印在页脚
     """
     template = jinja_env.get_template("paper_pdf.html")
-    return template.render(paper=paper, items=items)
+    return template.render(paper=paper, items=items, trace=trace)
 
 
 def export_paper_pdf(
     paper: dict[str, Any],
     items: list[dict[str, Any]],
+    trace: str = "",
 ) -> bytes:
     """生成 PDF,返回二进制内容
 
     Raises:
         PdfExportError: Playwright 启动失败或渲染超时
     """
-    html = render_paper_html(paper, items)
+    html = render_paper_html(paper, items, trace=trace)
 
     # === 1. 写临时 HTML ===
     # 放在 static/ 下 → 跟 katex/ 同级,相对路径能解析到

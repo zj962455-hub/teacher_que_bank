@@ -14,13 +14,13 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, delete, select
+from sqlmodel import Session, delete, select, text
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.database import engine  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Session_, Upload, User  # noqa: E402
+from app.models import Paper, PaperQuestion, Question, Session_, Upload, User  # noqa: E402
 from app.scripts.create_users import hash_password  # noqa: E402
 
 PASSWORD = "Test1234"
@@ -34,11 +34,22 @@ PNG_BYTES = bytes.fromhex(
 
 @pytest.fixture(autouse=True)
 def clean_db():
+    """每个测试前清干净用户相关数据
+
+    ⚠️ 必须用**显式 SQL** 按外键依赖顺序删 —— 用 ORM 的 delete(model)
+    会被 SQLAlchemy 按依赖图排序，顺序不可控，
+    报 ForeignKeyViolation（users 先被删，questions 还引用着）。
+    """
     with Session(engine) as session:
-        # 顺序要紧：先删引用方，再删被引用方（外键约束）
-        session.exec(delete(Session_))
-        session.exec(delete(Upload))
-        session.exec(delete(User))
+        for sql in (
+            "DELETE FROM sessions",
+            "DELETE FROM uploads",
+            "DELETE FROM paper_questions",
+            "DELETE FROM papers",
+            "DELETE FROM questions",
+            "DELETE FROM users",
+        ):
+            session.exec(text(sql))
         session.commit()
     yield
 
