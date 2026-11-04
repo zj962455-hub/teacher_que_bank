@@ -9,14 +9,22 @@ import { ref, onMounted, h } from 'vue'
 import { NCard, NGrid, NGi, NStatistic, NButton, NSpace, NTag, NSpin, NEmpty } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import { getMyStats } from '../api/profile'
+import { getRecentQuestions } from '../api/batch'
+import { renderMathText } from '../utils/mathRenderer'
 
 const router = useRouter()
 const stats = ref(null)
+const recent = ref([])
 const loading = ref(true)
 
 onMounted(async () => {
   try {
-    stats.value = (await getMyStats()).data
+    const [statsRes, recentRes] = await Promise.all([
+      getMyStats(),
+      getRecentQuestions(6),
+    ])
+    stats.value = statsRes.data
+    recent.value = recentRes.data.items || []
   } catch (e) {
     console.error('统计加载失败:', e.message)
   } finally {
@@ -57,6 +65,24 @@ const SHORTCUTS = [
         </NSpace>
       </NCard>
 
+      <!-- 最近编辑 -->
+      <NCard v-if="recent.length" title="最近编辑" size="small" style="margin-top: 12px">
+        <NSpace vertical :size="8">
+          <div
+            v-for="q in recent"
+            :key="q.id"
+            class="recent-item"
+            @click="router.push({ name: 'question-detail', params: { id: q.id } })"
+          >
+            <div class="recent-text" v-html="renderMathText(q.content_markdown || q.content_plain)" />
+            <div class="recent-meta">
+              <NTag size="small" :bordered="false">{{ q.subject }}</NTag>
+              <span>{{ new Date(q.updated_at).toLocaleString('zh-CN') }}</span>
+            </div>
+          </div>
+        </NSpace>
+      </NCard>
+
       <!-- 快捷入口 -->
       <NCard title="快捷入口" size="small" style="margin-top: 12px">
         <NGrid :cols="4" :x-gap="12" :y-gap="12">
@@ -73,7 +99,65 @@ const SHORTCUTS = [
         <template #extra>
           <NButton type="primary" @click="router.push({ name: 'capture' })">去录题</NButton>
         </template>
+
+<style scoped>
+.recent-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.recent-item:hover {
+  background: #f7f7f7;
+}
+
+.recent-text {
+  font-size: 14px;
+  line-height: 1.7;
+  max-height: 3.4em;
+  overflow: hidden;
+}
+
+.recent-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #999;
+}
+</style>
       </NEmpty>
     </div>
   </NSpin>
 </template>
+
+<style scoped>
+.recent-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.recent-item:hover {
+  background: #f7f7f7;
+}
+
+.recent-text {
+  font-size: 14px;
+  line-height: 1.7;
+  max-height: 3.4em;
+  overflow: hidden;
+}
+
+.recent-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #999;
+}
+</style>
