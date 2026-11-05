@@ -25,6 +25,7 @@ import {
 } from '../api/questions'
 import { batchDeleteQuestions, batchUpdateQuestions } from '../api/batch'
 import { getCategoryTree, getCategoryFlat, toTreeOptions } from '../api/categories'
+import { listTags, createTag, deleteTag } from '../api/tags'
 import { renderMathText } from '../utils/mathRenderer'
 import { message } from '../composables/discreteApi'
 
@@ -46,7 +47,32 @@ const filters = ref({
   keyword: '',
   // 章节分类（categories.id）—— 后端会把子分类的题也算进来
   category_id: null,
+  // 标签筛选（多选，后端取交集：必须同时有这些标签）
+  tag_ids: [],
+  // 排序
+  sort: 'created_at',
+  order: 'desc',
 })
+
+/** 标签列表（筛选下拉 + 标签管理用） */
+const tags = ref([])
+
+/** 新建标签的输入框 */
+const newTagName = ref('')
+
+/** 排序选项 */
+const SORT_OPTIONS = [
+  { label: '创建时间', value: 'created_at' },
+  { label: '更新时间', value: 'updated_at' },
+  { label: '难度', value: 'difficulty' },
+  { label: '学科', value: 'subject' },
+  { label: '题型', value: 'question_type' },
+]
+
+const ORDER_OPTIONS = [
+  { label: '降序', value: 'desc' },
+  { label: '升序', value: 'asc' },
+]
 
 /** 扁平分类列表（批量改分类的下拉框用） */
 const categoryOptions = ref([])
@@ -91,6 +117,9 @@ async function load() {
   loading.value = true
   try {
     const params = { ...filters.value, limit: pageSize.value, offset: (page.value - 1) * pageSize.value }
+    // tag_ids 是数组 —— axios 序列化数组是 tag_ids[]=1&tag_ids[]=2，
+    // 后端要的是 tag_ids=1,2，所以手动拼
+    params.tag_ids = (params.tag_ids || []).join(',')
     const res = await listQuestions(params)
     questions.value = res.data.items || []
     total.value = res.data.total || 0
@@ -114,9 +143,52 @@ async function loadTree() {
   }
 }
 
+async function loadTags() {
+  try {
+    const res = await listTags()
+    tags.value = res.data.items || []
+  } catch (e) {
+    console.error('标签加载失败:', e.message)
+  }
+}
+
+async function doCreateTag() {
+  const name = newTagName.value.trim()
+  if (!name) {
+    message.warning('标签名不能为空')
+    return
+  }
+  try {
+    const res = await createTag({ name })
+    if (res.data.reused) {
+      message.info(`标签「${name}」已存在，已复用`)
+    } else {
+      message.success(`标签「${name}」已创建`)
+    }
+    newTagName.value = ''
+    await loadTags()
+  } catch (e) {
+    message.error(`创建失败：${e.response?.data?.detail || e.message}`)
+  }
+}
+
+async function doDeleteTag(tag) {
+  try {
+    await deleteTag(tag.id)
+    message.success(`标签「${tag.name}」已删除`)
+    // 删掉的标签如果正在筛选里，顺手清掉
+    filters.value.tag_ids = filters.value.tag_ids.filter((id) => id !== tag.id)
+    await loadTags()
+    load()
+  } catch (e) {
+    message.error(`删除失败：${e.response?.data?.detail || e.message}`)
+  }
+}
+
 onMounted(() => {
   load()
   loadTree()
+  loadTags()
 })
 
 // === 筛选变化 ===
@@ -158,6 +230,7 @@ function resetFilters() {
   filters.value = {
     subject: null, question_type: null, grade: null,
     difficulty: null, keyword: '', category_id: null,
+    tag_ids: [], sort: 'created_at', order: 'desc',
   }
   selectedCategory.value = null
   onFilterChange()
@@ -290,6 +363,25 @@ const columns = computed(() => [
     width: 80,
   },
   {
+    title: '标签',
+    key: 'tags',
+    width: 160,
+    render: (row) => {
+      const list = row.tags || []
+      if (!list.length) return h('span', { style: 'color:#999;font-size:12px' }, '—')
+      return h(
+        NSpace,
+        { size: 4, wrap: true },
+        {
+          default: () =>
+            list.map((t) =>
+              h(NTag, { size: 'small', bordered: false, color: { color: t.color + '22', borderColor: t.color, textColor: t.color } }, { default: () => t.name }),
+            ),
+        },
+      )
+    },
+  },
+  {
     title: '操作',
     key: 'ops',
     width: 120,
@@ -357,6 +449,33 @@ const checkedRowKeys = computed(() => selectedKeys.value)
         </div>
       </NCard>
 
+      <!-- 左下：标签管理 -->
+      <NCard title="标签" size="small" class="tree-card" style="margin-top: 12px">
+        <NSpace :size="4" style="margin-bottom: 8px">
+          <NInput
+            v-model:value="newTagName"
+            placeholder="新标签名字"
+            size="small"
+            style="width: 130px"
+            @keyup.enter="doCreateTag"
+          />
+          <NButton size="small" type="primary" @click="doCreateTag">新建</NButton>
+        </NSpace>
+        <NSpace v-if="tags.length" :size="4" style="flex-wrap: wrap">
+          <NTag
+            v-for="t in tags"
+            :key="t.id"
+            size="small"
+            :closable="true"
+            :color="{ color: t.color + '22', borderColor: t.color, textColor: t.color }"
+            @close="doDeleteTag(t)"
+          >
+            {{ t.name }} ({{ t.count }})
+          </NTag>
+        </NSpace>
+        <NEmpty v-else description="还没有标签" size="small" />
+      </NCard>
+
       <!-- 右：筛选 + 表格 -->
       <div class="main">
         <NCard size="small">
@@ -399,6 +518,28 @@ const checkedRowKeys = computed(() => selectedKeys.value)
               clearable
               style="width: 200px"
               @keyup.enter="onSearch"
+            />
+            <NSelect
+              v-model:value="filters.tag_ids"
+              :options="tags.map((t) => ({ label: `${t.name} (${t.count})`, value: t.id }))"
+              placeholder="标签（可多选，取交集）"
+              multiple
+              filterable
+              clearable
+              style="width: 220px"
+              @update:value="onFilterChange"
+            />
+            <NSelect
+              v-model:value="filters.sort"
+              :options="SORT_OPTIONS"
+              style="width: 110px"
+              @update:value="onFilterChange"
+            />
+            <NSelect
+              v-model:value="filters.order"
+              :options="ORDER_OPTIONS"
+              style="width: 90px"
+              @update:value="onFilterChange"
             />
             <NButton size="small" @click="onSearch">搜索</NButton>
             <NButton size="small" quaternary @click="resetFilters">

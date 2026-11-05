@@ -235,6 +235,52 @@ class Question(SQLModel, table=True):
             return []
 
 
+class Tag(SQLModel, table=True):
+    """标签（用户自定义的题目标签）
+
+    和分类树（Category）的区别
+    ----------------------
+    - Category 是**层级**结构，一题只能属于一个分类
+    - Tag 是**扁平**结构，一题可以打多个标签
+
+    典型用法：「期末冲刺」「高考真题」「易错题」「需要板书」
+    """
+
+    __tablename__ = "tags"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # === 归属 ===
+    user_id: int = Field(foreign_key="users.id", index=True, nullable=False)
+
+    # === 标签本身 ===
+    name: str = Field(max_length=30)
+    # 颜色（十六进制，如 #18a058）—— 给标签一点视觉区分度
+    color: str = Field(default="#18a058", max_length=10)
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class QuestionTag(SQLModel, table=True):
+    """题目 ↔ 标签（多对多关联表）
+
+    为什么要独立表而不是 Question 里存 id 列表：
+    标签是**共享**的 —— 同一批题都可能被标上「易错题」，
+    存在关联表里才能反查「这个标签下有哪些题」。
+    """
+
+    __tablename__ = "question_tags"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    question_id: int = Field(foreign_key="questions.id", index=True)
+    tag_id: int = Field(foreign_key="tags.id", index=True)
+
+    # 关联
+    question: Optional[Question] = Relationship()
+    tag: Optional[Tag] = Relationship()
+
+
 class Paper(SQLModel, table=True):
     """一张试卷（组卷）
 

@@ -38,6 +38,8 @@ def clean_db():
             "DELETE FROM uploads",
             "DELETE FROM paper_questions",
             "DELETE FROM papers",
+            "DELETE FROM question_tags",
+            "DELETE FROM tags",
             "DELETE FROM questions",
             "DELETE FROM categories",
             "DELETE FROM users",

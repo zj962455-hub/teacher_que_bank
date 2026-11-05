@@ -421,6 +421,15 @@ def list_questions(
     difficulty: Optional[str] = Query(default=None, description="按难度筛选"),
     keyword: Optional[str] = Query(default=None, description="内容关键词搜索"),
     category_id: Optional[int] = Query(default=None, description="按章节分类筛选（含子分类）"),
+    tag_ids: Optional[str] = Query(
+        default=None,
+        description="按标签筛选，逗号分隔（如 1,2）；多标签取交集",
+    ),
+    sort: str = Query(
+        default="created_at",
+        description="排序字段：created_at/updated_at/difficulty/subject/question_type",
+    ),
+    order: str = Query(default="desc", description="排序方向：asc/desc"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ):
@@ -447,9 +456,34 @@ def list_questions(
 
         ids = _child_ids(category_id, session, current_user.id or 0)
         stmt = stmt.where(Question.category_id.in_(ids))
+    # 按标签筛选 —— 多标签取「交集」（同一道题要同时有这些标签）
+    tag_id_list: list[int] = []
+    if tag_ids:
+        for part in tag_ids.split(","):
+            part = part.strip()
+            if part.isdigit():
+                tag_id_list.append(int(part))
+    if tag_id_list:
+        from app.models import QuestionTag
 
-    # 按创建时间倒序(新的在前)
-    stmt = stmt.order_by(Question.created_at.desc())
+        # 逐个标签取交集：题必须同时有这些标签
+        for tid in tag_id_list:
+            sub = (
+                select(QuestionTag.question_id)
+                .where(QuestionTag.tag_id == tid)
+            )
+            stmt = stmt.where(Question.id.in_(sub))
+
+    # 排序 —— 字段白名单，防注入
+    sort_columns = {
+        "created_at": Question.created_at,
+        "updated_at": Question.updated_at,
+        "difficulty": Question.difficulty,
+        "subject": Question.subject,
+        "question_type": Question.question_type,
+    }
+    column = sort_columns.get(sort, Question.created_at)
+    stmt = stmt.order_by(column.asc() if order == "asc" else column.desc())
     stmt = stmt.offset(offset).limit(limit)
 
     items = session.exec(stmt).all()
@@ -472,10 +506,33 @@ def list_questions(
 
         ids = _child_ids(category_id, session, current_user.id or 0)
         count_stmt = count_stmt.where(Question.category_id.in_(ids))
+    # 按标签筛选 —— 多标签取「交集」（同一道题要同时有这些标签）
+    tag_id_list: list[int] = []
+    if tag_ids:
+        for part in tag_ids.split(","):
+            part = part.strip()
+            if part.isdigit():
+                tag_id_list.append(int(part))
+    if tag_id_list:
+        from app.models import QuestionTag
+
+        # 逐个标签取交集：题必须同时有这些标签
+        for tid in tag_id_list:
+            sub = (
+                select(QuestionTag.question_id)
+                .where(QuestionTag.tag_id == tid)
+            )
+            count_stmt = count_stmt.where(Question.id.in_(sub))
     total = len(session.exec(count_stmt).all())
 
+    # 批量取标签（一次查询，别在循环里查）
+    tag_map = _tags_map([q.id for q in items if q.id is not None], session)
+
     return {
-        "items": [_to_dict(q) for q in items],
+        "items": [
+            _to_dict(q, tag_map.get(q.id, []) if q.id is not None else [])
+            for q in items
+        ],
         "total": total,
         "limit": limit,
         "offset": offset,
@@ -492,7 +549,8 @@ def get_question(
 ):
     """单题详情"""
     question = _get_own_question(question_id, session, current_user)
-    return _to_dict(question)
+    tag_map = _tags_map([question_id], session)
+    return _to_dict(question, tag_map.get(question_id, []))
 
 
 # === 新建 ===
@@ -668,8 +726,44 @@ def datetime_now():
     return datetime.now(timezone.utc)
 
 
-def _to_dict(question: Question) -> dict:
-    """ORM 对象 → dict（给前端）"""
+
+def _tags_map(question_ids: list[int], session: Session) -> dict[int, list[dict]]:
+    """批量取题目的标签 —— 避免在列表里 N+1 查库
+
+    返回 {question_id: [{id, name, color}, ...]}
+    """
+    if not question_ids:
+        return {}
+
+    from app.models import QuestionTag, Tag
+
+    rows = session.exec(
+        select(QuestionTag.question_id, QuestionTag.tag_id)
+        .where(QuestionTag.question_id.in_(question_ids))
+    ).all()
+    if not rows:
+        return {}
+
+    tag_ids = list({r[1] for r in rows})
+    tags = session.exec(select(Tag).where(Tag.id.in_(tag_ids))).all()
+    tag_by_id = {t.id: t for t in tags}
+
+    result: dict[int, list[dict]] = {}
+    for qid, tid in rows:
+        tag = tag_by_id.get(tid)
+        if tag is None:
+            continue
+        result.setdefault(qid, []).append(
+            {"id": tag.id, "name": tag.name, "color": tag.color}
+        )
+    return result
+
+
+def _to_dict(question: Question, tags: list[dict] | None = None) -> dict:
+    """ORM 对象 → dict（给前端）
+
+    tags 传了就带上标签数组（批量查一次，别在循环里查库）。
+    """
     return {
         "id": question.id,
         "subject": question.subject,
@@ -684,4 +778,5 @@ def _to_dict(question: Question) -> dict:
         "category_id": question.category_id,
         "created_at": question.created_at.isoformat() if question.created_at else None,
         "updated_at": question.updated_at.isoformat() if question.updated_at else None,
+        "tags": tags or [],
     }
