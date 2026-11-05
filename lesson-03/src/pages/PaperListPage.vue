@@ -50,8 +50,8 @@ function doDelete(row) {
 
 <template>
   <div>
-    <div class="page-head">
-      <h2 class="page-title">📄 我的试卷</h2>
+    <div class="tqb-page-head">
+      <h2 class="tqb-page-title">📄 我的试卷</h2>
       <NButton type="primary" size="small" @click="router.push({ name: 'paper-new' })">
         + 组卷
       </NButton>
@@ -89,17 +89,6 @@ function doDelete(row) {
 </template>
 
 <style scoped>
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 18px;
-}
 
 .paper-row {
   display: flex;

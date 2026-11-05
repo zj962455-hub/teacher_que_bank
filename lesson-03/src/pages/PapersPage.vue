@@ -15,8 +15,8 @@ const router = useRouter()
 
 <template>
   <div>
-    <div class="page-head">
-      <h2 class="page-title">📄 组卷</h2>
+    <div class="tqb-page-head">
+      <h2 class="tqb-page-title">📄 组卷</h2>
       <NButton size="small" quaternary @click="router.push({ name: 'papers' })">
         我的试卷
       </NButton>
@@ -27,15 +27,4 @@ const router = useRouter()
 </template>
 
 <style scoped>
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 18px;
-}
 </style>

@@ -20,8 +20,8 @@ function onUploaded(url) {
 
 <template>
   <div>
-    <div class="page-head">
-      <h2 class="page-title">📷 录题</h2>
+    <div class="tqb-page-head">
+      <h2 class="tqb-page-title">📷 录题</h2>
     </div>
 
     <p class="page-desc">
@@ -37,14 +37,6 @@ function onUploaded(url) {
 </template>
 
 <style scoped>
-.page-head {
-  margin-bottom: 8px;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 18px;
-}
 
 .page-desc {
   color: #666;

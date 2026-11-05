@@ -1,0 +1,139 @@
+/**
+ * 设计令牌 —— b 阶段视觉系统
+ *
+ * 为什么要有这一层
+ * --------------
+ * 之前每个页面的 <style scoped> 里各写各的颜色（#f2f6fb、#888、#e8e8e8…），
+ * 同一个「次要文字」在五个文件里是五个色值。
+ * 改一次配色要翻十几个文件 —— 迟早漏掉，然后页面之间就不齐了。
+ *
+ * 令牌的作用：**一个地方改，全站跟着变**。
+ *
+ * 用法
+ * ---
+ *   颜色     var(--tqb-text-secondary)
+ *   间距     var(--tqb-space-3)
+ *   圆角     var(--tqb-radius-md)
+ *   阴影     var(--tqb-shadow-sm)
+ *
+ * 深色模式
+ * --------
+ * 走 [data-theme="dark"] 覆盖 —— naive-ui 的 NConfigProvider 也会跟着切主题，
+ * 两边保持一致。
+ */
+
+:root {
+  /* ============ 品牌色 ============ */
+  /* 主色：沉稳的靛蓝 —— 教育场景要专业，不要花哨 */
+  --tqb-primary: #2f6fed;
+  --tqb-primary-hover: #4a83f5;
+  --tqb-primary-pressed: #1f56c9;
+  --tqb-primary-soft: #eaf1fe;
+  --tqb-primary-soft-hover: #dbe8fd;
+
+  /* ============ 功能色 ============ */
+  --tqb-success: #16a34a;
+  --tqb-success-soft: #e8f6ee;
+  --tqb-warning: #d97706;
+  --tqb-warning-soft: #fdf3e4;
+  --tqb-danger: #dc2626;
+  --tqb-danger-soft: #fdecec;
+  --tqb-info: #0891b2;
+  --tqb-info-soft: #e6f6f9;
+
+  /* ============ 中性色 ============ */
+  --tqb-text-primary: #1a1d23;
+  --tqb-text-regular: #3d434d;
+  --tqb-text-secondary: #6b7280;
+  --tqb-text-tertiary: #9aa1ac;
+  --tqb-text-inverse: #ffffff;
+
+  --tqb-bg-page: #f4f6f9;
+  --tqb-bg-card: #ffffff;
+  --tqb-bg-hover: #f7f9fc;
+  --tqb-bg-subtle: #fafbfd;
+
+  --tqb-border: #e4e7ec;
+  --tqb-border-strong: #d0d5dd;
+
+  /* ============ 间距（4 的倍数）============ */
+  --tqb-space-1: 4px;
+  --tqb-space-2: 8px;
+  --tqb-space-3: 12px;
+  --tqb-space-4: 16px;
+  --tqb-space-5: 20px;
+  --tqb-space-6: 24px;
+  --tqb-space-8: 32px;
+  --tqb-space-10: 40px;
+
+  /* ============ 圆角 ============ */
+  --tqb-radius-sm: 4px;
+  --tqb-radius-md: 6px;
+  --tqb-radius-lg: 10px;
+  --tqb-radius-full: 999px;
+
+  /* ============ 阴影 ============ */
+  --tqb-shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --tqb-shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --tqb-shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.04);
+  --tqb-shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.1), 0 4px 6px -2px rgba(16, 24, 40, 0.03);
+
+  /* ============ 字号 ============ */
+  --tqb-font-xs: 12px;
+  --tqb-font-sm: 13px;
+  --tqb-font-base: 14px;
+  --tqb-font-md: 16px;
+  --tqb-font-lg: 18px;
+  --tqb-font-xl: 22px;
+  --tqb-font-2xl: 28px;
+
+  --tqb-line-tight: 1.3;
+  --tqb-line-normal: 1.6;
+  --tqb-line-relaxed: 1.75;
+
+  /* ============ 布局 ============ */
+  --tqb-container-max: 1280px;
+  --tqb-sidebar-width: 264px;
+  --tqb-topbar-height: 56px;
+
+  /* ============ 动效 ============ */
+  --tqb-transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   深色模式
+   ============================================================ */
+[data-theme='dark'] {
+  --tqb-primary: #5b8ff9;
+  --tqb-primary-hover: #7ba3fb;
+  --tqb-primary-pressed: #3f73e8;
+  --tqb-primary-soft: #1c2b47;
+  --tqb-primary-soft-hover: #24365a;
+
+  --tqb-success: #4ade80;
+  --tqb-success-soft: #14301f;
+  --tqb-warning: #fbbf24;
+  --tqb-warning-soft: #32260f;
+  --tqb-danger: #f87171;
+  --tqb-danger-soft: #341a1a;
+  --tqb-info: #38bdf8;
+  --tqb-info-soft: #0f2b38;
+
+  --tqb-text-primary: #f2f4f7;
+  --tqb-text-regular: #d0d5dd;
+  --tqb-text-secondary: #98a2b3;
+  --tqb-text-tertiary: #667085;
+
+  --tqb-bg-page: #14161a;
+  --tqb-bg-card: #1c1f24;
+  --tqb-bg-hover: #24272d;
+  --tqb-bg-subtle: #212429;
+
+  --tqb-border: #2e3238;
+  --tqb-border-strong: #3d434d;
+
+  --tqb-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --tqb-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --tqb-shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.45);
+  --tqb-shadow-lg: 0 12px 16px -4px rgba(0, 0, 0, 0.5);
+}

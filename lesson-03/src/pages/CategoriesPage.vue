@@ -296,8 +296,8 @@ function renderNodeLabel({ option }) {
 
 <template>
   <div>
-    <div class="page-head">
-      <h2 class="page-title">🗂 章节分类管理</h2>
+    <div class="tqb-page-head">
+      <h2 class="tqb-page-title">🗂 章节分类管理</h2>
       <NSpace :size="8">
         <NButton size="small" type="primary" @click="startCreate(null)">+ 新建顶层分类</NButton>
         <NButton size="small" quaternary @click="loadTree">刷新</NButton>
@@ -314,8 +314,8 @@ function renderNodeLabel({ option }) {
       <NTag type="success" size="small">已归类 {{ stats.questions }} 道题</NTag>
     </NSpace>
 
-    <div class="layout">
-      <NCard title="章节树" size="small" class="tree-card">
+    <div class="tqb-layout">
+      <NCard title="章节树" size="small" class="tqb-sidebar">
         <NSpin :show="loading">
           <NTree
             v-if="options.length"
@@ -396,32 +396,11 @@ function renderNodeLabel({ option }) {
 </template>
 
 <style scoped>
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 18px;
-}
 
 .page-desc {
   color: #666;
   font-size: 13px;
   margin: 8px 0 12px;
-}
-
-.layout {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.tree-card {
-  width: 340px;
-  flex-shrink: 0;
 }
 
 .panel-card {
