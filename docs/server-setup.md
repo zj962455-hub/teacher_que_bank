@@ -1,6 +1,6 @@
 # 服务器初始化 Checklist
 
-> 阿里云 2C4G · Ubuntu（待确认具体版本）
+> 阿里云 2C4G · **Alibaba Cloud Linux 3.2104 U13.3 (OpenAnolis Edition)**（2026-11-05 实测确认）
 > **第 10 课「部署上线」会用到这套环境**
 
 ---
