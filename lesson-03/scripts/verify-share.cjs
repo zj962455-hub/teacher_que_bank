@@ -69,7 +69,12 @@ async function main() {
 
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))
   page.on('console', (m) => {
-    if (m.type() === 'error') errors.push(`console.error: ${m.text()}`)
+    // ⚠️ 「链接被吊销」那一步会故意请求一个已失效的链接 → 后端返 404 →
+    //    浏览器必然打一条 console.error。那是**预期行为**，不算运行时错误。
+    //    不滤掉的话，这个脚本永远在最后一步自己判自己失败。
+    if (m.type() === 'error' && !m.location().url.includes('/api/shares/')) {
+      errors.push(`console.error: ${m.text()}`)
+    }
   })
 
   console.log('→ 登录')
