@@ -20,7 +20,9 @@ import {
   NEmpty, NSpin, NPopconfirm, NTree, NAlert, NDivider, useDialog,
 } from 'naive-ui'
 import { useRouter } from 'vue-router'
-import { listQuestions, deleteQuestion } from '../api/questions'
+import {
+  listQuestions, deleteQuestion, exportQuestionsExcel, exportBackupJson,
+} from '../api/questions'
 import {
   getCategoryTree, batchDeleteQuestions, batchUpdateQuestions,
 } from '../api/batch'
@@ -188,6 +190,33 @@ async function doDelete(row) {
   }
 }
 
+// === 导出 ===
+const exporting = ref(false)
+
+async function doExportExcel() {
+  exporting.value = true
+  try {
+    const name = await exportQuestionsExcel()
+    message.success(`已导出：${name}`)
+  } catch (e) {
+    message.error(`导出失败：${e.response?.data?.detail || e.message}`)
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function doExportBackup() {
+  exporting.value = true
+  try {
+    const name = await exportBackupJson()
+    message.success(`已备份：${name}`)
+  } catch (e) {
+    message.error(`备份失败：${e.response?.data?.detail || e.message}`)
+  } finally {
+    exporting.value = false
+  }
+}
+
 // === 章节树节点标签 ===
 // ⚠️ NTree 的 render-label 收到的是 { option, checked, selected },
 //    不是节点本身 —— count 在 option.count 里(TreeOption 是 Record<string, unknown> 扩展)
@@ -266,6 +295,10 @@ const checkedRowKeys = computed(() => selectedKeys.value)
       <NButton type="primary" size="small" @click="router.push({ name: 'capture' })">
         + 录题
       </NButton>
+      <NSpace size="small">
+        <NButton size="small" @click="doExportExcel">📊 导出 Excel</NButton>
+        <NButton size="small" quaternary @click="doExportBackup">💾 备份</NButton>
+      </NSpace>
     </div>
 
     <div class="layout">
