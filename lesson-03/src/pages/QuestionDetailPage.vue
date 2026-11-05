@@ -111,7 +111,7 @@ function doDelete() {
 
 <template>
   <div>
-    <div class="page-head">
+    <div class="tqb-page-head">
       <NButton size="small" quaternary @click="router.push({ name: 'questions' })">
         ← 返回题库
       </NButton>
@@ -186,12 +186,6 @@ function doDelete() {
 </template>
 
 <style scoped>
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
 
 .tags {
   display: flex;

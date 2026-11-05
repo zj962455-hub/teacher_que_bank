@@ -14,15 +14,39 @@
  * 后端所有业务接口都要 Authorization 头，没 token 直接 401。
  * 未登录时只渲染登录页，业务组件**不渲染**（渲染了也全是 401 白屏）。
  */
-import { ref, onMounted, provide } from 'vue'
+import { ref, computed, onMounted, provide } from 'vue'
 import { NButton, NConfigProvider, zhCN, dateZhCN } from 'naive-ui'
 import { RouterView, useRouter, useRoute } from 'vue-router'
 import LoginPanel from './components/LoginPanel.vue'
 import SiteFooter from './components/SiteFooter.vue'
+import { lightTheme, darkTheme, buildThemeOverrides } from './styles/theme'
 import { getToken, getCachedUser, fetchMe, setUnauthorizedHandler } from './api/auth'
 
 const router = useRouter()
 const route = useRoute()
+
+// === 深色模式 ===
+// ⚠️ 两处都要改，缺一不可：
+//    1. documentElement 的 data-theme → 切换我们自己的 CSS 令牌
+//    2. NConfigProvider 的 theme → 切换 naive-ui 内置组件主题
+//    只改一处的话，页面一半深一半浅。
+const THEME_KEY = 'tqb_theme'
+const isDark = ref(localStorage.getItem(THEME_KEY) === 'dark')
+
+function applyTheme(dark) {
+  isDark.value = dark
+  localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light')
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+}
+
+// 首次挂载就应用（否则刷新后令牌和组件主题对不上）
+applyTheme(isDark.value)
+
+function toggleTheme() {
+  applyTheme(!isDark.value)
+}
+
+const themeOverrides = computed(() => buildThemeOverrides(isDark.value))
 
 const loggedIn = ref(!!getToken())
 const currentUser = ref(getCachedUser())
@@ -79,7 +103,12 @@ function go(name) {
 </script>
 
 <template>
-  <NConfigProvider :locale="zhCN" :date-locale="dateZhCN">
+  <NConfigProvider
+    :locale="zhCN"
+    :date-locale="dateZhCN"
+    :theme="isDark ? darkTheme : lightTheme"
+    :theme-overrides="themeOverrides"
+  >
     <div class="app">
       <!-- 未登录：只显示登录页 -->
       <template v-if="!loggedIn">
@@ -105,9 +134,14 @@ function go(name) {
               </NButton>
             </nav>
           </div>
-          <NButton quaternary size="small" @click="go('profile')">
-            👤 {{ currentUser?.display_name || currentUser?.username || '我' }}
-          </NButton>
+          <NSpace :size="4" align="center">
+            <NButton quaternary size="small" :title="isDark ? '切到浅色' : '切到深色'" @click="toggleTheme">
+              {{ isDark ? '🌙' : '☀️' }}
+            </NButton>
+            <NButton quaternary size="small" @click="go('profile')">
+              👤 {{ currentUser?.display_name || currentUser?.username || '我' }}
+            </NButton>
+          </NSpace>
         </header>
 
         <main class="page">
@@ -123,40 +157,67 @@ function go(name) {
 
 <style scoped>
 .app {
-  max-width: 1240px;
+  max-width: var(--tqb-container-max);
   margin: 0 auto;
-  padding: 16px;
+  padding: var(--tqb-space-4) var(--tqb-space-4) var(--tqb-space-8);
 }
 
+/* 顶栏 —— 吸顶，滚动时导航始终可见 */
 .top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--tqb-space-3);
   flex-wrap: wrap;
-  padding-bottom: 12px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid #e8e8e8;
+  min-height: var(--tqb-topbar-height);
+  padding: var(--tqb-space-2) 0;
+  margin-bottom: var(--tqb-space-4);
+  background: var(--tqb-bg-card);
+  border-bottom: 1px solid var(--tqb-border);
+  box-shadow: var(--tqb-shadow-xs);
 }
 
 .top-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--tqb-space-4);
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .brand {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--tqb-font-md);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--tqb-text-primary);
+  white-space: nowrap;
 }
 
 .nav {
   display: flex;
-  gap: 4px;
+  gap: var(--tqb-space-1);
+  flex-wrap: wrap;
 }
 
 .page {
   min-height: 60vh;
+}
+
+/* 手机：导航换行独占一行 */
+@media (max-width: 768px) {
+  .app {
+    padding: var(--tqb-space-3) var(--tqb-space-3) var(--tqb-space-6);
+  }
+
+  .top-bar {
+    margin-bottom: var(--tqb-space-3);
+  }
+
+  .brand {
+    font-size: var(--tqb-font-base);
+  }
 }
 </style>

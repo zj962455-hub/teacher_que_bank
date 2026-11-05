@@ -51,7 +51,7 @@ async function doExport() {
 
 <template>
   <div>
-    <div class="page-head">
+    <div class="tqb-page-head">
       <NButton size="small" quaternary @click="router.push({ name: 'papers' })">
         ← 我的试卷
       </NButton>
@@ -87,13 +87,6 @@ async function doExport() {
 </template>
 
 <style scoped>
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 
 .subtitle {
   color: #666;

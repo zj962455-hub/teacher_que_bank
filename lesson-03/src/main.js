@@ -8,6 +8,15 @@ import router from './router'
 //    字体文件由 katex 包自带的 woff2 提供，会被 Vite 打包进 dist。
 import 'katex/dist/katex.min.css'
 
+// === 设计系统（b 阶段）===
+// ⚠️ 顺序有讲究：tokens 必须先于 base ——
+//    base.css 里用 var(--tqb-xxx)，tokens.css 定义它们。
+//    都是 <link> 加载，同优先级下后定义者覆盖前者，
+//    但 var() 是**解析时**取值，不依赖顺序，所以其实反了也能跑 ——
+//    还是保持 tokens 在前，调试时好找。
+import './styles/tokens.css'
+import './styles/base.css'
+
 /**
  * 为什么不用 <NMessageProvider>
  * -----------------------------

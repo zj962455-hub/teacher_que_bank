@@ -1,0 +1,299 @@
+/**
+ * 全局基础样式 —— b 阶段视觉系统
+ *
+ * 三层结构
+ * --------
+ *   tokens.css  设计令牌（颜色/间距/字号/圆角/阴影）
+ *   base.css    本文件：reset + 排版 + 共用组件类
+ *   页面 <style scoped>  页面独有布局
+ *
+ * 为什么要有「共用组件类」
+ * ----------------------
+ * 十个页面都有「页头（标题 + 按钮）」「卡片」「批量条」这些结构，
+ * 各写一遍就是十份不同版本的 margin: 12px。
+ * 这里统一成 .tqb-page-head / .tqb-card / .tqb-batch-bar，
+ * 页面里直接用类名 —— 改一次，全站跟着变。
+ */
+
+/* ============================================================
+   1. Reset
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--tqb-font-base);
+  line-height: var(--tqb-line-normal);
+  color: var(--tqb-text-primary);
+  background: var(--tqb-bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
+  line-height: var(--tqb-line-tight);
+  color: var(--tqb-text-primary);
+}
+
+p {
+  margin: 0 0 var(--tqb-space-3);
+}
+
+a {
+  color: var(--tqb-primary);
+  text-decoration: none;
+  transition: color var(--tqb-transition);
+}
+
+a:hover {
+  color: var(--tqb-primary-hover);
+}
+
+/* ============================================================
+   2. 滚动条（细一点，别抢内容的视线）
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--tqb-border-strong);
+  border: 2px solid var(--tqb-bg-page);
+  border-radius: var(--tqb-radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--tqb-text-tertiary);
+}
+
+/* ============================================================
+   3. 页面骨架
+   ============================================================ */
+
+/** 页头：标题在左，操作在右 */
+.tqb-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--tqb-space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--tqb-space-4);
+}
+
+.tqb-page-title {
+  margin: 0;
+  font-size: var(--tqb-font-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.tqb-page-subtitle {
+  margin: var(--tqb-space-1) 0 0;
+  font-size: var(--tqb-font-sm);
+  color: var(--tqb-text-secondary);
+}
+
+/** 页头左侧（标题 + 副标题） */
+.tqb-page-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/** 主内容区 */
+.tqb-page {
+  min-height: 60vh;
+}
+
+/* ============================================================
+   4. 卡片
+   ============================================================ */
+.tqb-card {
+  background: var(--tqb-bg-card);
+  border: 1px solid var(--tqb-border);
+  border-radius: var(--tqb-radius-lg);
+  box-shadow: var(--tqb-shadow-xs);
+  transition: box-shadow var(--tqb-transition), border-color var(--tqb-transition);
+}
+
+.tqb-card--hover:hover {
+  box-shadow: var(--tqb-shadow-md);
+  border-color: var(--tqb-border-strong);
+}
+
+/** 统计数字（大号） */
+.tqb-stat-value {
+  font-size: var(--tqb-font-2xl);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--tqb-text-primary);
+}
+
+.tqb-stat-label {
+  margin-top: var(--tqb-space-1);
+  font-size: var(--tqb-font-sm);
+  color: var(--tqb-text-secondary);
+}
+
+/* ============================================================
+   5. 批量操作条
+   ============================================================ */
+.tqb-batch-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--tqb-space-3);
+  flex-wrap: wrap;
+  padding: var(--tqb-space-3) var(--tqb-space-4);
+  background: var(--tqb-primary-soft);
+  border: 1px solid var(--tqb-primary);
+  border-radius: var(--tqb-radius-md);
+}
+
+.tqb-batch-count {
+  font-size: var(--tqb-font-sm);
+  font-weight: 600;
+  color: var(--tqb-primary);
+  white-space: nowrap;
+}
+
+/* ============================================================
+   6. 章节选中条
+   ============================================================ */
+.tqb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tqb-space-2);
+  padding: var(--tqb-space-1) var(--tqb-space-2);
+  border-radius: var(--tqb-radius-sm);
+  background: var(--tqb-primary-soft);
+  font-size: var(--tqb-font-xs);
+}
+
+.tqb-chip-label {
+  color: var(--tqb-text-secondary);
+}
+
+.tqb-chip-name {
+  font-weight: 600;
+  color: var(--tqb-primary);
+}
+
+/* ============================================================
+   7. 工具类
+   ============================================================ */
+.tqb-muted {
+  color: var(--tqb-text-secondary);
+}
+
+.tqb-dim {
+  color: var(--tqb-text-tertiary);
+}
+
+.tqb-mono {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: var(--tqb-font-sm);
+}
+
+/** 左右布局：侧栏 + 主区 */
+.tqb-layout {
+  display: flex;
+  gap: var(--tqb-space-4);
+  align-items: flex-start;
+}
+
+.tqb-sidebar {
+  width: var(--tqb-sidebar-width);
+  flex-shrink: 0;
+}
+
+.tqb-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ============================================================
+   8. 响应式
+   ============================================================ */
+
+/* 平板：侧栏收窄 */
+@media (max-width: 1024px) {
+  :root {
+    --tqb-sidebar-width: 220px;
+  }
+}
+
+/* 手机：侧栏移到上面，变成通栏 */
+@media (max-width: 768px) {
+  .tqb-layout {
+    flex-direction: column;
+    /* ⚠️ 必须 stretch —— 
+       默认的 align-items: flex-start 在列布局下会让子项**收缩到内容宽度**，
+       表格多宽主区就多宽 → 375px 屏幕横向溢出 281px。
+       stretch 让子项撑满容器宽度，表格才能被正确压缩。 */
+    align-items: stretch;
+    gap: var(--tqb-space-3);
+  }
+
+  .tqb-sidebar {
+    width: 100%;
+  }
+
+  /* 主区必须能收缩 —— flex:1 只管分配空间，
+     内容比容器宽时 min-width:auto 会让它撑破容器 */
+  .tqb-main {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .tqb-page-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tqb-page-title {
+    font-size: var(--tqb-font-md);
+  }
+
+  .tqb-stat-value {
+    font-size: var(--tqb-font-xl);
+  }
+}
+
+@media (max-width: 480px) {
+  .tqb-batch-bar {
+    padding: var(--tqb-space-2) var(--tqb-space-3);
+  }
+}
+
+/* ============================================================
+   9. 打印（导出试卷/题目时用）
+   ============================================================ */
+@media print {
+  .tqb-no-print,
+  .n-button,
+  .n-data-table__pagination {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+}

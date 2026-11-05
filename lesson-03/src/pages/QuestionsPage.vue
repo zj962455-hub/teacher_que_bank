@@ -413,8 +413,8 @@ const checkedRowKeys = computed(() => selectedKeys.value)
 
 <template>
   <div>
-    <div class="page-head">
-      <h2 class="page-title">📚 题目列表</h2>
+    <div class="tqb-page-head">
+      <h2 class="tqb-page-title">📚 题目列表</h2>
       <NButton type="primary" size="small" @click="router.push({ name: 'capture' })">
         + 录题
       </NButton>
@@ -424,9 +424,10 @@ const checkedRowKeys = computed(() => selectedKeys.value)
       </NSpace>
     </div>
 
-    <div class="layout">
-      <!-- 左：章节树 -->
-      <NCard title="章节" size="small" class="tree-card">
+    <div class="tqb-layout">
+      <!-- 左栏：章节树 + 标签管理（上下堆叠）-->
+      <div class="tqb-sidebar">
+      <NCard title="章节" size="small">
         <NSpin :show="treeLoading">
           <NTree
             v-if="tree.length"
@@ -439,9 +440,9 @@ const checkedRowKeys = computed(() => selectedKeys.value)
           <NEmpty v-else description="还没有章节分类" size="small" />
         </NSpin>
 
-        <div v-if="selectedCategory" class="chapter-chip">
-          <span class="chip-label">章节</span>
-          <span class="chip-name">{{ selectedCategory.name }}</span>
+        <div v-if="selectedCategory" class="tqb-chip">
+          <span class="tqb-chip-label">章节</span>
+          <span class="tqb-chip-name">{{ selectedCategory.name }}</span>
           <NButton size="tiny" quaternary @click="clearCategory">清除</NButton>
         </div>
         <div v-else class="chapter-tip">
@@ -449,8 +450,8 @@ const checkedRowKeys = computed(() => selectedKeys.value)
         </div>
       </NCard>
 
-      <!-- 左下：标签管理 -->
-      <NCard title="标签" size="small" class="tree-card" style="margin-top: 12px">
+      <!-- 标签管理 -->
+      <NCard title="标签" size="small" style="margin-top: 12px">
         <NSpace :size="4" style="margin-bottom: 8px">
           <NInput
             v-model:value="newTagName"
@@ -475,9 +476,10 @@ const checkedRowKeys = computed(() => selectedKeys.value)
         </NSpace>
         <NEmpty v-else description="还没有标签" size="small" />
       </NCard>
+      </div>
 
       <!-- 右：筛选 + 表格 -->
-      <div class="main">
+      <div class="tqb-main">
         <NCard size="small">
           <NSpace :size="8" style="flex-wrap: wrap">
             <NSelect
@@ -550,8 +552,8 @@ const checkedRowKeys = computed(() => selectedKeys.value)
 
         <!-- 批量操作条 -->
         <NCard v-if="selectedKeys.length" size="small" style="margin-top: 12px">
-          <div class="batch-bar">
-            <span class="batch-count">已选 {{ selectedKeys.length }} 条</span>
+          <div class="tqb-batch-bar">
+            <span class="tqb-batch-count">已选 {{ selectedKeys.length }} 条</span>
             <NSpace :size="8" style="flex-wrap: wrap">
               <NSelect
                 v-model:value="batchForm.subject"
@@ -626,64 +628,6 @@ const checkedRowKeys = computed(() => selectedKeys.value)
 </template>
 
 <style scoped>
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 18px;
-}
-
-.layout {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.tree-card {
-  width: 260px;
-  flex-shrink: 0;
-}
-
-.main {
-  flex: 1;
-  min-width: 0;
-}
-
-.batch-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.batch-count {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.chapter-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: #f2f6fb;
-  font-size: 12px;
-}
-
-.chip-label {
-  color: #888;
-}
-
-.chip-name {
-  font-weight: 600;
-}
 
 .chapter-tip {
   margin-top: 10px;
