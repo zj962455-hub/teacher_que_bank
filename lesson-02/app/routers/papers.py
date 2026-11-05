@@ -53,6 +53,15 @@ class PaperQuestionUpdate(BaseModel):
     order_index: Optional[int] = None
 
 
+class ReorderRequest(BaseModel):
+    """拖拽排序后的完整顺序
+
+    传 paper_questions 的 id 列表,按数组下标重排。
+    一次提交 —— 逐条 PUT 会有中间态,拖快了会错位。
+    """
+    ids: list[int] = Field(default_factory=list, max_length=200)
+
+
 # === 列表 ===
 @router.get("/")
 def list_papers(
@@ -217,6 +226,48 @@ def add_question(
 
 
 # === 改题号/分值/顺序 ===
+# === 批量重排（拖拽排序）===
+@router.put("/{paper_id}/questions/order")
+def reorder_paper_questions(
+    paper_id: int,
+    payload: ReorderRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """按给定顺序重排试卷里的题目
+
+    - 只接受**这张卷上的**题目 id,多余的忽略
+    - 题号留空的自定义题号保持原样(老师可能写了「一、」这种)
+    """
+    _get_own_paper(paper_id, session, user)
+
+    records = session.exec(
+        select(PaperQuestion).where(PaperQuestion.paper_id == paper_id)
+    ).all()
+    by_id = {r.id: r for r in records}
+
+    # 按传入顺序写 order_index
+    index = 0
+    for pq_id in payload.ids:
+        record = by_id.get(pq_id)
+        if record is None:
+            continue
+        record.order_index = index
+        session.add(record)
+        index += 1
+
+    # 没在列表里的题排到后面(保证 order_index 不重复)
+    for record in records:
+        if record.id not in set(payload.ids):
+            record.order_index = index
+            session.add(record)
+            index += 1
+
+    session.commit()
+
+    return {"ok": True, "count": index}
+
+
 @router.put("/{paper_id}/questions/{pq_id}")
 def update_paper_question(
     paper_id: int,

@@ -1,50 +1,66 @@
 <script setup>
 /**
- * PaperEditor — 组卷界面 — lesson-09
+ * PaperEditor — 组卷页（三栏）— lesson-11
  *
- * 功能
- * ----
- * - 试卷列表（新建/打开/删除）
- * - 标题/副标题编辑（老师自定义）
- * - 选题（从题库里挑）
- * - 调顺序、改题号、改分值
- * - 导出 PDF
+ * 对齐 MVP 原型 ⑦：三栏布局 + 拖拽排序
+ *
+ *   左 题目筛选 + 题目列表（点 + 加入）
+ *   中 试卷区（拖拽排序 / 改题号 / 改分值 / 移除）
+ *   右 A4 预览
+ *
+ * 拖拽用 vuedraggable —— 拖完一次性提交全部 id（后端有批量重排接口）。
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import {
   NCard, NButton, NSpace, NInput, NSelect, NTag, NText, NEmpty,
-  NSpin, NModal, NList, NListItem, NPopconfirm,
+  NSpin, NCheckbox, NSkeleton, NDivider, NScrollbar,
 } from 'naive-ui'
-// ⚠️ 用 discreteApi 而不是 useMessage()
-//    lesson-07 结论:useMessage() 必须在 <NMessageProvider> 内部,
-//    本项目统一用离散实例(见 src/composables/discreteApi.js)
+import draggable from 'vuedraggable'
 import { message } from '../composables/discreteApi'
 import { renderMathText } from '../utils/mathRenderer'
 import {
   listPapers, createPaper, getPaper, updatePaper, deletePaper,
-  addPaperQuestion, updatePaperQuestion, removePaperQuestion, exportPaperPdf,
+  addPaperQuestion, updatePaperQuestion, removePaperQuestion,
+  reorderPaperQuestions, exportPaperPdf,
 } from '../api/papers'
 import { listQuestions } from '../api/questions'
 
-// === 状态 ===
+// === 试卷 ===
 const papers = ref([])
-const current = ref(null)          // 当前试卷详情
+const current = ref(null)
 const loading = ref(false)
 const exporting = ref(false)
 
-// 选题弹窗
-const showPicker = ref(false)
-const pickerKeyword = ref('')
-const pickerSubject = ref(null)
-const candidateQuestions = ref([])
-const pickerLoading = ref(false)
+// === 左栏：筛选 + 候选题 ===
+const filters = ref({
+  subject: null,
+  question_type: null,
+  grade: null,
+  difficulty: null,
+  keyword: '',
+})
+const candidates = ref([])
+const candidateLoading = ref(false)
+const selectedCandidateIds = ref([])
+
+// === 中栏：试卷里的题 ===
+const paperItems = ref([])
+const dragging = ref(false)
+
+// === 右栏：预览 ===
+const previewOpen = ref(true)
+
+const SUBJECT_OPTIONS = ['数学', '物理', '化学', '生物', '未知'].map((v) => ({ label: v, value: v }))
+const TYPE_OPTIONS = ['选择题', '填空题', '计算题', '证明题', '应用题', '未知'].map((v) => ({ label: v, value: v }))
+const GRADE_OPTIONS = ['初中', '高中', '通用'].map((v) => ({ label: v, value: v }))
+const DIFFICULTY_OPTIONS = ['简单', '中等', '困难'].map((v) => ({ label: v, value: v }))
 
 // === 试卷列表 ===
 async function loadPapers() {
   loading.value = true
   try {
     const res = await listPapers()
-    papers.value = res.data.items
+    papers.value = res.data.items || []
   } catch (e) {
     message.error(`加载试卷列表失败：${e.message}`)
   } finally {
@@ -52,41 +68,41 @@ async function loadPapers() {
   }
 }
 
-// === 打开试卷 ===
 async function openPaper(paper) {
   try {
     const res = await getPaper(paper.id)
     current.value = res.data
+    paperItems.value = res.data.questions || []
   } catch (e) {
     message.error(`打开失败：${e.message}`)
   }
 }
 
-// === 新建试卷 ===
 async function newPaper() {
   try {
     const res = await createPaper({ title: '未命名试卷', subtitle: '', question_ids: [] })
-    message.success('已创建，去改标题吧')
+    message.success('已创建，改下标题吧')
     await loadPapers()
-    current.value = res.data
+    await openPaper(res.data)
   } catch (e) {
     message.error(`创建失败：${e.message}`)
   }
 }
 
-// === 删除试卷 ===
 async function removePaper(paper) {
   try {
     await deletePaper(paper.id)
     message.success('已删除')
-    if (current.value?.id === paper.id) current.value = null
+    if (current.value?.id === paper.id) {
+      current.value = null
+      paperItems.value = []
+    }
     await loadPapers()
   } catch (e) {
     message.error(`删除失败：${e.message}`)
   }
 }
 
-// === 保存标题/副标题 ===
 async function saveTitle() {
   if (!current.value) return
   try {
@@ -101,32 +117,37 @@ async function saveTitle() {
   }
 }
 
-// === 打开选题弹窗 ===
-async function openPicker() {
-  showPicker.value = true
-  await loadCandidates()
-}
-
+// === 左栏：候选题 ===
 async function loadCandidates() {
-  pickerLoading.value = true
+  candidateLoading.value = true
   try {
     const params = { limit: 100 }
-    if (pickerSubject.value) params.subject = pickerSubject.value
-    if (pickerKeyword.value) params.keyword = pickerKeyword.value
+    for (const k of ['subject', 'question_type', 'grade', 'difficulty']) {
+      if (filters.value[k]) params[k] = filters.value[k]
+    }
+    if (filters.value.keyword) params.keyword = filters.value.keyword
     const res = await listQuestions(params)
-    candidateQuestions.value = res.data.items
+    candidates.value = res.data.items || []
   } catch (e) {
     message.error(`加载题目失败：${e.message}`)
   } finally {
-    pickerLoading.value = false
+    candidateLoading.value = false
   }
 }
 
-// === 加题 ===
+// 已在卷里的题不再出现在候选列表
+const inPaperQuestionIds = computed(() => new Set(paperItems.value.map((i) => i.question_id)))
+const availableCandidates = computed(() =>
+  candidates.value.filter((q) => !inPaperQuestionIds.value.has(q.id)),
+)
+
 async function addQuestion(q) {
+  if (!current.value) {
+    message.warning('先选一张试卷')
+    return
+  }
   try {
     await addPaperQuestion(current.value.id, { question_id: q.id })
-    message.success('已加入')
     await openPaper(current.value)
     await loadCandidates()
   } catch (e) {
@@ -134,17 +155,16 @@ async function addQuestion(q) {
   }
 }
 
-// === 移除题 ===
-async function removeItem(item) {
-  try {
-    await removePaperQuestion(current.value.id, item.id)
-    await openPaper(current.value)
-  } catch (e) {
-    message.error(`移除失败：${e.message}`)
+async function addSelected() {
+  if (!selectedCandidateIds.value.length) return
+  for (const qid of selectedCandidateIds.value) {
+    const q = candidates.value.find((x) => x.id === qid)
+    if (q) await addQuestion(q)
   }
+  selectedCandidateIds.value = []
 }
 
-// === 改题号 ===
+// === 中栏：改题号/分值/移除 ===
 async function changeLabel(item, value) {
   try {
     await updatePaperQuestion(current.value.id, item.id, { label: value })
@@ -154,7 +174,6 @@ async function changeLabel(item, value) {
   }
 }
 
-// === 改分值 ===
 async function changeScore(item, value) {
   try {
     await updatePaperQuestion(current.value.id, item.id, { score: value })
@@ -164,32 +183,36 @@ async function changeScore(item, value) {
   }
 }
 
-// === 上移/下移 ===
-async function moveItem(index, delta) {
-  const items = current.value.questions
-  const target = index + delta
-  if (target < 0 || target >= items.length) return
-
-  const tmp = items[index]
-  items[index] = items[target]
-  items[target] = tmp
-
-  // 逐个更新 order_index
+async function removeItem(item) {
   try {
-    for (let i = 0; i < items.length; i++) {
-      await updatePaperQuestion(current.value.id, items[i].id, { order_index: i })
-    }
-    // 题号留空时自动重排
+    await removePaperQuestion(current.value.id, item.id)
     await openPaper(current.value)
+    await loadCandidates()
   } catch (e) {
-    message.error(`调整顺序失败：${e.message}`)
-    await openPaper(current.value)
+    message.error(`移除失败：${e.message}`)
   }
 }
 
-// === 导出 PDF ===
+// === 拖拽排序 ===
+// vuedraggable 在数组上直接改 —— 这里用 paperItems 承载，拖完提交
+async function onDragEnd() {
+  if (!current.value) return
+  try {
+    await reorderPaperQuestions(
+      current.value.id,
+      paperItems.value.map((i) => i.id),
+    )
+    message.success('顺序已保存')
+    await openPaper(current.value)
+  } catch (e) {
+    message.error(`保存顺序失败：${e.message}`)
+    await openPaper(current.value)   // 回滚到服务端顺序
+  }
+}
+
+// === 导出 ===
 async function exportPdf() {
-  if (!current.value?.questions?.length) {
+  if (!paperItems.value.length) {
     message.warning('试卷里还没有题目')
     return
   }
@@ -204,146 +227,348 @@ async function exportPdf() {
   }
 }
 
-onMounted(loadPapers)
+// === 总分 ===
+const totalScore = computed(() =>
+  paperItems.value.reduce((sum, i) => sum + (Number(i.score) || 0), 0),
+)
+
+onMounted(() => {
+  loadPapers()
+  loadCandidates()
+})
 </script>
 
 <template>
-  <NCard title="📝 组卷" size="small">
-    <NSpace vertical size="medium">
-      <!-- ===== 试卷列表 ===== -->
-      <NSpace align="center">
-        <NText depth="3">我的试卷：</NText>
+  <div class="paper-page">
+    <!-- ===== 顶部：试卷选择 ===== -->
+    <NCard size="small" style="margin-bottom: 12px">
+      <NSpace align="center" wrap>
         <NSelect
           :value="current?.id ?? null"
-          :options="papers.map(p => ({ label: `${p.title} (${p.question_count}题)`, value: p.id }))"
+          :options="papers.map((p) => ({ label: `${p.title} (${p.question_count}题)`, value: p.id }))"
           placeholder="选择试卷"
           size="small"
-          style="width: 260px;"
-          @update:value="(v) => papers.find(p => p.id === v) && openPaper(papers.find(p => p.id === v))"
+          style="width: 260px"
+          @update:value="(v) => { const p = papers.find((x) => x.id === v); if (p) openPaper(p) }"
         />
         <NButton size="small" @click="newPaper">+ 新建试卷</NButton>
-        <NButton size="small" quaternary @click="loadPapers">刷新</NButton>
+        <NButton v-if="current" size="small" @click="saveTitle">保存标题</NButton>
+        <NButton
+          v-if="current"
+          size="small"
+          type="success"
+          :loading="exporting"
+          :disabled="!paperItems.length"
+          @click="exportPdf"
+        >
+          📄 导出 PDF
+        </NButton>
+        <NButton
+          v-if="current"
+          size="small"
+          quaternary
+          @click="previewOpen = !previewOpen"
+        >
+          {{ previewOpen ? '隐藏预览' : '显示预览' }}
+        </NButton>
+        <NText v-if="current" depth="3" style="font-size: 12px; margin-left: auto">
+          共 {{ paperItems.length }} 题 · 总分 {{ totalScore }}
+        </NText>
       </NSpace>
 
-      <!-- ===== 试卷详情 ===== -->
-      <div v-if="current">
-        <!-- 标题编辑 -->
-        <NSpace vertical size="small" style="margin-bottom: 12px;">
-          <NSpace align="center">
-            <NText depth="3" style="width: 48px;">标题</NText>
-            <NInput v-model:value="current.title" size="small" placeholder="试卷标题" style="width: 300px;" />
-          </NSpace>
-          <NSpace align="center">
-            <NText depth="3" style="width: 48px;">副标题</NText>
-            <NInput v-model:value="current.subtitle" size="small" placeholder="姓名 / 班级 / 日期（可选）" style="width: 300px;" />
-          </NSpace>
-        </NSpace>
+      <NSpace v-if="current" align="center" style="margin-top: 8px">
+        <NText depth="3" style="width: 48px">标题</NText>
+        <NInput v-model:value="current.title" size="small" placeholder="试卷标题" style="width: 280px" />
+        <NText depth="3" style="width: 60px; margin-left: 8px">副标题</NText>
+        <NInput v-model:value="current.subtitle" size="small" placeholder="姓名 / 班级 / 日期" style="width: 240px" />
+      </NSpace>
+    </NCard>
 
-        <!-- 工具栏 -->
-        <NSpace align="center" style="margin-bottom: 10px;">
-          <NButton size="small" type="primary" @click="saveTitle">保存标题</NButton>
-          <NButton size="small" @click="openPicker">➕ 选题</NButton>
-          <NButton size="small" type="success" :loading="exporting" @click="exportPdf">
-            📄 导出 PDF
-          </NButton>
-          <NText depth="3" style="font-size: 12px; margin-left: auto;">
-            共 {{ current.questions.length }} 题
-          </NText>
-        </NSpace>
+    <!-- ===== 三栏 ===== -->
+    <div class="three-col">
+      <!-- 左：选题 -->
+      <NCard title="📚 选题" size="small" class="col-left">
+        <NSpace vertical size="small">
+          <NSpace size="small" wrap>
+            <NSelect
+              v-model:value="filters.subject"
+              :options="SUBJECT_OPTIONS"
+              placeholder="学科"
+              clearable
+              size="tiny"
+              style="width: 100px"
+              @update:value="loadCandidates"
+            />
+            <NSelect
+              v-model:value="filters.difficulty"
+              :options="DIFFICULTY_OPTIONS"
+              placeholder="难度"
+              clearable
+              size="tiny"
+              style="width: 100px"
+              @update:value="loadCandidates"
+            />
+            <NSelect
+              v-model:value="filters.grade"
+              :options="GRADE_OPTIONS"
+              placeholder="学段"
+              clearable
+              size="tiny"
+              style="width: 96px"
+              @update:value="loadCandidates"
+            />
+          </NSpace>
+          <NSpace size="small">
+            <NInput
+              v-model:value="filters.keyword"
+              placeholder="搜题干"
+              size="tiny"
+              clearable
+              style="width: 190px"
+              @keyup.enter="loadCandidates"
+            />
+            <NButton size="tiny" @click="loadCandidates">搜</NButton>
+          </NSpace>
 
-        <!-- 题目列表 -->
-        <div v-if="current.questions.length" style="border: 1px solid #e8e8e8; border-radius: 4px; padding: 8px;">
-          <div
-            v-for="(item, index) in current.questions"
-            :key="item.id"
-            style="display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f0f0f0;"
+          <NButton
+            v-if="selectedCandidateIds.length"
+            size="tiny"
+            type="primary"
+            block
+            @click="addSelected"
           >
-            <!-- 题号（可改） -->
-            <NInput
-              :value="item.label"
-              size="tiny"
-              style="width: 68px; flex-shrink: 0;"
-              @update:value="(v) => changeLabel(item, v)"
-            />
-
-            <!-- 题目内容 -->
-            <div
-              style="flex: 1; min-width: 0; font-size: 13px; white-space: pre-wrap; line-height: 1.8;"
-              v-html="renderMathText(item.question.content_markdown || item.question.content_plain)"
-            />
-
-            <!-- 分值 -->
-            <NInput
-              :value="item.score"
-              type="number"
-              size="tiny"
-              placeholder="分"
-              style="width: 60px; flex-shrink: 0;"
-              @update:value="(v) => changeScore(item, Number(v) || 0)"
-            />
-
-            <!-- 顺序 / 删除 -->
-            <NSpace size="small" :wrap="false">
-              <NButton size="tiny" quaternary :disabled="index === 0" @click="moveItem(index, -1)">↑</NButton>
-              <NButton size="tiny" quaternary :disabled="index === current.questions.length - 1" @click="moveItem(index, 1)">↓</NButton>
-              <NPopconfirm @positive-click="removeItem(item)">
-                <template #trigger>
-                  <NButton size="tiny" quaternary type="error">✕</NButton>
-                </template>
-                从试卷中移除这道题？
-              </NPopconfirm>
-            </NSpace>
-          </div>
-        </div>
-
-        <NEmpty v-else description="这张试卷还没有题，点「➕ 选题」" style="padding: 24px;" />
-      </div>
-
-      <NEmpty v-else description="选一张试卷，或新建一张" style="padding: 24px;" />
-    </NSpace>
-
-    <!-- ===== 选题弹窗 ===== -->
-    <NModal v-model:show="showPicker" title="从题库选题" style="width: 720px;">
-      <NSpace vertical size="medium">
-        <NSpace align="center">
-          <NInput
-            v-model:value="pickerKeyword"
-            placeholder="搜索题目内容"
-            size="small"
-            style="width: 260px;"
-            @keyup.enter="loadCandidates"
-          />
-          <NSelect
-            v-model:value="pickerSubject"
-            :options="['数学','物理','化学','生物'].map(s => ({label:s, value:s}))"
-            placeholder="学科"
-            size="small"
-            clearable
-            style="width: 120px;"
-            @update:value="loadCandidates"
-          />
-          <NButton size="small" @click="loadCandidates">搜索</NButton>
+            加入选中 {{ selectedCandidateIds.length }} 道
+          </NButton>
         </NSpace>
 
-        <NSpin :show="pickerLoading">
-          <NList v-if="candidateQuestions.length" hoverable>
-            <NListItem v-for="q in candidateQuestions" :key="q.id">
-              <NSpace align="center" justify="space-between">
+        <NSpin :show="candidateLoading">
+          <NScrollbar style="max-height: 560px; margin-top: 8px">
+            <div
+              v-for="q in availableCandidates"
+              :key="q.id"
+              class="candidate"
+              @dblclick="addQuestion(q)"
+            >
+              <NCheckbox
+                :value="q.id"
+                @update:checked="(c) => {
+                  const set = new Set(selectedCandidateIds)
+                  c ? set.add(q.id) : set.delete(q.id)
+                  selectedCandidateIds = [...set]
+                }"
+              />
+              <div class="candidate-body">
                 <div
-                  style="flex: 1; min-width: 0; font-size: 13px; white-space: pre-wrap;"
+                  class="candidate-text"
                   v-html="renderMathText(q.content_markdown || q.content_plain)"
                 />
-                <NSpace size="small" :wrap="false">
-                  <NTag size="small" :bordered="false">{{ q.subject }}</NTag>
-                  <NTag size="small" :bordered="false" type="warning">{{ q.difficulty }}</NTag>
-                  <NButton size="tiny" type="primary" @click="addQuestion(q)">加入</NButton>
+                <NSpace size="small" style="margin-top: 2px">
+                  <NTag size="tiny" :bordered="false">{{ q.subject }}</NTag>
+                  <NTag size="tiny" :bordered="false" type="warning">{{ q.difficulty }}</NTag>
                 </NSpace>
-              </NSpace>
-            </NListItem>
-          </NList>
-          <NEmpty v-else-if="!pickerLoading" description="没有匹配的题目" style="padding: 24px;" />
+              </div>
+              <NButton size="tiny" type="primary" quaternary @click="addQuestion(q)">+</NButton>
+            </div>
+            <NEmpty
+              v-if="!candidateLoading && availableCandidates.length === 0"
+              description="没有可加的题目"
+              size="small"
+              style="padding: 24px 0"
+            />
+          </NScrollbar>
         </NSpin>
-      </NSpace>
-    </NModal>
-  </NCard>
+      </NCard>
+
+      <!-- 中：试卷区（拖拽排序） -->
+      <NCard title="📝 试卷" size="small" class="col-mid">
+        <NEmpty v-if="!current" description="先选一张试卷" style="padding: 32px 0" />
+        <NEmpty
+          v-else-if="!paperItems.length"
+          description="从左边挑题加入"
+          style="padding: 32px 0"
+        />
+        <draggable
+          v-else
+          v-model="paperItems"
+          item-key="id"
+          handle=".drag-handle"
+          animation="180"
+          class="paper-list"
+          @end="onDragEnd"
+        >
+          <template #item="{ element: item, index }">
+            <div class="paper-item">
+              <span class="drag-handle" title="拖动排序">⠿</span>
+              <NInput
+                :value="item.label"
+                size="tiny"
+                placeholder="题号"
+                style="width: 62px; flex-shrink: 0"
+                @update:value="(v) => changeLabel(item, v)"
+              />
+              <div
+                class="paper-text"
+                v-html="renderMathText(item.question.content_markdown || item.question.content_plain)"
+              />
+              <NInput
+                :value="item.score"
+                type="number"
+                size="tiny"
+                placeholder="分"
+                style="width: 54px; flex-shrink: 0"
+                @update:value="(v) => changeScore(item, Number(v) || 0)"
+              />
+              <NButton size="tiny" quaternary type="error" @click="removeItem(item)">✕</NButton>
+            </div>
+          </template>
+        </draggable>
+      </NCard>
+
+      <!-- 右：预览 -->
+      <!-- ⚠️ 常驻渲染(不 v-if current)—— 否则没选卷时整列消失,
+      <!--    三栏结构会塌成两栏,布局不稳定 -->
+      <NCard v-if="previewOpen" title="👀 预览" size="small" class="col-right">
+        <NSpin :show="loading">
+          <div v-if="current" class="preview-paper">
+            <div class="preview-title">{{ current.title }}</div>
+            <div v-if="current.subtitle" class="preview-subtitle">{{ current.subtitle }}</div>
+            <NDivider style="margin: 10px 0" />
+            <div v-for="item in paperItems" :key="item.id" class="preview-item">
+              <span class="preview-label">{{ item.label || '·' }}</span>
+              <span
+                class="preview-text"
+                v-html="renderMathText(item.question.content_markdown || item.question.content_plain)"
+              />
+              <span v-if="item.score" class="preview-score">{{ item.score }} 分</span>
+            </div>
+            <NEmpty v-if="!paperItems.length" description="还没有题" size="small" />
+          </div>
+          <NEmpty v-else description="选一张卷看预览" size="small" style="padding: 32px 0" />
+        </NSpin>
+      </NCard>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.three-col {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.col-left {
+  width: 330px;
+  flex-shrink: 0;
+}
+
+.col-mid {
+  flex: 1;
+  min-width: 0;
+}
+
+.col-right {
+  width: 320px;
+  flex-shrink: 0;
+}
+
+/* === 候选题 === */
+.candidate {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.candidate-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.candidate-text {
+  font-size: 13px;
+  line-height: 1.7;
+  max-height: 3.4em;
+  overflow: hidden;
+}
+
+/* === 试卷区 === */
+.paper-list {
+  min-height: 120px;
+}
+
+.paper-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: #bbb;
+  font-size: 15px;
+  line-height: 1.7;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.paper-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+/* === 预览 === */
+.preview-paper {
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  padding: 16px 14px;
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.preview-title {
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.preview-subtitle {
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+}
+
+.preview-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.preview-label {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.preview-text {
+  flex: 1;
+}
+
+.preview-score {
+  flex-shrink: 0;
+  color: #999;
+  font-size: 12px;
+}
+</style>
