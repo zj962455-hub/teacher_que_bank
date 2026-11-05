@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS paper_shares (
 CREATE INDEX IF NOT EXISTS ix_paper_shares_user_id ON paper_shares (user_id);
 CREATE INDEX IF NOT EXISTS ix_paper_shares_paper_id ON paper_shares (paper_id);
 CREATE INDEX IF NOT EXISTS ix_paper_shares_expires_at ON paper_shares (expires_at);
+CREATE INDEX IF NOT EXISTS ix_paper_shares_revoked_at ON paper_shares (revoked_at);
 
 -- token 唯一（索引已带 unique，这里用唯一索引保证「拿链接查」不歧义）
 CREATE UNIQUE INDEX IF NOT EXISTS ux_paper_shares_token ON paper_shares (token);
