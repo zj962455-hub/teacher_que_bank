@@ -48,6 +48,17 @@ export function removePaperQuestion(paperId, pqId) {
 }
 
 /**
+ * 批量重排（拖拽排序后一次提交）
+ *
+ * ⚠️ 一次提交全部 id —— 逐条 PUT 会有中间态,拖快了会错位。
+ * @param {number} paperId - 试卷 id
+ * @param {number[]} ids - 按新顺序排列的 paper_questions id 数组
+ */
+export function reorderPaperQuestions(paperId, ids) {
+  return http.put(`/papers/${paperId}/questions/order`, { ids })
+}
+
+/**
  * 导出 PDF
  *
  * 用 blob 下载（不是普通 axios 请求），否则会拿到 JSON 而不是文件
@@ -90,5 +101,6 @@ export default {
   addPaperQuestion,
   updatePaperQuestion,
   removePaperQuestion,
+  reorderPaperQuestions,
   exportPaperPdf,
 }
