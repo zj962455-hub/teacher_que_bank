@@ -51,8 +51,16 @@ const themeOverrides = computed(() => buildThemeOverrides(isDark.value))
 const loggedIn = ref(!!getToken())
 const currentUser = ref(getCachedUser())
 
+// === 公开页（课 24 分享链接）===
+// ⚠️ 分享页**不套登录门禁** —— 老师把链接发到家长群，对方没账号也要能看。
+//    所以未登录时不能只渲染 LoginPanel，得给分享页开一条道。
+const isStandalone = computed(() => route.meta.standalone === true)
+
 // 启动时校验 token 还有效（本地有 token 但服务端已过期的情况）
 onMounted(async () => {
+  // 公开分享页：不需要登录态，也不去校 /auth/me
+  // （带了失效 token 去校 → 401 拦截器会清登录态，把访客踢去登录页）
+  if (isStandalone.value) return
   if (!getToken()) return
   try {
     currentUser.value = await fetchMe()
@@ -110,8 +118,16 @@ function go(name) {
     :theme-overrides="themeOverrides"
   >
     <div class="app">
+      <!-- 公开分享页：只渲染视图，不套顶栏、不套登录门禁 -->
+      <template v-if="isStandalone">
+        <main class="page">
+          <RouterView />
+        </main>
+        <SiteFooter />
+      </template>
+
       <!-- 未登录：只显示登录页 -->
-      <template v-if="!loggedIn">
+      <template v-else-if="!loggedIn">
         <LoginPanel @logged-in="onLoggedIn" />
         <SiteFooter />
       </template>

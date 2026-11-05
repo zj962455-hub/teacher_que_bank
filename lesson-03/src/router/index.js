@@ -76,6 +76,15 @@ const routes = [
     meta: { title: '试卷导出' },
   },
   {
+    // 公开分享页（课 24）—— 唯一不用登录的业务页
+    // ⚠️ meta.public 让路由守卫放行（不跳登录页）
+    // ⚠️ meta.standalone 让 App.vue 不套顶栏、不套登录门禁
+    path: '/share/:token',
+    name: 'shared-paper',
+    component: () => import('../pages/SharedPaperPage.vue'),
+    meta: { public: true, standalone: true, title: '试卷分享' },
+  },
+  {
     path: '/profile',
     name: 'profile',
     component: () => import('../pages/ProfilePage.vue'),
