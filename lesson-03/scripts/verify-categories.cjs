@@ -13,7 +13,9 @@
  *
  * 跑法：
  *   node scripts/verify-categories.cjs
- *   VERIFY_BASE=http://localhost:5173 VERIFY_USER=test1 VERIFY_PASS=Test123456 node scripts/verify-categories.cjs
+ *   VERIFY_BASE=https://tqb.lanhu-lab.top VERIFY_USER=test1 VERIFY_PASS=abc123 node scripts/verify-categories.cjs
+ *
+ * ⚠️ 脚本会**自己造分类数据**再验，验完删掉 —— 不依赖环境里有没有种子数据。
  */
 
 const puppeteer = require('puppeteer-core')
@@ -89,9 +91,14 @@ async function selectNode(page, name) {
   })
   if (current === name) return true
   await page.evaluate((tag) => {
-    const n = [...document.querySelectorAll('.n-tree-node-content')]
-      .find((x) => x.innerText.includes(tag))
-    if (n) n.click()
+    // ⚠️ 必须按「剥掉尾部题数后的完整名字」精确匹配
+    //    用 includes 的话，「验收57257」会命中「数学验收57257 (0)」，
+    //    find() 取第一个 → 选错节点。
+    const strip = (t) => t.trim().replace(/\s*[（(]\d+\s*[)）]\s*$/, '').trim()
+    const nodes = [...document.querySelectorAll('.n-tree-node-content')]
+    const exact = nodes.find((x) => strip(x.innerText) === tag)
+    const target = exact || nodes.find((x) => strip(x.innerText).includes(tag))
+    if (target) target.click()
   }, name)
   await wait(700)
   const now = await page.evaluate(() => {
@@ -100,6 +107,119 @@ async function selectNode(page, name) {
   })
   if (now !== name) throw new Error(`选中「${name}」失败（面板当前是 ${now}）`)
   return true
+}
+
+
+/**
+ * 用 API 造一棵自己的分类树（不依赖环境的初始数据）
+ *
+ * 线上 test1 是空账号，旧脚本假设「本地有种子数据」，
+ * 跑到生产就报「树节点数异常：0」—— 那是测试前置条件缺失，不是产品 bug。
+ *
+ * 造：顶层「数学」→ 子「函数」「几何」，以及一个独立顶层「物理」
+ * 便于后面验「拖拽排序」「上移下移」。
+ */
+async function seedCategories(page, tag) {
+  const result = await page.evaluate(async (t) => {
+    const token = localStorage.getItem('tqb_token')
+    if (!token) return { ok: false, error: '没有 token' }
+
+    const call = async (method, path, body) => {
+      const res = await fetch(path, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      return { status: res.status, data: await res.json().catch(() => null) }
+    }
+
+    const made = []
+    const top = await call('POST', '/api/categories/', { name: '数学' + t })
+    if (top.status !== 200) return { ok: false, error: '建顶层失败 ' + top.status }
+    made.push(top.data.id)
+
+    // ⚠️ 子分类名字也要带 tag ——
+    //    删父分类时子分类是「上提」而不是跟着删（产品设计），
+    //    名字不带 tag 的话 purge 清不掉，会留孤儿节点。
+    for (const sub of ['函数', '几何']) {
+      const r = await call('POST', '/api/categories/', { name: sub + t, parent_id: top.data.id })
+      if (r.status === 200) made.push(r.data.id)
+    }
+
+    const other = await call('POST', '/api/categories/', { name: '物理' + t })
+    if (other.status === 200) made.push(other.data.id)
+
+    return { ok: true, ids: made }
+  }, tag)
+
+  if (!result.ok) throw new Error('造分类数据失败: ' + result.error)
+  console.log('  已造分类:', result.ids.length, '个')
+  return result.ids
+}
+
+/**
+ * 清理刚造的分类（验完删掉，不留垃圾数据）
+ */
+async function cleanupCategories(page, ids) {
+  if (!ids || !ids.length) return
+  await page.evaluate(async (list) => {
+    const token = localStorage.getItem('tqb_token')
+    // 先删子后删父 —— 删父时子分类会上提，先删子才清得干净
+    for (const id of list.slice().reverse()) {
+      await fetch('/api/categories/' + id, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token },
+      })
+    }
+  }, ids)
+}
+
+
+/**
+ * 标签精确匹配（剥掉尾部的题数）
+ *
+ * ⚠️ 不能用 includes！
+ *   节点名里可能互相包含（如「验收84919」和「数学验收84919」），
+ *   includes 会误判 → 必须剥掉题数后**全等**。
+ */
+function labelMatches(labels, name) {
+  const strip = (t) => t.trim().replace(/\s*[（(]\d+\s*[)）]\s*$/, '').trim()
+  return labels.some((l) => strip(l) === name)
+}
+
+/**
+ * 清掉所有「验收」开头的测试分类
+ *
+ * test1 是专用测试账号，这些节点都是历次验证留下的垃圾。
+ * 脚本开头/结尾各清一次 → 幂等，不污染生产数据。
+ */
+async function purgeTestCategories(page) {
+  const n = await page.evaluate(async () => {
+    const token = localStorage.getItem('tqb_token')
+    if (!token) return -1
+    const res = await fetch('/api/categories/flat', {
+      headers: { Authorization: 'Bearer ' + token },
+    })
+    if (!res.ok) return -1
+    const list = await res.json()
+    let deleted = 0
+    for (const c of list) {
+      // 名字带 tag 的一律清；孤儿（父被删后上提的）靠 parent_id 也清
+      if (c.name && c.name.includes('验收')) {
+        const r = await fetch('/api/categories/' + c.id, {
+          method: 'DELETE',
+          headers: { Authorization: 'Bearer ' + token },
+        })
+        if (r.ok) deleted++
+      }
+    }
+    return deleted
+  })
+  if (n > 0) console.log('  已清理遗留测试分类:', n, '个')
+  return n
 }
 
 async function main() {
@@ -128,6 +248,12 @@ async function main() {
   await fillInput(page, '密码', PASS)
   await clickByText(page, '登录')
   await wait(2500)
+
+  // === 造自己的分类数据（不依赖环境初始状态）===
+  step = 'seed'
+  console.log('→ 清遗留测试数据 + 造分类数据')
+  await purgeTestCategories(page)
+  const seededIds = await seedCategories(page, TAG)
 
   // === 分类页 ===
   step = 'categories'
@@ -176,7 +302,7 @@ async function main() {
     console.log('  实际内容:', first.snippet)
     throw new Error('分类页没渲染出「章节分类管理」标题')
   }
-  if (first.nodeCount < 3) throw new Error(`树节点数异常：${first.nodeCount}`)
+  if (first.nodeCount < 4) throw new Error(`树节点数异常：${first.nodeCount}（自己造了 4 个）`)
 
   // 统计标签带数字（题目数）
   const withCount = first.labels.filter((l) => /\(\d/.test(l))
@@ -187,7 +313,7 @@ async function main() {
   step = 'select'
   console.log('→ 点第一个节点')
   // 节点名从渲染结果里取（本地/生产种子名不同，不写死）
-  const firstName = first.labels[0].replace(/\s*\(.*$/, '').trim()
+  const firstName = first.labels[0].replace(/\s*[（(]\d+\s*[)）]\s*$/, '').trim()
   await selectNode(page, firstName)
   const panel = await page.evaluate(() => {
     const text = document.body.innerText
@@ -216,7 +342,7 @@ async function main() {
   await clickByText(page, '确定')
   await wait(2000)
   let labels = await treeLabels(page)
-  const created = labels.some((l) => l.includes(TAG))
+  const created = labelMatches(labels, TAG)
   console.log('  新节点出现:', created ? '✅' : '❌', JSON.stringify(labels))
   if (!created) throw new Error('新建的分类没出现在树里')
 
@@ -230,7 +356,7 @@ async function main() {
   await clickByText(page, '确定')
   await wait(2000)
   labels = await treeLabels(page)
-  const renamed = labels.some((l) => l.includes(TAG + '改'))
+  const renamed = labelMatches(labels, TAG + '改')
   console.log('  重命名生效:', renamed ? '✅' : '❌', JSON.stringify(labels))
   if (!renamed) throw new Error('重命名没生效')
 
@@ -249,11 +375,17 @@ async function main() {
   })
   await wait(2000)
   labels = await treeLabels(page)
-  const gone = !labels.some((l) => l.includes(TAG))
+  const gone = !labelMatches(labels, TAG + '改')
   console.log('  删除生效:', gone ? '✅' : '❌', JSON.stringify(labels))
   if (!gone) throw new Error('删除没生效')
 
   await page.screenshot({ path: '/tmp/verify-categories.png', fullPage: false })
+
+  // === 清理自己造的数据 ===
+  step = 'cleanup'
+  console.log('→ 清理造的分类数据')
+  await cleanupCategories(page, seededIds)
+  await purgeTestCategories(page)
 
   await browser.close()
 
