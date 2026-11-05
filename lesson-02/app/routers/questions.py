@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Paper, PaperQuestion, Question, User
+from app.models import Category, Paper, PaperQuestion, Question, User
 from app.services.auth import get_current_user
 from app.services.classifier import build_content_versions, classify_blocks
 
@@ -51,6 +51,8 @@ class QuestionCreate(BaseModel):
     question_type: Optional[str] = None
     grade: Optional[str] = None
     difficulty: Optional[str] = None
+    # 章节分类（categories.id）—— 不传 = 不归类
+    category_id: Optional[int] = None
 
 
 class BatchDeleteRequest(BaseModel):
@@ -68,6 +70,7 @@ class BatchUpdateRequest(BaseModel):
     question_type: Optional[str] = None
     grade: Optional[str] = None
     difficulty: Optional[str] = None
+    category_id: Optional[int] = None
 
 
 class QuestionUpdate(BaseModel):
@@ -81,6 +84,8 @@ class QuestionUpdate(BaseModel):
     grade: Optional[str] = None
     difficulty: Optional[str] = None
     image_path: Optional[str] = None
+    # 允许置空（把题从章节里摘出来）—— 靠 exclude_unset 区分「没传」和「传 null」
+    category_id: Optional[int] = None
 
 
 
@@ -101,78 +106,17 @@ def _normalize_image_path(path: str) -> str:
     return path
 
 
-# === 分类树（左侧章节树的数据源）===
-@router.get("/categories")
-def category_tree(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    """按学科/学段/难度三维聚合出章节树
+def _own_category_id(category_id, session: Session, user: User):
+    """校验分类归属，返回合法的 category_id（None = 不归类）
 
-    原型的「章节树」本质是题目的多维归类 ——
-    这里用已有字段拼出来,不额外建表（数据量小时够用,
-    以后真要拖拽维护再单独建 categories 表）。
-
-    返回结构：
-    {
-      "tree": [
-        {"key":"数学","label":"数学","count":12,"children":[
-            {"key":"数学/高中","label":"高中","count":8,"children":[
-                {"key":"数学/高中/简单","label":"简单","count":3,"count":3}
-            ]}
-        ]}
-      ],
-      "total": 30
-    }
+    别人的分类 id 一律拒绝 —— 不能把题挂到别人的树上。
     """
-    from sqlalchemy import func
-
-    uid = current_user.id or 0
-
-    # 一次把当前用户的题目全捞出来,在 Python 里聚合 ——
-    # 数据量小(几千题)时比三次 group by 简单得多
-    rows = session.exec(
-        select(Question.subject, Question.grade, Question.difficulty)
-        .where(Question.user_id == uid)
-    ).all()
-
-    tree: dict[str, dict] = {}
-    for subject, grade, difficulty in rows:
-        node = tree.setdefault(
-            subject,
-            {"key": subject, "label": subject, "count": 0, "children": {}},
-        )
-        node["count"] += 1
-
-        gnode = node["children"].setdefault(
-            grade,
-            {"key": f"{subject}/{grade}", "label": grade, "count": 0, "children": {}},
-        )
-        gnode["count"] += 1
-
-        dnode = gnode["children"].setdefault(
-            difficulty,
-            {"key": f"{subject}/{grade}/{difficulty}", "label": difficulty, "count": 0},
-        )
-        dnode["count"] += 1
-
-    def to_list(children: dict) -> list:
-        out = []
-        for node in children.values():
-            item = {
-                "key": node["key"],
-                "label": node["label"],
-                "count": node["count"],
-            }
-            if node.get("children"):
-                item["children"] = to_list(node["children"])
-            out.append(item)
-        return out
-
-    return {
-        "tree": to_list(tree),
-        "total": sum(n["count"] for n in tree.values()),
-    }
+    if category_id is None:
+        return None
+    category = session.get(Category, category_id)
+    if category is None or category.user_id != (user.id or 0):
+        raise HTTPException(status_code=400, detail="章节分类不存在或不属于你")
+    return category_id
 
 
 # === 批量操作 ===
@@ -236,6 +180,10 @@ def batch_update(
             question.grade = payload.grade
         if payload.difficulty is not None:
             question.difficulty = payload.difficulty
+        if payload.category_id is not None:
+            question.category_id = _own_category_id(
+                payload.category_id, session, current_user
+            )
         question.updated_at = datetime.now(timezone.utc)
         session.add(question)
         updated += 1
@@ -472,6 +420,7 @@ def list_questions(
     grade: Optional[str] = Query(default=None, description="按学段筛选"),
     difficulty: Optional[str] = Query(default=None, description="按难度筛选"),
     keyword: Optional[str] = Query(default=None, description="内容关键词搜索"),
+    category_id: Optional[int] = Query(default=None, description="按章节分类筛选（含子分类）"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ):
@@ -491,6 +440,13 @@ def list_questions(
         stmt = stmt.where(Question.difficulty == difficulty)
     if keyword:
         stmt = stmt.where(Question.content_plain.contains(keyword))
+    if category_id is not None:
+        # 含子分类 —— 点父节点要能看到整个子树
+        from app.models import Category
+        from app.routers.categories import _child_ids
+
+        ids = _child_ids(category_id, session, current_user.id or 0)
+        stmt = stmt.where(Question.category_id.in_(ids))
 
     # 按创建时间倒序(新的在前)
     stmt = stmt.order_by(Question.created_at.desc())
@@ -510,6 +466,12 @@ def list_questions(
         count_stmt = count_stmt.where(Question.difficulty == difficulty)
     if keyword:
         count_stmt = count_stmt.where(Question.content_plain.contains(keyword))
+    if category_id is not None:
+        from app.models import Category
+        from app.routers.categories import _child_ids
+
+        ids = _child_ids(category_id, session, current_user.id or 0)
+        count_stmt = count_stmt.where(Question.category_id.in_(ids))
     total = len(session.exec(count_stmt).all())
 
     return {
@@ -557,6 +519,7 @@ def create_question(
         blocks_json=versions["blocks_json"],
         image_path=_normalize_image_path(payload.image_path),
         ocr_task_id=payload.ocr_task_id,
+        category_id=_own_category_id(payload.category_id, session, current_user),
     )
 
     session.add(question)
@@ -651,6 +614,12 @@ def update_question(
         if field in data and data[field] is not None:
             setattr(question, field, data[field])
 
+    # category_id 单独处理：允许置空（把题从章节里摘出来）
+    if "category_id" in data:
+        question.category_id = _own_category_id(
+            data["category_id"], session, current_user
+        )
+
     question.updated_at = datetime_now()
     session.add(question)
     session.commit()
@@ -712,6 +681,7 @@ def _to_dict(question: Question) -> dict:
         "blocks": question.blocks,
         "image_path": question.image_path,
         "ocr_task_id": question.ocr_task_id,
+        "category_id": question.category_id,
         "created_at": question.created_at.isoformat() if question.created_at else None,
         "updated_at": question.updated_at.isoformat() if question.updated_at else None,
     }

@@ -143,6 +143,38 @@ class Session_(SQLModel, table=True):
     user_agent: str = Field(default="", max_length=300)
 
 
+class Category(SQLModel, table=True):
+    """章节分类（树）
+
+    为什么要单独的表
+    --------------
+    之前的「章节树」是按 subject/grade/difficulty 三个字段**拼**出来的 ——
+    看着像树，其实改不了、拖不动、也没有真正的归属关系。
+    原型 ⑥ 要求「章节树维护 + 拖拽排序 + 题目统计」，那得有一张真表。
+
+    两级就够：
+    - 学科（如「高中数学」）
+    - 章节（如「函数与导数」）
+    parent_id 为空 = 顶层；否则指向上级 category.id
+    """
+
+    __tablename__ = "categories"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # === 归属 ===
+    user_id: int = Field(foreign_key="users.id", index=True, nullable=False)
+
+    # === 树结构 ===
+    name: str = Field(max_length=50)
+    # 父分类；None = 顶层
+    parent_id: Optional[int] = Field(default=None, foreign_key="categories.id", index=True)
+    # 同级排序（拖拽后写这个）
+    sort_order: int = Field(default=0)
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class Question(SQLModel, table=True):
     """一道题
 
@@ -173,6 +205,10 @@ class Question(SQLModel, table=True):
     # === 来源 ===
     image_path: str = Field(default="", max_length=500)
     ocr_task_id: str = Field(default="", index=True, max_length=100)
+
+    # === 章节归属 ===
+    # 属于哪个章节（分类树节点）；空 = 未归类
+    category_id: Optional[int] = Field(default=None, foreign_key="categories.id", index=True)
 
     # === 元信息 ===
     # ⚠️ 必须用 datetime.now(timezone.utc) 而不是 datetime.now()
