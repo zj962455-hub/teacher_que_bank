@@ -16,6 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 load_dotenv()
 
 from app.routers import lessons, courses, upload, ocr, questions, papers, auth, categories, tags   # ← 加 tags(lesson-11)
+from app.routers import shares  # ← lesson-24 分享链接（管理线 + 公开线）
 
 # === lesson-08:数据库 ===
 from app.database import engine
@@ -77,6 +78,8 @@ app.include_router(papers.router, prefix="/api")      # ← lesson-09 试卷 + P
 app.include_router(auth.router, prefix="/api")        # ← lesson-11 认证
 app.include_router(categories.router, prefix="/api")  # ← lesson-11 章节分类
 app.include_router(tags.router, prefix="/api")        # ← lesson-11 标签
+app.include_router(shares.manage_router, prefix="/api")   # ← lesson-24 分享链接（管理线，要登录）
+app.include_router(shares.public_router, prefix="/api")   # ← lesson-24 分享链接（公开线，不用登录）
 
 
 @app.get("/")

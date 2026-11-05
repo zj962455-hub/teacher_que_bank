@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
+from sqlalchemy import Column, ForeignKey, Integer
 
 
 class User(SQLModel, table=True):
@@ -343,6 +344,74 @@ class PaperQuestion(SQLModel, table=True):
     # 关联
     paper: Optional[Paper] = Relationship(back_populates="questions")
     question: Optional[Question] = Relationship()
+
+
+class PaperShare(SQLModel, table=True):
+    """试卷分享链接（lesson-24）
+
+    干什么用的
+    ----------
+    老师组完卷，点「生成分享链接」→ 把链接发到微信群 / 学生家长 →
+    对方在浏览器点开就能看卷子、下 PDF / JPG，**不用账号**。
+
+    为什么单独一张表
+    --------------
+    分享是「一次授权、限时、可吊销」的三元组 —— 离开表就存不下：
+    - 属于哪张卷（paper_id）
+    - 给谁用（token）
+    - 什么时候失效（expires_at）
+    - 还能不能用（revoked_at）
+
+    token 为什么明文存
+    -----------------
+    会话 token 存哈希，因为会话等价于「账号本身」，泄露即失守。
+    分享链接不一样：**老师要能反复复制同一个链接**（这周发班级群、下周发补课群），
+    存哈希就永远拿不回原文，只能重新生成 —— 那不叫分享，叫发一次性的。
+    它的泄露面也小得多：
+    - 随机 32 字节 URL-safe token（256 位熵），猜不出来
+    - 只授予**一张卷的只读查看**，拿不到账号、拿不到别的卷
+    - 必带过期时间（默认 7 天），可随时吊销
+
+    view_count / last_viewed_at 是**审计字段**：
+    备案要求「记录访问日志」，分享链接是唯一一条对外暴露数据的口子，
+    至少要能回答「这条链接被打开过几次、最后一次是什么时候」。
+    """
+
+    __tablename__ = "paper_shares"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # === 归属 ===
+    # 谁的卷 —— 分享必须由卷的主人发起
+    # ⚠️ 用 sa_column 显式写 ForeignKey(ondelete="CASCADE")：
+    #    主人删了卷 / 账号被停用删掉 → 分享链接跟着消失（否则链接还在但打不开，
+    #    还占着一条指向空卷的记录）。
+    #    显式写还保证 create_all 建出来的表跟迁移脚本建出来的一致。
+    user_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    )
+
+    # 分享的是哪张卷
+    paper_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("papers.id", ondelete="CASCADE"), index=True, nullable=False)
+    )
+
+    # === 凭证 ===
+    # 链接里的那串字符（URL-safe 随机数）
+    token: str = Field(index=True, unique=True, max_length=64)
+
+    # === 有效期 ===
+    # 必填 —— 「带过期时间」是这节课的核心，不允许永久链接
+    expires_at: datetime = Field(index=True)
+
+    # 吊销时间（非空 = 已作废）
+    revoked_at: Optional[datetime] = Field(default=None, index=True)
+
+    # === 审计 ===
+    view_count: int = Field(default=0)
+    last_viewed_at: Optional[datetime] = Field(default=None)
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # === 中文数字（自动题号用） ===
