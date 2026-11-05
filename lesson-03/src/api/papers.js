@@ -92,6 +92,40 @@ export async function exportPaperPdf(paperId, title = 'paper') {
   return filename
 }
 
+/**
+ * 导出 JPG（每页一张，打包 ZIP）
+ *
+ * 后端复用 PDF 渲染链路再逐页转 JPG —— 图片和打印稿一致。
+ * 用 blob 下载（不是普通 axios 请求），否则会拿到 JSON 而不是文件。
+ */
+export async function exportPaperJpg(paperId, title = 'paper') {
+  const res = await http.get(`/papers/${paperId}/export.jpg`, {
+    responseType: 'blob',
+  })
+
+  // 从 Content-Disposition 解析文件名（后端用 RFC 5987 编码的中文名）
+  let filename = `${title}.zip`
+  const disposition = res.headers['content-disposition'] || ''
+  const match = disposition.match(/filename\*=UTF-8''([^;]+)/)
+  if (match) {
+    filename = decodeURIComponent(match[1])
+  } else {
+    const plain = disposition.match(/filename="([^"]+)"/)
+    if (plain) filename = plain[1]
+  }
+
+  const url = window.URL.createObjectURL(new Blob([res.data]))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+
+  return filename
+}
+
 export default {
   listPapers,
   createPaper,
@@ -103,4 +137,5 @@ export default {
   removePaperQuestion,
   reorderPaperQuestions,
   exportPaperPdf,
+  exportPaperJpg,
 }

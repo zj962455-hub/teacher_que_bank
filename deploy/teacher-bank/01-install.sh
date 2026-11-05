@@ -81,7 +81,8 @@ chown -R "$APP_USER:$APP_USER" "$APP_ROOT/.venv"
 sudo -u "$APP_USER" "$APP_ROOT/.venv/bin/pip" install -q --upgrade pip wheel
 sudo -u "$APP_USER" "$APP_ROOT/.venv/bin/pip" install -q \
   fastapi 'uvicorn[standard]' pydantic python-dotenv requests python-multipart \
-  sqlmodel 'psycopg[binary]' playwright jinja2
+  sqlmodel 'psycopg[binary]' playwright jinja2 \
+  pypdfium2 Pillow
 echo "  ✓ Python 依赖就绪"
 
 # ============ 4. Playwright Chromium ============
