@@ -44,7 +44,8 @@ async function load() {
       await loadQuestionTags()
     }
   } catch (e) {
-    errorMsg.value = e.response?.data?.detail || `加载失败：${e.message}`
+    // ⚠️ 课 32：统一用 parseError —— detail 可能是字符串、数组、或者压根没有
+    errorMsg.value = parseError(e).message
   } finally {
     loading.value = false
   }
@@ -55,7 +56,8 @@ async function loadQuestionTags() {
     const res = await getQuestionTags(questionId.value)
     questionTagIds.value = (res.data.items || []).map((t) => t.id)
   } catch (e) {
-    console.error('题目标签加载失败:', e.message)
+    // ⚠️ 之前只 console.error → 标签区空着,老师以为没标签
+    message.error(parseError(e).message)
   }
 }
 
@@ -64,7 +66,7 @@ async function loadAllTags() {
     const res = await listTags()
     allTags.value = res.data.items || []
   } catch (e) {
-    console.error('标签列表加载失败:', e.message)
+    message.error(parseError(e).message)
   }
 }
 

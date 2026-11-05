@@ -6,30 +6,32 @@
  * 后端 /auth/stats 已提供数据统计，直接用。
  */
 import { ref, onMounted, h } from 'vue'
-import { NCard, NGrid, NGi, NStatistic, NButton, NSpace, NTag, NSpin, NEmpty } from 'naive-ui'
+import { NCard, NGrid, NGi, NStatistic, NButton, NSpace, NTag, NEmpty } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import { getMyStats } from '../api/profile'
 import { getRecentQuestions } from '../api/batch'
 import { renderMathText } from '../utils/mathRenderer'
+import TaskState from '../components/TaskState.vue'
+import { useAsyncTask } from '../composables/useAsyncTask'
 
 const router = useRouter()
 const stats = ref(null)
 const recent = ref([])
-const loading = ref(true)
 
-onMounted(async () => {
-  try {
-    const [statsRes, recentRes] = await Promise.all([
-      getMyStats(),
-      getRecentQuestions(6),
-    ])
-    stats.value = statsRes.data
-    recent.value = recentRes.data.items || []
-  } catch (e) {
-    console.error('统计加载失败:', e.message)
-  } finally {
-    loading.value = false
-  }
+// === 课 32：统一异步状态 ===
+// 之前这里 catch 里只 console.error → 老师看到的是一片空白
+// （连「服务器炸了」都不知道）。现在走 useAsyncTask：错误有话、失败能重试。
+const { loading, error, run, retry } = useAsyncTask(async () => {
+  const [statsRes, recentRes] = await Promise.all([
+    getMyStats(),
+    getRecentQuestions(6),
+  ])
+  stats.value = statsRes.data
+  recent.value = recentRes.data.items || []
+})
+
+onMounted(() => {
+  run().catch(() => undefined)
 })
 
 const SHORTCUTS = [
@@ -41,7 +43,20 @@ const SHORTCUTS = [
 </script>
 
 <template>
-  <NSpin :show="loading">
+  <TaskState
+    :loading="loading"
+    :error="error"
+    :empty="!stats?.questions"
+    @retry="retry"
+  >
+    <template #empty>
+      <NEmpty description="题库还是空的 —— 先去录几道题吧">
+        <template #extra>
+          <NButton type="primary" @click="router.push({ name: 'capture' })">去录题</NButton>
+        </template>
+      </NEmpty>
+    </template>
+
     <div>
       <!-- 数据概览 -->
       <NGrid :cols="3" :x-gap="12" :y-gap="12">
@@ -94,14 +109,8 @@ const SHORTCUTS = [
           </NGi>
         </NGrid>
       </NCard>
-
-      <NEmpty v-if="!stats?.questions" description="题库还是空的 —— 先去录几道题吧" style="margin-top: 24px">
-        <template #extra>
-          <NButton type="primary" @click="router.push({ name: 'capture' })">去录题</NButton>
-        </template>
-      </NEmpty>
     </div>
-  </NSpin>
+  </TaskState>
 </template>
 
 <style scoped>

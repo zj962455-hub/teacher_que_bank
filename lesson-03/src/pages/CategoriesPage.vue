@@ -24,6 +24,7 @@ import {
   deleteCategory, reorderCategories, toTreeOptions,
 } from '../api/categories'
 import { message, dialog } from '../composables/discreteApi'
+import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 
 // === 数据 ===
 const rawTree = ref([])          // 后端结构的树
@@ -45,7 +46,7 @@ async function loadTree() {
     flat.value = flatRes.data || []
     options.value = toTreeOptions(rawTree.value)
   } catch (e) {
-    message.error(`加载分类失败：${e.response?.data?.detail || e.message}`)
+    message.error(parseError(e).message)
   } finally {
     loading.value = false
   }
@@ -160,7 +161,7 @@ async function submitEdit() {
     cancelEdit()
     await loadTree()
   } catch (e) {
-    message.error(`保存失败：${e.response?.data?.detail || e.message}`)
+    message.error(parseError(e).message)
   }
 }
 
@@ -181,7 +182,7 @@ function confirmDelete() {
         cancelEdit()
         await loadTree()
       } catch (e) {
-        message.error(`删除失败：${e.response?.data?.detail || e.message}`)
+        message.error(parseError(e).message)
       }
     },
   })
@@ -205,7 +206,7 @@ async function moveSibling(delta) {
     await reorderCategories(parentId, ids)
     await loadTree()
   } catch (e) {
-    message.error(`移动失败：${e.response?.data?.detail || e.message}`)
+    message.error(parseError(e).message)
   }
 }
 
@@ -270,7 +271,7 @@ async function onDrop({ node, dragNode, dropPosition }) {
     }
     await loadTree()
   } catch (e) {
-    message.error(`拖拽失败：${e.response?.data?.detail || e.message}`)
+    message.error(parseError(e).message)
     await loadTree()
   }
 }
