@@ -7,9 +7,10 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NCard, NSpin, NButton, NSpace, NTag, NDivider, NAlert } from 'naive-ui'
+import { NCard, NSpin, NButton, NSpace, NTag, NDivider, NAlert, NSelect } from 'naive-ui'
 import { getQuestion, deleteQuestion } from '../api/questions'
-import { dialog } from '../composables/discreteApi'
+import { listTags, getQuestionTags, setQuestionTags } from '../api/tags'
+import { dialog, message } from '../composables/discreteApi'
 import { renderMathText } from '../utils/mathRenderer'
 import QuestionEditor from '../components/QuestionEditor.vue'
 
@@ -21,6 +22,13 @@ const loading = ref(true)
 const errorMsg = ref('')
 const editing = ref(false)
 
+/** 全部标签（选择器用） */
+const allTags = ref([])
+/** 当前题打上的标签 id */
+const questionTagIds = ref([])
+/** 标签保存中 */
+const savingTags = ref(false)
+
 const questionId = computed(() => route.params.id)
 
 async function load() {
@@ -29,6 +37,12 @@ async function load() {
   try {
     const res = await getQuestion(questionId.value)
     question.value = res.data
+    // 详情接口已经带 tags 了，兜底再查一次（老数据可能没有）
+    if (Array.isArray(res.data.tags)) {
+      questionTagIds.value = res.data.tags.map((t) => t.id)
+    } else {
+      await loadQuestionTags()
+    }
   } catch (e) {
     errorMsg.value = e.response?.data?.detail || `加载失败：${e.message}`
   } finally {
@@ -36,7 +50,41 @@ async function load() {
   }
 }
 
-onMounted(load)
+async function loadQuestionTags() {
+  try {
+    const res = await getQuestionTags(questionId.value)
+    questionTagIds.value = (res.data.items || []).map((t) => t.id)
+  } catch (e) {
+    console.error('题目标签加载失败:', e.message)
+  }
+}
+
+async function loadAllTags() {
+  try {
+    const res = await listTags()
+    allTags.value = res.data.items || []
+  } catch (e) {
+    console.error('标签列表加载失败:', e.message)
+  }
+}
+
+async function saveTags() {
+  savingTags.value = true
+  try {
+    await setQuestionTags(questionId.value, questionTagIds.value)
+    message.success('标签已保存')
+    await load()
+  } catch (e) {
+    message.error(`保存失败：${e.response?.data?.detail || e.message}`)
+  } finally {
+    savingTags.value = false
+  }
+}
+
+onMounted(() => {
+  load()
+  loadAllTags()
+})
 
 function onSaved() {
   editing.value = false
@@ -82,6 +130,31 @@ function doDelete() {
           <NTag size="small" :bordered="false">{{ question.question_type }}</NTag>
           <NTag size="small" :bordered="false">{{ question.grade }}</NTag>
           <NTag size="small" :bordered="false">{{ question.difficulty }}</NTag>
+          <NTag
+            v-for="t in question.tags || []"
+            :key="t.id"
+            size="small"
+            :bordered="false"
+            :color="{ color: (t.color || '#18a058') + '22', borderColor: t.color || '#18a058', textColor: t.color || '#18a058' }"
+          >
+            {{ t.name }}
+          </NTag>
+        </div>
+
+        <!-- 标签编辑 -->
+        <div class="tag-edit">
+          <NSelect
+            v-model:value="questionTagIds"
+            :options="allTags.map((t) => ({ label: t.name, value: t.id }))"
+            placeholder="选择标签"
+            multiple
+            filterable
+            clearable
+            size="small"
+            style="max-width: 320px"
+            @update:value="saveTags"
+          />
+          <NButton v-if="savingTags" size="small" loading disabled>保存中…</NButton>
         </div>
 
         <NDivider />
@@ -124,6 +197,10 @@ function doDelete() {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.tag-edit {
+  margin-top: 10px;
 }
 
 .content {
