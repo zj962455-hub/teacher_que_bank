@@ -63,6 +63,49 @@ export function deleteQuestion(id) {
   return http.delete(`/questions/${id}`)
 }
 
+/**
+ * 导出题库为 Excel
+ * @returns {Promise<string>} 下载的文件名
+ */
+export async function exportQuestionsExcel() {
+  const res = await http.get('/questions/export/excel', { responseType: 'blob' })
+  const filename = parseFilename(res.headers['content-disposition'], '我的题库.xlsx')
+  triggerDownload(res.data, filename)
+  return filename
+}
+
+/**
+ * 导出全部数据备份（JSON）
+ * @returns {Promise<string>} 下载的文件名
+ */
+export async function exportBackupJson() {
+  const res = await http.get('/questions/export/backup', { responseType: 'blob' })
+  const filename = parseFilename(res.headers['content-disposition'], '题库备份.json')
+  triggerDownload(res.data, filename)
+  return filename
+}
+
+/** 从 Content-Disposition 解析文件名（后端用 RFC 5987 编码中文名） */
+function parseFilename(disposition, fallback) {
+  if (!disposition) return fallback
+  const utf8 = disposition.match(/filename\*=UTF-8''([^;]+)/)
+  if (utf8) return decodeURIComponent(utf8[1])
+  const plain = disposition.match(/filename="([^"]+)"/)
+  return plain ? plain[1] : fallback
+}
+
+/** 触发浏览器下载 blob */
+function triggerDownload(data, filename) {
+  const url = window.URL.createObjectURL(new Blob([data]))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
+
 export default {
   listQuestions,
   getQuestion,
@@ -70,4 +113,6 @@ export default {
   createQuestionFromOcr,
   updateQuestion,
   deleteQuestion,
+  exportQuestionsExcel,
+  exportBackupJson,
 }
