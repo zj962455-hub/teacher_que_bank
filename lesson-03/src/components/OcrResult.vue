@@ -10,6 +10,7 @@ import QuestionEditor from './QuestionEditor.vue'   // ← 任务 5:题目编辑
 import { message } from '../composables/discreteApi'   // ← 任务 5A:全局 toast
 import { stripMathMarkers } from '../utils/mathRenderer'   // ← 任务 3:更新 plain 字段
 import { createQuestionFromOcr } from '../api/questions'   // ← lesson-08:一键入库
+import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 
 
 // === Props:由 UploadImage 上传成功后回传 ===
@@ -125,8 +126,8 @@ watch(
     try {
       imageBlobUrl.value = await fetchImageBlobUrl(url)
     } catch (e) {
-      // 图片加载失败不致命(可能是还没上传)—— 记一下就行,别刷 error
-      console.warn('原图加载失败:', url, e.message)
+      // ⚠️ 课 32：图片加载失败不致命（可能是还没上传），但要记清楚
+      console.warn('原图加载失败:', url, parseError(e).message)
     }
   },
   { immediate: true },

@@ -11,6 +11,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { NCard, NButton, NSpace, NSpin, NAlert, NDivider, NSelect, NInput, NTag } from 'naive-ui'
 import { getPaper, exportPaperPdf, exportPaperJpg } from '../api/papers'
 import { createShare, listShares, revokeShare, buildShareUrl } from '../api/shares'
+import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 import { renderMathText } from '../utils/mathRenderer'
 
 const route = useRoute()
@@ -55,8 +56,9 @@ async function loadShares() {
     const res = await listShares(route.params.id)
     shares.value = res.data.items || []
   } catch (e) {
-    // 分享列表加载失败不打断页面（导出还能用）
-    console.warn('分享列表加载失败:', e.message)
+    // ⚠️ 课 32：分享列表加载失败不阻断导出,但要说一句
+    //    （之前只 console.warn → 老师以为分享功能坏了）
+    console.warn('分享列表加载失败:', parseError(e).message)
   } finally {
     sharesLoading.value = false
   }

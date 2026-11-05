@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { http, fetchImageBlobUrl } from '../api/auth'
+import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 
 // === 状态 ===
 const fileList = ref([])              // 用户选的 File 数组
@@ -30,7 +31,8 @@ async function loadImageUrl(url) {
     imageUrls.value = { ...imageUrls.value, [url]: blobUrl }
     return blobUrl
   } catch (e) {
-    console.error('图片加载失败:', url, e.message)
+    // ⚠️ 课 32：图片加载失败不致命（可能还没上传），但要记清楚
+    console.warn('图片加载失败:', url, parseError(e).message)
     return ''
   }
 }

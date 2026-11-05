@@ -30,6 +30,12 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Session_, User
+from app.services.errors import (
+    CODE_AUTH_EXPIRED,
+    CODE_AUTH_REQUIRED,
+    CODE_FORBIDDEN,
+    ApiHTTPException,
+)
 
 # ============ 常量 ============
 
@@ -203,18 +209,20 @@ def get_current_user(
     """
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
-        raise HTTPException(
+        raise ApiHTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="未登录",
+            code=CODE_AUTH_REQUIRED,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     token = header[7:].strip()
     record = get_session_by_token(token, session)
     if record is None:
-        raise HTTPException(
+        raise ApiHTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="登录已失效，请重新登录",
+            code=CODE_AUTH_EXPIRED,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -223,17 +231,19 @@ def get_current_user(
         # 会话指向的用户没了（被删）—— 清掉这条会话
         session.delete(record)
         session.commit()
-        raise HTTPException(
+        raise ApiHTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="账号不存在",
+            code=CODE_AUTH_EXPIRED,
         )
 
     if not user.is_active:
         # 账号被停用（软删除）—— 立刻踢下线
         revoke_all_sessions(session, user.id)
-        raise HTTPException(
+        raise ApiHTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="账号已被停用",
+            code=CODE_FORBIDDEN,
         )
 
     # 顺手更新活跃时间（不用每次 commit，省一次写）

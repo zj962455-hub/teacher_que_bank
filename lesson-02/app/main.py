@@ -22,6 +22,19 @@ from app.routers import shares  # ← lesson-24 分享链接（管理线 + 公�
 from app.database import engine
 from app.models import Question, create_tables
 
+# === lesson-32:统一错误契约 ===
+from app.services.errors import (
+    CODE_AUTH_REQUIRED,
+    CODE_AUTH_EXPIRED,
+    CODE_FORBIDDEN,
+    CODE_INTERNAL,
+    CODE_VALIDATION,
+    ApiHTTPException,
+    current_request_id,
+    error_response,
+    new_request_id,
+)
+
 # === 运行环境 ===
 # APP_ENV=production 时:关掉 API 文档、不回显内部错误细节。
 # 开发时（默认）保持开放,方便看文档。
@@ -129,29 +142,46 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+# === lesson-32:统一错误契约 ====================================
+
+# === request_id 中间件 ===
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    """给每个请求生成一个 id
+
+    入站已有 ``X-Request-ID`` 就沿用（网关/上游可能已经生成过），
+    没有就自己生成一个。挂在 ``request.state.request_id``，
+    后面三个异常出口和响应头都用它 —— 三处同一个 id，才能拿界面上的 id 搜日志。
+    """
+    incoming = request.headers.get("X-Request-ID", "").strip()
+    request.state.request_id = incoming[:64] if incoming else new_request_id()
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request.state.request_id
+    return response
+
+
 # === 4.2 未捕获异常:不外泄细节 ===
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """兜底异常处理
 
     客户端只拿到:
-      {"detail": "服务器内部错误", "request_id": "..."}
+      {"detail": "服务器内部错误", "code": "server.internal", "request_id": "..."}
 
     真正的异常类型和堆栈写进日志 —— 运维靠 request_id 去日志里搜。
     """
-    request_id = uuid.uuid4().hex[:12]
+    request_id = current_request_id(request)
     logger.exception(
         "未处理异常 request_id=%s method=%s path=%s",
         request_id,
         request.method,
         request.url.path,
     )
-    return JSONResponse(
+    return error_response(
+        request,
         status_code=500,
-        content={
-            "detail": "服务器内部错误",
-            "request_id": request_id,
-        },
+        detail="服务器内部错误",
+        code=CODE_INTERNAL,
     )
 
 
@@ -163,6 +193,10 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     FastAPI 默认返回 errors() 列表,里面含字段名和类型 ——
     信息量对攻击者有用(能摸清后端要什么字段)。
     生产环境只回一句人话 + 第一个出错字段名,细节进日志。
+
+    ⚠️ lesson-32:开发模式也返回**字符串** detail（旧的开发模式返数组，
+    前端拿到的 detail 有时是数组有时是字符串 → 页面直接渲染成空白）。
+    想要原始 errors 就看服务端日志。
     """
     detail = "请求参数有误"
     try:
@@ -173,21 +207,53 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     except Exception:
         pass
 
-    if not IS_PROD:
-        return JSONResponse(status_code=422, content={"detail": exc.errors()})
-    return JSONResponse(status_code=422, content={"detail": detail})
+    logger.warning(
+        "参数校验失败 request_id=%s method=%s path=%s detail=%s",
+        current_request_id(request),
+        request.method,
+        request.url.path,
+        detail,
+    )
+    return error_response(
+        request,
+        status_code=422,
+        detail=detail,
+        code=CODE_VALIDATION,
+    )
 
 
-# === 4.4 HTTPException:只保留 detail 文本 ===
+# === 4.5 带机器码的 HTTPException（lesson-32）===
+@app.exception_handler(ApiHTTPException)
+async def api_http_exception_handler(request: Request, exc: ApiHTTPException):
+    """业务代码主动抛的、带机器码的错误
+
+    必须在 ``StarletteHTTPException`` 的 handler **之前**注册 ——
+    FastAPI 按「异常类精确匹配 → MRO 依次找」找 handler，
+    ApiHTTPException 是 StarletteHTTPException 的子类，
+    精确匹配会先命中它。
+    """
+    return error_response(
+        request,
+        status_code=exc.status_code,
+        detail=exc.detail,
+        code=exc.code,
+        headers=getattr(exc, "headers", None),
+    )
+
+
+# === 4.6 HTTPException:只保留 detail 文本 ===
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """HTTPException 默认会带 detail 字段,那是我们自己写的文案,安全。
 
     但 500 级别的 StarletteHTTPException.detail 有时是英文默认串,
     生产环境统一换成中文,并去掉 headers 里的内部信息。
+
+    ⚠️ lesson-32:401/403 补上机器码 —— 前端可以据此决定「跳登录」还是「提示没权限」。
     """
+    request_id = current_request_id(request)
+
     if IS_PROD and exc.status_code >= 500:
-        request_id = uuid.uuid4().hex[:12]
         logger.error(
             "HTTP %s request_id=%s method=%s path=%s detail=%s",
             exc.status_code,
@@ -196,12 +262,25 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
             request.url.path,
             exc.detail,
         )
-        return JSONResponse(
+        return error_response(
+            request,
             status_code=exc.status_code,
-            content={"detail": "服务器内部错误", "request_id": request_id},
+            detail="服务器内部错误",
+            code=CODE_INTERNAL,
         )
-    return JSONResponse(
+
+    # 401 → 登录相关；403 → 权限相关；其余按状态码归类
+    if exc.status_code == 401:
+        code = CODE_AUTH_EXPIRED
+    elif exc.status_code == 403:
+        code = CODE_FORBIDDEN
+    else:
+        code = CODE_AUTH_REQUIRED if exc.status_code == 400 else "request.failed"
+
+    return error_response(
+        request,
         status_code=exc.status_code,
-        content={"detail": exc.detail},
+        detail=exc.detail,
+        code=code,
         headers=getattr(exc, "headers", None),
     )

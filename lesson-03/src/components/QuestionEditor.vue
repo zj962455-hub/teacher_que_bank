@@ -25,6 +25,7 @@ import {
   SUBJECT_OPTIONS, TYPE_OPTIONS, GRADE_OPTIONS, DIFFICULTY_OPTIONS,
 } from '../utils/classifier'
 import { renderMathText } from '../utils/mathRenderer'   // ← lesson-07:KaTeX 预览
+import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 
 // === Props：OCR 结果 ===
 const props = defineProps({
@@ -88,7 +89,10 @@ onMounted(async () => {
     const res = await getCategoryFlat()
     categoryOptions.value = (res.data || []).map((c) => ({ label: c.name, value: c.id }))
   } catch (e) {
-    console.error('章节列表加载失败:', e.message)
+    // ⚠️ 课 32：章节下拉加载失败时，之前只 console.error →
+    //    下拉框空着,老师以为「就是没章节可选」,存进去的题没有分类。
+    //    现在明确说一声。
+    message.warning(`章节列表加载失败,本题将不带分类：${parseError(e).message}`)
   }
 })
 

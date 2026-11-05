@@ -28,6 +28,7 @@ import { getCategoryTree, getCategoryFlat, toTreeOptions } from '../api/categori
 import { listTags, createTag, deleteTag } from '../api/tags'
 import { renderMathText } from '../utils/mathRenderer'
 import { message } from '../composables/discreteApi'
+import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 
 const router = useRouter()
 
@@ -124,7 +125,9 @@ async function load() {
     questions.value = res.data.items || []
     total.value = res.data.total || 0
   } catch (e) {
-    message.error(`加载失败：${e.message}`)
+    // ⚠️ 课 32：统一用 parseError —— 网络错误不再是「加载失败：Network Error」
+    const err = parseError(e)
+    message.error(err.message)
   } finally {
     loading.value = false
   }
@@ -137,7 +140,9 @@ async function loadTree() {
     tree.value = toTreeOptions(treeRes.data.tree || [])
     categoryOptions.value = (flatRes.data || []).map((c) => ({ label: c.name, value: c.id }))
   } catch (e) {
-    console.error('分类树加载失败:', e.message)
+    // ⚠️ 课 32：之前是 console.error → 分类树加载失败时页面左边空一块，
+    //    老师以为「我没建分类」。现在给一句人话（但不断页面）。
+    message.error(parseError(e).message)
   } finally {
     treeLoading.value = false
   }
@@ -148,7 +153,8 @@ async function loadTags() {
     const res = await listTags()
     tags.value = res.data.items || []
   } catch (e) {
-    console.error('标签加载失败:', e.message)
+    // ⚠️ 同上：标签加载失败要说出来，不是 console.error 就完
+    message.error(parseError(e).message)
   }
 }
 

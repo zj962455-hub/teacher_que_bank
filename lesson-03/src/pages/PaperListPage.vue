@@ -6,29 +6,29 @@
  * 这里单独给一页列出现有试卷，方便管理。
  */
 import { ref, onMounted } from 'vue'
-import { NCard, NButton, NSpace, NTag, NSpin, NEmpty, NDataTable } from 'naive-ui'
+import { NCard, NButton, NSpace, NTag, NEmpty } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import { listPapers, deletePaper } from '../api/papers'
-import { dialog } from '../composables/discreteApi'
+import { dialog, message } from '../composables/discreteApi'
+import TaskState from '../components/TaskState.vue'
+import { useAsyncTask } from '../composables/useAsyncTask'
+import { parseError } from '../utils/errors'
 
 const router = useRouter()
 
 const papers = ref([])
-const loading = ref(true)
 
-async function load() {
-  loading.value = true
-  try {
-    const res = await listPapers()
-    papers.value = res.data.items || []
-  } catch (e) {
-    console.error('试卷列表加载失败:', e.message)
-  } finally {
-    loading.value = false
-  }
-}
+// === 课 32：统一异步状态 ===
+// 删除失败之前只 console.error → 老师点了删除，列表纹丝不动，也不知道为什么。
+// 现在：删除失败弹 toast 说明原因，列表加载失败给「重试」。
+const { loading, error, run, retry } = useAsyncTask(async () => {
+  const res = await listPapers()
+  papers.value = res.data.items || []
+})
 
-onMounted(load)
+onMounted(() => {
+  run().catch(() => undefined)
+})
 
 function doDelete(row) {
   dialog.warning({
@@ -39,9 +39,11 @@ function doDelete(row) {
     onPositiveClick: async () => {
       try {
         await deletePaper(row.id)
-        load()
+        message.success('已删除')
+        run().catch(() => undefined)
       } catch (e) {
-        console.error('删除失败:', e.message)
+        // ⚠️ 之前是 console.error → 老师点了没反应也不知道原因
+        message.error(parseError(e).message)
       }
     },
   })
@@ -57,14 +59,21 @@ function doDelete(row) {
       </NButton>
     </div>
 
-    <NSpin :show="loading">
-      <NEmpty v-if="!loading && papers.length === 0" description="还没有试卷">
-        <template #extra>
-          <NButton type="primary" @click="router.push({ name: 'paper-new' })">去组卷</NButton>
-        </template>
-      </NEmpty>
+    <TaskState
+      :loading="loading"
+      :error="error"
+      :empty="papers.length === 0"
+      @retry="retry"
+    >
+      <template #empty>
+        <NEmpty description="还没有试卷">
+          <template #extra>
+            <NButton type="primary" @click="router.push({ name: 'paper-new' })">去组卷</NButton>
+          </template>
+        </NEmpty>
+      </template>
 
-      <NSpace v-else vertical :size="12">
+      <NSpace vertical :size="12">
         <NCard v-for="p in papers" :key="p.id" size="small">
           <div class="paper-row">
             <div>
@@ -84,7 +93,7 @@ function doDelete(row) {
           </div>
         </NCard>
       </NSpace>
-    </NSpin>
+    </TaskState>
   </div>
 </template>
 
