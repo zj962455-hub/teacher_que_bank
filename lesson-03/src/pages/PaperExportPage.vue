@@ -3,12 +3,13 @@
  * PaperExportPage — ⑧ 试卷预览/导出
  *
  * 原型：A4 预览 + PDF/JPG 导出
- * 现在先做 PDF 导出（JPG 是下一轮的），并展示试卷内容预览。
+ * 导出：PDF（打印稿）+ JPG（每页一张，打包 ZIP，发群用）。
+ * 原型 ⑧ 页面还有「复制到剪贴板」，那是下一轮的。
  */
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NCard, NButton, NSpace, NSpin, NAlert, NDivider } from 'naive-ui'
-import { getPaper, exportPaperPdf } from '../api/papers'
+import { getPaper, exportPaperPdf, exportPaperJpg } from '../api/papers'
 import { renderMathText } from '../utils/mathRenderer'
 
 const route = useRoute()
@@ -18,6 +19,7 @@ const paper = ref(null)
 const loading = ref(true)
 const errorMsg = ref('')
 const exporting = ref(false)
+const exportingJpg = ref(false)
 
 async function load() {
   loading.value = true
@@ -32,6 +34,19 @@ async function load() {
 }
 
 onMounted(load)
+
+async function doExportJpg() {
+  exportingJpg.value = true
+  errorMsg.value = ''
+  try {
+    const filename = await exportPaperJpg(paper.value.id, paper.value.title)
+    console.log('已导出:', filename)
+  } catch (e) {
+    errorMsg.value = e.response?.data?.detail || `导出失败：${e.message}`
+  } finally {
+    exportingJpg.value = false
+  }
+}
 
 async function doExport() {
   exporting.value = true
@@ -58,6 +73,9 @@ async function doExport() {
       <NSpace v-if="paper">
         <NButton size="small" type="primary" :loading="exporting" @click="doExport">
           导出 PDF
+        </NButton>
+        <NButton size="small" :loading="exportingJpg" @click="doExportJpg">
+          导出 JPG
         </NButton>
       </NSpace>
     </div>

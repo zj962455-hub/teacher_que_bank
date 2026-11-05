@@ -10,6 +10,7 @@
 | POST   | /api/papers/{id}/questions      | 加题到试卷 |
 | DELETE | /api/papers/{id}/questions/{pq_id} | 从试卷移除题 |
 | GET    | /api/papers/{id}/export.pdf     | 导出 PDF |
+| GET    | /api/papers/{id}/export.jpg     | 导出 JPG（每页一张，打包 ZIP）|
 """
 
 from typing import Optional
@@ -21,6 +22,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Paper, PaperQuestion, Question, User, auto_label
 from app.services.auth import get_current_user
+from app.services.jpg_export import JpgExportError, build_jpg_zip
 from app.services.pdf_export import PdfExportError, export_paper_pdf
 
 router = APIRouter(
@@ -371,6 +373,65 @@ def export_pdf(
         headers={
             "Content-Disposition": (
                 f"attachment; filename=\"paper.pdf\"; "
+                f"filename*=UTF-8''{quote(filename)}"
+            ),
+        },
+    )
+
+
+# === 导出 JPG（每页一张图）===
+@router.get("/{paper_id}/export.jpg")
+def export_jpg(
+    paper_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """导出试卷为 JPG（每页一张图，打包 ZIP）
+
+    为什么走「先 PDF 再转 JPG」而不是直接截图
+    ---------------------------------------
+    PDF 那条链路已经处理好了 A4 分页、题目不被切开、KaTeX 公式渲染、溯源页脚。
+    直接截图拿不到分页，也复制不了这套排版 —— 复用 PDF 再逐页转图，图片和打印稿一致。
+
+    返回 application/zip（一张一页 JPG），适合发群 / 朋友圈 / 学生平板。
+    """
+    paper = _get_own_paper(paper_id, session, current_user)
+
+    detail = _paper_detail(paper, session)
+    if not detail["questions"]:
+        raise HTTPException(status_code=400, detail="试卷里还没有题目")
+
+    # 组装数据（和 export_pdf 同一份口径）
+    items = []
+    for item in detail["questions"]:
+        items.append({
+            "label": item["label"],
+            "content": item["question"]["content_markdown"] or item["question"]["content_plain"],
+            "score": item["score"],
+        })
+
+    try:
+        pdf_bytes = export_paper_pdf(
+            paper={"title": paper.title, "subtitle": paper.subtitle},
+            items=items,
+            trace=_build_trace(current_user, paper),
+        )
+        zip_bytes = build_jpg_zip(pdf_bytes, prefix=paper.title)
+    except PdfExportError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except JpgExportError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # 文件名要处理中文（RFC 5987）
+    from urllib.parse import quote
+    filename = f"{paper.title}.zip"
+
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=\"paper.zip\"; "
                 f"filename*=UTF-8''{quote(filename)}"
             ),
         },
