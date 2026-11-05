@@ -52,6 +52,7 @@ def clean_db():
             "DELETE FROM paper_questions",
             "DELETE FROM papers",
             "DELETE FROM questions",
+            "DELETE FROM categories",
             "DELETE FROM users",
         ):
             session.exec(text(sql))

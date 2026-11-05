@@ -1,7 +1,6 @@
-"""分类树 / 批量操作 / 最近编辑 测试 — lesson-11
+"""批量操作 / 最近编辑 测试 — lesson-11
 
 覆盖：
-- GET /api/questions/categories  按学科/学段/难度聚合的树
 - POST /api/questions/batch/delete  批量删除（只删自己的）
 - POST /api/questions/batch/update  批量改分类/难度
 - GET /api/questions/recent  最近编辑的题目
@@ -34,6 +33,7 @@ def clean_db():
             "DELETE FROM paper_questions",
             "DELETE FROM papers",
             "DELETE FROM questions",
+            "DELETE FROM categories",
             "DELETE FROM users",
         ):
             session.exec(text(sql))
@@ -89,51 +89,7 @@ def _h(token):
 # ================= 分类树 =================
 
 
-def test_category_tree_shape(client):
-    uid = _make_user("test1")
-    _make_question(uid, "数学", "高中", "简单", "题1")
-    _make_question(uid, "数学", "高中", "简单", "题2")
-    _make_question(uid, "数学", "初中", "中等", "题3")
-    _make_question(uid, "物理", "高中", "困难", "题4")
 
-    token = _login(client, "test1")
-    resp = client.get("/api/questions/categories", headers=_h(token))
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["total"] == 4
-
-    tree = {n["label"]: n for n in data["tree"]}
-    assert "数学" in tree
-    assert "物理" in tree
-    assert tree["数学"]["count"] == 3
-    assert tree["物理"]["count"] == 1
-
-    grades = {c["label"]: c for c in tree["数学"]["children"]}
-    assert grades["高中"]["count"] == 2
-    assert grades["初中"]["count"] == 1
-    # 第三层:难度
-    diffs = {d["label"]: d for d in grades["高中"]["children"]}
-    assert diffs["简单"]["count"] == 2
-
-
-def test_category_tree_only_own(client):
-    uid1 = _make_user("test1")
-    uid2 = _make_user("test2")
-    _make_question(uid1, "数学")
-    _make_question(uid2, "化学")
-
-    token = _login(client, "test1")
-    data = client.get("/api/questions/categories", headers=_h(token)).json()
-    labels = [n["label"] for n in data["tree"]]
-    assert "数学" in labels
-    assert "化学" not in labels
-
-
-def test_category_tree_requires_login(client):
-    assert client.get("/api/questions/categories").status_code == 401
-
-
-# ================= 批量删除 =================
 
 
 def test_batch_delete(client):

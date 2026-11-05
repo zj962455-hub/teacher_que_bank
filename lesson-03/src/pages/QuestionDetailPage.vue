@@ -102,6 +102,7 @@ function doDelete() {
       v-if="editing && question"
       mode="edit"
       :question-id="question.id"
+      :category-id="question.category_id"
       :plain-text="question.content_plain"
       :with-formulas="question.content_markdown"
       :blocks="question.blocks"

@@ -99,35 +99,6 @@ const SHORTCUTS = [
         <template #extra>
           <NButton type="primary" @click="router.push({ name: 'capture' })">去录题</NButton>
         </template>
-
-<style scoped>
-.recent-item {
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.recent-item:hover {
-  background: #f7f7f7;
-}
-
-.recent-text {
-  font-size: 14px;
-  line-height: 1.7;
-  max-height: 3.4em;
-  overflow: hidden;
-}
-
-.recent-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 12px;
-  color: #999;
-}
-</style>
       </NEmpty>
     </div>
   </NSpin>

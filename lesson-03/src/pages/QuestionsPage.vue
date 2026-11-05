@@ -23,9 +23,8 @@ import { useRouter } from 'vue-router'
 import {
   listQuestions, deleteQuestion, exportQuestionsExcel, exportBackupJson,
 } from '../api/questions'
-import {
-  getCategoryTree, batchDeleteQuestions, batchUpdateQuestions,
-} from '../api/batch'
+import { batchDeleteQuestions, batchUpdateQuestions } from '../api/batch'
+import { getCategoryTree, getCategoryFlat, toTreeOptions } from '../api/categories'
 import { renderMathText } from '../utils/mathRenderer'
 import { message } from '../composables/discreteApi'
 
@@ -45,7 +44,27 @@ const filters = ref({
   grade: null,
   difficulty: null,
   keyword: '',
+  // 章节分类（categories.id）—— 后端会把子分类的题也算进来
+  category_id: null,
 })
+
+/** 扁平分类列表（批量改分类的下拉框用） */
+const categoryOptions = ref([])
+
+/** 当前选中的章节（树上的高亮节点） */
+const selectedCategory = ref(null)
+
+/** 在 NTree 选项里按 key 找节点名 */
+function findOptionLabel(nodes, key) {
+  for (const n of nodes) {
+    if (n.key === key) return n.label
+    if (n.children) {
+      const hit = findOptionLabel(n.children, key)
+      if (hit) return hit
+    }
+  }
+  return null
+}
 
 const page = ref(1)
 const pageSize = ref(20)
@@ -59,6 +78,7 @@ const batchForm = ref({
   question_type: null,
   grade: null,
   difficulty: null,
+  category_id: null,
 })
 
 const SUBJECT_OPTIONS = ['数学', '物理', '化学', '生物', '未知'].map((v) => ({ label: v, value: v }))
@@ -84,8 +104,9 @@ async function load() {
 async function loadTree() {
   treeLoading.value = true
   try {
-    const res = await getCategoryTree()
-    tree.value = res.data.tree || []
+    const [treeRes, flatRes] = await Promise.all([getCategoryTree(), getCategoryFlat()])
+    tree.value = toTreeOptions(treeRes.data.tree || [])
+    categoryOptions.value = (flatRes.data || []).map((c) => ({ label: c.name, value: c.id }))
   } catch (e) {
     console.error('分类树加载失败:', e.message)
   } finally {
@@ -114,21 +135,31 @@ function onPageChange(p) {
   load()
 }
 
-// === 点章节树节点 → 筛到对应维度 ===
-function onTreeSelect(node) {
-  const parts = node.key.split('/')
-  filters.value.subject = null
-  filters.value.grade = null
-  filters.value.difficulty = null
-  if (parts.length === 1) filters.value.subject = parts[0]
-  else if (parts.length === 2) {
-    filters.value.subject = parts[0]
-    filters.value.grade = parts[1]
-  } else if (parts.length === 3) {
-    filters.value.subject = parts[0]
-    filters.value.grade = parts[1]
-    filters.value.difficulty = parts[2]
+// === 点章节树节点 → 按章节筛选（含子分类） ===
+// ⚠️ NTree 的 update:selected-keys 给的是**数组**，不是单个节点
+function onTreeSelect(keys) {
+  const key = Array.isArray(keys) ? (keys.length ? keys[0] : null) : keys
+  filters.value.category_id = key ?? null
+  selectedCategory.value = key === null || key === undefined
+    ? null
+    : { id: key, name: findOptionLabel(tree.value, key) ?? String(key) }
+  onFilterChange()
+}
+
+/** 清掉章节筛选 */
+function clearCategory() {
+  filters.value.category_id = null
+  selectedCategory.value = null
+  onFilterChange()
+}
+
+/** 重置所有筛选 */
+function resetFilters() {
+  filters.value = {
+    subject: null, question_type: null, grade: null,
+    difficulty: null, keyword: '', category_id: null,
   }
+  selectedCategory.value = null
   onFilterChange()
 }
 
@@ -139,7 +170,7 @@ function clearSelection() {
 
 async function doBatchUpdate() {
   const patch = {}
-  for (const k of ['subject', 'question_type', 'grade', 'difficulty']) {
+  for (const k of ['subject', 'question_type', 'grade', 'difficulty', 'category_id']) {
     if (batchForm.value[k]) patch[k] = batchForm.value[k]
   }
   if (Object.keys(patch).length === 0) {
@@ -162,7 +193,7 @@ async function doBatchUpdate() {
 
 function resetBatchForm() {
   batchForm.value = {
-    subject: null, question_type: null, grade: null, difficulty: null,
+    subject: null, question_type: null, grade: null, difficulty: null, category_id: null,
   }
 }
 
@@ -313,8 +344,17 @@ const checkedRowKeys = computed(() => selectedKeys.value)
             :render-label="renderNodeLabel"
             @update:selected-keys="onTreeSelect"
           />
-          <NEmpty v-else description="还没有题目" size="small" />
+          <NEmpty v-else description="还没有章节分类" size="small" />
         </NSpin>
+
+        <div v-if="selectedCategory" class="chapter-chip">
+          <span class="chip-label">章节</span>
+          <span class="chip-name">{{ selectedCategory.name }}</span>
+          <NButton size="tiny" quaternary @click="clearCategory">清除</NButton>
+        </div>
+        <div v-else class="chapter-tip">
+          点章节筛选题目（子章节的题也算进来）
+        </div>
       </NCard>
 
       <!-- 右：筛选 + 表格 -->
@@ -361,7 +401,7 @@ const checkedRowKeys = computed(() => selectedKeys.value)
               @keyup.enter="onSearch"
             />
             <NButton size="small" @click="onSearch">搜索</NButton>
-            <NButton size="small" quaternary @click="filters = { subject: null, question_type: null, grade: null, difficulty: null, keyword: '' }; onFilterChange()">
+            <NButton size="small" quaternary @click="resetFilters">
               重置
             </NButton>
           </NSpace>
@@ -399,6 +439,13 @@ const checkedRowKeys = computed(() => selectedKeys.value)
                 placeholder="改为难度"
                 clearable
                 style="width: 120px"
+              />
+              <NSelect
+                v-model:value="batchForm.category_id"
+                :options="categoryOptions"
+                placeholder="改为章节"
+                clearable
+                style="width: 150px"
               />
               <NButton size="small" type="primary" @click="doBatchUpdate">批量修改</NButton>
               <NButton size="small" type="error" @click="doBatchDelete">批量删除</NButton>
@@ -476,5 +523,31 @@ const checkedRowKeys = computed(() => selectedKeys.value)
 .batch-count {
   font-size: 13px;
   font-weight: 600;
+}
+
+.chapter-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #f2f6fb;
+  font-size: 12px;
+}
+
+.chip-label {
+  color: #888;
+}
+
+.chip-name {
+  font-weight: 600;
+}
+
+.chapter-tip {
+  margin-top: 10px;
+  color: #999;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

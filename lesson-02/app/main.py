@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 # .env 在 lesson-02/ 下(load_dotenv 默认读 cwd 的 .env)
 load_dotenv()
 
-from app.routers import lessons, courses, upload, ocr, questions, papers, auth   # ← 加 auth(lesson-11)
+from app.routers import lessons, courses, upload, ocr, questions, papers, auth, categories   # ← 加 categories(lesson-11)
 
 # === lesson-08:数据库 ===
 from app.database import engine
@@ -50,6 +50,7 @@ app.include_router(ocr.router, prefix="/api")    # ← 新增
 app.include_router(questions.router, prefix="/api")   # ← lesson-08 题目 CRUD
 app.include_router(papers.router, prefix="/api")      # ← lesson-09 试卷 + PDF 导出
 app.include_router(auth.router, prefix="/api")        # ← lesson-11 认证
+app.include_router(categories.router, prefix="/api")  # ← lesson-11 章节分类
 
 
 @app.get("/")

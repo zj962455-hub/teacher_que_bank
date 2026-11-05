@@ -12,13 +12,14 @@
  *
  * 默认折叠，由 OcrResult.vue 控制展开状态
  */
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import {
   NCard, NButton, NSpace, NTag, NSelect, NInput, NText,
   NDivider, NGrid, NGridItem,
 } from 'naive-ui'
 import { message } from '../composables/discreteApi'
 import { updateQuestion } from '../api/questions'   // ← lesson-09:保存到题库
+import { getCategoryFlat } from '../api/categories'   // ← lesson-11:章节分类
 import {
   classify,
   SUBJECT_OPTIONS, TYPE_OPTIONS, GRADE_OPTIONS, DIFFICULTY_OPTIONS,
@@ -41,6 +42,8 @@ const props = defineProps({
   },
   // edit 模式下要保存的题目 id
   questionId: { type: Number, default: null },
+  // edit 模式下题目当前归属的章节（categories.id）
+  categoryId: { type: Number, default: null },
 })
 
 // === 状态 ===
@@ -71,6 +74,23 @@ const meta = ref({
 
 // 用户是否手动改过分类（改过就不再被 AI 覆盖）
 const manuallyEdited = ref(false)
+
+// === 章节分类（lesson-11）===
+// 学科/题型/学段/难度是「按内容自动算」的，章节是「用户自己维护的归属」——
+// 两者不是一回事，所以单独一个下拉框，不参与 AI 分类。
+const categoryId = ref(props.categoryId)
+const categoryOptions = ref([])
+
+watch(() => props.categoryId, (v) => { categoryId.value = v })
+
+onMounted(async () => {
+  try {
+    const res = await getCategoryFlat()
+    categoryOptions.value = (res.data || []).map((c) => ({ label: c.name, value: c.id }))
+  } catch (e) {
+    console.error('章节列表加载失败:', e.message)
+  }
+})
 
 // === OCR 结果变化时重新初始化 ===
 watch(
@@ -159,6 +179,8 @@ async function saveToDatabase() {
     await updateQuestion(props.questionId, {
       content_plain: buildPlainText.value,
       content_markdown: props.withFormulas || content.value,
+      // 章节：传 null = 不归属任何分类（后端用 exclude_unset 区分“没传”和“清空”）
+      category_id: categoryId.value ?? null,
     })
     message.success('已保存到题库')
     emit('saved')
@@ -282,6 +304,14 @@ function resetContent() {
       <NButton size="small" @click="resetMeta" :disabled="!manuallyEdited">
         ↺ 恢复自动
       </NButton>
+      <NSelect
+        v-model:value="categoryId"
+        :options="categoryOptions"
+        placeholder="归属章节"
+        clearable
+        size="small"
+        style="width: 160px"
+      />
       <NTag size="small" :bordered="false" :type="meta.confidence > 0.5 ? 'success' : 'warning'">
         置信度 {{ Math.round(meta.confidence * 100) }}%
       </NTag>
