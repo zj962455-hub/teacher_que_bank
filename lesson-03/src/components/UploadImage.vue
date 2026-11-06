@@ -2,22 +2,29 @@
 import { ref, computed, onMounted } from 'vue'
 import { http, fetchImageBlobUrl } from '../api/auth'
 import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
+import { useAsyncTask } from '../composables/useAsyncTask'
+
+// === 事件 ===
+// ⚠️ lesson-35：上传成功后必须 emit —— CapturePage 靠它把图片交给 OCR 面板。
+//    以前从来没 emit 过 → CapturePage 的 currentImage 永远是空 →
+//    OcrResult 的「开始识别」按钮 :disabled="... || !imageUrl" 永远为 true
+//    → 老师连「开始识别」都点不动。
+//    参数是后端返回的 url（/api/uploads/<filename>），不是本地拼的路径。
+const emit = defineEmits(['uploaded'])
 
 // === 状态 ===
 const fileList = ref([])              // 用户选的 File 数组
 const previews = ref([])              // 预览数组 [{file, dataUrl}]
 const uploadedList = ref([])          // 上传结果数组
-const uploading = ref(false)          // 上传中
 const progress = computed(() => {
   if (fileList.value.length === 0) return 0
   return Math.round(uploadedList.value.length / fileList.value.length * 100)
 })
-const error = ref(null)               // 错误信息
+const localError = ref('')            // 本地校验错误(还没发请求就没了的那种)
 const warning = ref(null)             // 文件超限等非阻断提示
 const MAX_SIZE = 5 * 1024 * 1024      // 文件大小限制 5 MB
 const isDragging = ref(false)         // 拖入状态(用于视觉反馈)
 const historyList = ref([])           // 上传历史(简易画廊)
-const loadingHistory = ref(false)     // 加载历史中
 // 图片的 blob URL 映射(filename → blob: URL)
 const imageUrls = ref({})            // ⚠️ 图片接口要鉴权，<img src> 带不了 Authorization 头
 const blobUrls = []                  // 记下来以便卸载时 revoke
@@ -61,7 +68,7 @@ function onFilesChange(e) {
   // 全部超限
   if (accepted.length === 0) {
     warning.value = null
-    error.value = `${selectedFiles.length} 个文件全部超过 5 MB 限制,已拒绝:\n${skipped.join('\n')}`
+    localError.value = `${selectedFiles.length} 个文件全部超过 5 MB 限制,已拒绝:\n${skipped.join('\n')}`
     fileList.value = []
     previews.value = []
     return
@@ -73,7 +80,7 @@ function onFilesChange(e) {
   } else {
     warning.value = null
   }
-  error.value = null
+  localError.value = null
   
   fileList.value = accepted
   uploadedList.value = []
@@ -96,19 +103,13 @@ function onDrop(e) {
 }
 
 // === 上传到后端 ===
-async function upload() {
-  if (fileList.value.length === 0) {
-    error.value = '请先选文件'
-    return
-  }
-  
-  uploading.value = true
-  error.value = null
-  uploadedList.value = []
-  
-  try {
-    // 每个文件一个请求,Promise.all 并发
-    const promises = fileList.value.map((f) => {
+// ⚠️ 用 allSettled 而不是 all —— 一个文件失败不该把其他成功的也抹掉。
+//    老师的场景是「一次拍好几页」，第 3 页失败不该让前 2 页白传。
+async function uploadFiles() {
+  const files = fileList.value
+
+  const results = await Promise.allSettled(
+    files.map((f) => {
       const formData = new FormData()
       formData.append('file', f)
       return http.post(
@@ -121,37 +122,83 @@ async function upload() {
         }
       )
     })
-    
-    const results = await Promise.all(promises)
-    uploadedList.value = results.map((r) => r.data)
-    // 图片要带 token 才能读 → 转成 blob URL
-    await loadHistoryImages(uploadedList.value)
-    // 刷新历史画廊
-    await loadHistory()
-  } catch (e) {
-    error.value = `上传失败: ${e.response?.data?.detail || e.message}`
-  } finally {
-    uploading.value = false
+  )
+
+  const ok = results.filter((r) => r.status === 'fulfilled').map((r) => r.value.data)
+  const failed = results.filter((r) => r.status === 'rejected')
+
+  uploadedList.value = ok
+
+  // 图片要带 token 才能读 → 转成 blob URL
+  await loadHistoryImages(ok)
+
+  // ⚠️ lesson-35：emit **最后一个成功的** url
+  //    多个文件时，老师在 OCR 面板看的是哪张图就对哪张 ——
+  //    最后一次成功的那张是老师最可能想识别的那张。
+  if (ok.length > 0) {
+    emit('uploaded', ok[ok.length - 1].url)
   }
+
+  if (failed.length > 0) {
+    const reasons = failed.map((r) => parseError(r.reason).message).join('; ')
+    if (ok.length === 0) {
+      // 全失败 → 抛给 useAsyncTask 统一处理（错误提示走 parseError）
+      throw parseError(failed[0].reason)
+    }
+    // 部分失败 → 成功的照用,失败的给个非阻断提示
+    warning.value = `${failed.length} 个文件上传失败:${reasons}`
+  }
+
+  // 刷新历史画廊
+  await runHistory().catch(() => undefined)
+
+  return ok
+}
+
+// === 上传任务（统一 loading / error）===
+const {
+  loading: uploading,
+  error: uploadError,
+  run: runUpload,
+  clearError: clearUploadError,
+} = useAsyncTask(uploadFiles)
+
+function upload() {
+  localError.value = ''
+  clearUploadError()
+  if (fileList.value.length === 0) {
+    localError.value = '请先选文件'
+    return
+  }
+  uploadedList.value = []
+  warning.value = null
+  return runUpload().catch(() => undefined)
 }
 
 // === 加载历史 ===
-async function loadHistory() {
-  loadingHistory.value = true
-  try {
-    const res = await http.get('/uploads/list')
-    historyList.value = res.data
-    // 逐张转成带鉴权的 blob URL
-    await loadHistoryImages(res.data)
-  } catch (e) {
-    error.value = `加载历史失败: ${e.message}`
-  } finally {
-    loadingHistory.value = false
-  }
+async function fetchHistory() {
+  const res = await http.get('/uploads/list')
+  historyList.value = res.data
+  // 逐张转成带鉴权的 blob URL
+  await loadHistoryImages(res.data)
+  return res.data
 }
 
+const { loading: historyLoading, error: historyError, run: runHistory } = useAsyncTask(fetchHistory)
+const loadingHistory = computed(() => historyLoading.value)
+
+// 刷新历史画廊（按钮用）
+function refreshHistory() {
+  return runHistory().catch(() => undefined)
+}
+
+// 错误提示统一出口：本地校验 + 上传 + 历史加载
+const error = computed(() =>
+  localError.value || uploadError.value?.message || historyError.value?.message || ''
+)
+
 onMounted(() => {
-  loadHistory()
+  runHistory().catch(() => undefined)
 })
 
 // === 重置 ===
@@ -159,8 +206,9 @@ function reset() {
   fileList.value = []
   previews.value = []
   uploadedList.value = []
-  error.value = null
+  localError.value = ''
   warning.value = null
+  clearUploadError()
 }
 </script>
 
@@ -237,7 +285,7 @@ function reset() {
   <div class="history">
     <div class="history-header">
       <h3>📚 历史图片 ({{ historyList.length }})</h3>
-      <button @click="loadHistory" :disabled="loadingHistory" class="secondary">
+      <button @click="refreshHistory" :disabled="loadingHistory" class="secondary">
         {{ loadingHistory ? '⏳ 加载中...' : '🔄 刷新' }}
       </button>
     </div>

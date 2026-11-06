@@ -8,6 +8,9 @@
  * - 修改显示名
  * - 我的数据统计（题目/试卷/上传数 + 按学科分组）
  * - 修改密码（改完会被踢下线，需重新登录）
+ *   ⚠️ 共享试用账号（allow_password_change=false）不显示改密表单 ——
+ *      改密会踢掉**所有**共用这个账号的老师的会话。
+ *      **前端只是提示，真正的门在后端**（改密接口自己 403）。
  * - 我的登录会话（看有几台设备登着，可单独踢掉）
  * - 退出登录
  *
@@ -47,6 +50,13 @@ const displayName = ref('')
 const oldPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
+
+// 共享试用账号？—— 改密会把其他老师一起踢下线，直接藏掉改密表单
+const pwdLocked = computed(() => me.value?.allow_password_change === false)
+
+// 后端给的人话文案（前端同款，避免两边说法不一致）
+const PWD_LOCKED_TEXT =
+  '该账号是共享试用账号，改密码会把其他老师一起踢下线，需要改请联系管理员。'
 
 // === 改密前的强度提示 ===
 const pwdChecks = computed(() => {
@@ -249,7 +259,7 @@ function shortUa(ua) {
         <NDivider />
 
         <!-- === 修改密码 === -->
-        <NForm>
+        <NForm v-if="!pwdLocked">
           <NFormItem label="原密码">
             <NInput
               v-model:value="oldPassword"
@@ -294,6 +304,10 @@ function shortUa(ua) {
             密码强度符合要求
           </NAlert>
         </NForm>
+        <!-- 共享账号：不提供改密入口，只说清楚为什么 -->
+        <NAlert v-else type="warning" :bordered="false" style="max-width: 520px">
+          {{ PWD_LOCKED_TEXT }}
+        </NAlert>
 
         <NDivider />
 

@@ -28,6 +28,7 @@ from app.database import get_session
 from app.models import Category, Paper, PaperQuestion, Question, User
 from app.services.auth import get_current_user
 from app.services.classifier import build_content_versions, classify_blocks
+from app.services.errors import CODE_NOT_FOUND, ApiHTTPException
 
 router = APIRouter(
     prefix="/questions",
@@ -611,11 +612,20 @@ def create_from_ocr(
     后端自己读 ocr_store 的记录 + 跑分类器,
     前端只要传 task_id。
     """
-    from app.services.ocr_store import TASKS
+    from app.services.ocr_store import TASKS, is_task_visible
 
     record = TASKS.get(task_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="OCR 任务不存在或已过期")
+
+    # ⚠️ 归属校验 —— 之前任何登录用户拿 task_id 就能把**别人**的 OCR 结果入库。
+    # 越权一律 404(不返 403):不泄露「这个 task_id 存不存在」。
+    if not is_task_visible(
+        record, current_user.id or 0, is_admin=bool(current_user.is_admin)
+    ):
+        raise ApiHTTPException(
+            status_code=404,
+            detail="OCR 任务不存在或已过期",
+            code=CODE_NOT_FOUND,
+        )
 
     result = record.get("result") or {}
     blocks = result.get("blocks") or []

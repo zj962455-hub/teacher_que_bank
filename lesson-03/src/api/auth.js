@@ -129,6 +129,27 @@ export async function login(username, password) {
   return res.data
 }
 
+/**
+ * 邀请码自助注册（课 34 · 灰度试用入口）
+ *
+ * ⚠️ 注册成功**直接签发会话** —— 后端把 token 一起返回，
+ *    所以这里跟 login 一样：存 token + 存用户，前端不用再登一次。
+ *
+ * 失败时后端给的是中文 detail（“邀请码已过期，请联系管理员重新获取”），
+ *    由 parseError() 取出直接显示 —— 不在这里自己判断 code。
+ */
+export async function register({ username, password, display_name = '', invite_code }) {
+  const res = await http.post('/auth/register', {
+    username,
+    password,
+    display_name,
+    invite_code,
+  })
+  setToken(res.data.token)
+  setCachedUser(res.data.user)
+  return res.data
+}
+
 /** 登出 */
 export async function logout() {
   try {
@@ -188,6 +209,7 @@ export default {
   clearAuth,
   setUnauthorizedHandler,
   login,
+  register,
   logout,
   fetchMe,
   changePassword,

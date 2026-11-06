@@ -59,6 +59,25 @@ class User(SQLModel, table=True):
     # 账号是否启用（软删除开关）
     is_active: bool = Field(default=True)
 
+    # 是否管理员（课 34 · 灰度试用入口）
+    #
+    # ⚠️ 单独一列而不是「角色表」+ 关联：全站只有两种身份，
+    #    引入角色表会带来三张表和一堆关联查询，收益为零。
+    #    以后真要细分角色（教研/运营）再说。
+    is_admin: bool = Field(default=False)
+
+    # 是否允许自助改密码（课 34 · 共享试用账号）
+    #
+    # ⚠️ 为什么需要这一列
+    # ------------------
+    # 灰度阶段是「几个老师共用一个账号」—— 改密码会 revoke_all_sessions，
+    # **一个人改密 = 所有人被踢下线**（改密的人自己也一起掉线）。
+    # 所以共享账号必须把这一列置 false，改密接口直接 403。
+    #
+    # 注意这是「能不能改」，不是「能不能登录」——
+    # 共享账号照常登录、照常录题，只是不能自助改密。
+    allow_password_change: bool = Field(default=True)
+
     # === 元信息 ===
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_login_at: Optional[datetime] = Field(default=None)
@@ -410,6 +429,118 @@ class PaperShare(SQLModel, table=True):
     # === 审计 ===
     view_count: int = Field(default=0)
     last_viewed_at: Optional[datetime] = Field(default=None)
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Invite(SQLModel, table=True):
+    """灰度试用邀请码 — 课 34
+
+    干什么用的
+    ----------
+    之前账号只能由管理员在服务器上手工建号（``create_users.py``），
+    老师想试用得等管理员有空。现在给老师发一个邀请码，
+    他自己在网页上注册就能进来 —— 灰度试用的入口。
+
+    一次邀请码 = 「谁能注册 + 能注册几个 + 到什么时候」
+    | 字段 | 含义 |
+    |---|---|
+    | code | 邀请码本身（唯一） |
+    | max_uses / used_count | 名额：最多能用几次 / 已经用了几次 |
+    | expires_at | 过期时间（可空 = 永不过期）|
+    | is_active | 停用开关（老师流失了/发错了，一键停）|
+    | created_by_user_id | 谁发的（管理员，可空 —— 脚本批量生成时没人）|
+
+    code 为什么明文存
+    ----------------
+    跟 ``paper_shares.token`` 同一个理由：**要能反复复制分发**。
+    管理员要把码贴在群里、发微信、印在通知里；存哈希就永远拿不回原文，
+    只能作废重发 —— 那不叫邀请码，叫一次性口令。
+
+    它不是密码级秘密：
+    - 6 字节随机（48 位熵），猜不中
+    - 名额有限（max_uses），用完即废
+    - 可停用（is_active）、可过期（expires_at）
+    - 只有管理员看得到（接口层面挡着）
+    泄露的最坏后果 = 多注册一个账号，不是「拿到别人的数据」。
+    """
+
+    __tablename__ = "invites"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # 邀请码（唯一）—— 生成的码是大写带横线的，方便念和抄
+    code: str = Field(index=True, unique=True, max_length=32)
+
+    # 备注：给谁发的、哪个批次（管理员自己看）
+    label: str = Field(default="", max_length=50)
+
+    # 名额
+    max_uses: int = Field(default=1)
+    used_count: int = Field(default=0)
+
+    # 过期时间（None = 永不过期）
+    expires_at: Optional[datetime] = Field(default=None, index=True)
+
+    # 停用开关
+    is_active: bool = Field(default=True, index=True)
+
+    # 谁发的（可空：批量脚本生成时没有具体的人）
+    # ⚠️ ON DELETE CASCADE：跟仓库其它外键一致 —— 管理员账号被删，
+    #    他发出去的码也一起清掉，不留指向空账号的记录。
+    created_by_user_id: Optional[int] = Field(
+        sa_column=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
+    )
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Feedback(SQLModel, table=True):
+    """老师反馈 — 课 34
+
+    灰度试用期间老师的意见（哪里点不动、想要什么功能）。
+    收集到的东西没有价值，**收到了并且处理了**才有价值 ——
+    所以除了内容，还记一个 status（新/已读/已处理）。
+
+    谁能看
+    ------
+    - 普通用户：只看得到自己提的（避免互相看到别人的吐槽）
+    - 管理员：看得到全部，且带提交人用户名 —— 这才是「处理反馈」的前提
+    """
+
+    __tablename__ = "feedbacks"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # 谁提的
+    # ⚠️ ON DELETE CASCADE：账号被删 → 反馈一起删（不留孤儿记录）
+    user_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    )
+
+    # 类别：bug / feature / other
+    category: str = Field(default="other", max_length=20, index=True)
+
+    # 正文（5–2000 字，长度在接口层校验）
+    content: str = Field(default="", max_length=2000)
+
+    # 提交人自报身份（课 34 · 共享账号下区分老师）
+    #
+    # ⚠️ 为什么不能只靠 user_id
+    # ------------------
+    # 灰度阶段几个老师**共用一个账号** → user_id 全是同一个，
+    # 光看 user_id 分不出「这条反馈是谁提的」。
+    # 所以老师提交时自报一下（「张老师·市三中」），为空则后端用 display_name 兜底。
+    reporter: str = Field(default="", max_length=50)
+
+    # 联系方式（选填：微信 / 手机）—— 管理员要跟进时用得上
+    contact: str = Field(default="", max_length=100)
+
+    # 提反馈时所在页面（管理员复现问题用）
+    page_url: str = Field(default="", max_length=500)
+
+    # 处理状态：new / read / resolved
+    status: str = Field(default="new", max_length=20, index=True)
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

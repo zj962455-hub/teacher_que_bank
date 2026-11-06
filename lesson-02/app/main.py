@@ -17,6 +17,7 @@ load_dotenv()
 
 from app.routers import lessons, courses, upload, ocr, questions, papers, auth, categories, tags   # ← 加 tags(lesson-11)
 from app.routers import shares  # ← lesson-24 分享链接（管理线 + 公开线）
+from app.routers import feedback  # ← lesson-34 老师反馈收集
 
 # === lesson-08:数据库 ===
 from app.database import engine
@@ -93,6 +94,7 @@ app.include_router(categories.router, prefix="/api")  # ← lesson-11 章节分�
 app.include_router(tags.router, prefix="/api")        # ← lesson-11 标签
 app.include_router(shares.manage_router, prefix="/api")   # ← lesson-24 分享链接（管理线，要登录）
 app.include_router(shares.public_router, prefix="/api")   # ← lesson-24 分享链接（公开线，不用登录）
+app.include_router(feedback.router, prefix="/api")        # ← lesson-34 反馈（要登录，改状态要管理员）
 
 
 @app.get("/")

@@ -85,6 +85,29 @@ const routes = [
     meta: { public: true, standalone: true, title: '试卷分享' },
   },
   {
+    path: '/feedbacks',
+    name: 'feedbacks',
+    component: () => import('../pages/FeedbacksPage.vue'),
+    meta: { title: '反馈记录' },
+  },
+  {
+    // 老师使用指南（课 34）—— 写给第一次用的老师，纯前端页
+    // ⚠️ 不套 meta.adminOnly：每个老师都要能看
+    path: '/guide',
+    name: 'guide',
+    component: () => import('../pages/GuidePage.vue'),
+    meta: { title: '使用指南' },
+  },
+  {
+    // 邀请码管理（课 34）—— 仅管理员
+    // ⚠️ 前端只是「不给非管理员显示入口」；真正的门在后端
+    //    （require_admin → 403）。非管理员手打 URL 进来只能看到空列表 + 报错。
+    path: '/invites',
+    name: 'invites',
+    component: () => import('../pages/InvitesPage.vue'),
+    meta: { title: '邀请码管理', adminOnly: true },
+  },
+  {
     path: '/profile',
     name: 'profile',
     component: () => import('../pages/ProfilePage.vue'),
