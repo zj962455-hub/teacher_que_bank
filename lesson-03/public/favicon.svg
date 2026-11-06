@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!--
+    蓝狐题库 · favicon
+    蓝狐 = 狐狸（品牌）· 题库 = 书本（功能）
+    画法：蓝底圆角方块 + 白色狐狸头（两只**尖耳朵** + 窄脸 + 蓝鼻蓝眼）
+    ⚠️ 耳朵要尖、要高 —— 画矮了会看成猫/熊，就不是「狐」了。
+    为什么自己画：之前用的是 Vite 默认的绿色闪电 logo ——
+    老师打开站点看到「Vite App」+ 闪电图标，一眼就知道是半成品。
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f8cff"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+
+  <!-- 尖耳朵：左 -->
+  <path d="M9 8 L26 21 L12 31 Z" fill="#ffffff"/>
+  <!-- 尖耳朵：右 -->
+  <path d="M55 8 L38 21 L52 31 Z" fill="#ffffff"/>
+  <!-- 耳内 -->
+  <path d="M14 14 L21 21 L15 25 Z" fill="#1d4ed8" opacity=".35"/>
+  <path d="M50 14 L43 21 L49 25 Z" fill="#1d4ed8" opacity=".35"/>
+
+  <!-- 脸：上宽下尖的狐狸脸型 -->
+  <path d="M32 15
+           C41 15 48 24 48 33
+           C48 40 44 45 39 48
+           L38 54 L32 49 L26 54 L25 48
+           C20 45 16 40 16 33
+           C16 24 23 15 32 15 Z"
+        fill="#ffffff"/>
+
+  <!-- 眼 -->
+  <circle cx="25" cy="32" r="3.2" fill="#1d4ed8"/>
+  <circle cx="39" cy="32" r="3.2" fill="#1d4ed8"/>
+
+  <!-- 鼻 -->
+  <path d="M32 41 L36 46 L28 46 Z" fill="#1d4ed8"/>
+</svg>

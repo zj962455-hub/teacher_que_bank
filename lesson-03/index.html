@@ -1,10 +1,42 @@
 <!DOCTYPE html>
-<html lang="">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vite App</title>
+    <meta name="theme-color" content="#1d4ed8">
+
+    <!--
+      站点标题 · 蓝狐题库
+      ⚠️ 之前这里是 "Vite App" —— 老师打开浏览器标签页 / 把链接发到班级群，
+         微信 QQ 的卡片标题就显示「Vite App」，一眼半成品。
+         页面级标题由 router 的 afterEach 按 meta.title 动态改写（见 src/router/index.js）。
+    -->
+    <title>蓝狐题库 · 教培数学老师的私人题库</title>
+
+    <meta name="description" content="蓝狐题库 —— 教培数学老师的私人题库。拍照 OCR 自动录题、分类检索、一键组卷导出 PDF/JPG，试卷分享链接不用登录也能看。">
+    <meta name="keywords" content="题库,组卷,试卷,OCR,教培,数学,蓝狐题库">
+
+    <!--
+      社交分享卡片（微信 / QQ / 飞书）
+      ⚠️ 分享链接页是纯前端 SPA，微信抓取时不执行 JS —— 所以 og 标签
+         只能是静态的（index.html 这份）。想显示「某张试卷的名字」需要 SSR，
+         现在做不到，先保证不是 "Vite App"。
+    -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="蓝狐题库">
+    <meta property="og:title" content="蓝狐题库 · 教培数学老师的私人题库">
+    <meta property="og:description" content="拍照 OCR 自动录题、分类检索、一键组卷导出 PDF/JPG。试卷分享链接不用登录也能看。">
+    <meta property="og:image" content="/og-image.png">
+    <meta property="og:url" content="https://tqb.lanhu-lab.top/">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="蓝狐题库 · 教培数学老师的私人题库">
+    <meta name="twitter:description" content="拍照 OCR 自动录题、分类检索、一键组卷导出 PDF/JPG。">
+    <meta name="twitter:image" content="/og-image.png">
   </head>
   <body>
     <div id="app"></div>
