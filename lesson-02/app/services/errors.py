@@ -51,10 +51,29 @@ CODE_AUTH_REQUIRED = "auth.required"
 CODE_AUTH_EXPIRED = "auth.expired"
 CODE_FORBIDDEN = "auth.forbidden"
 
+# 共享账号禁改密（课 34）
+#
+# ⚠️ 单独一个 code，不复用 auth.forbidden
+#    --------------------------------
+#    「你不是管理员」和「这个账号是共享试用账号、不让改密」是两件事：
+#    前者要找管理员提权，后者要知道「**别试了，找管理员改**」。
+#    共用一个 code 的话，前端只能显示同一句话，老师会反复重试。
+CODE_PASSWORD_CHANGE_LOCKED = "auth.password_change_locked"
+
 # 资源
 CODE_NOT_FOUND = "resource.not_found"
 CODE_CONFLICT = "resource.conflict"
 CODE_VALIDATION = "request.validation_failed"
+
+# 邀请码（课 34 · 灰度试用入口）
+#
+# ⚠️ 四种失败必须分开 —— 老师拿到「邀请码已用完」和「邀请码不存在」
+#    要做的事完全不同（前者找管理员加次数，后者找管理员要新码）。
+#    合成一个 code 的话，前端只能把四种情况都显示成同一句话。
+CODE_INVITE_INVALID = "invite.invalid"      # 邀请码不存在
+CODE_INVITE_INACTIVE = "invite.inactive"    # 邀请码被停用
+CODE_INVITE_EXPIRED = "invite.expired"      # 邀请码已过期
+CODE_INVITE_EXHAUSTED = "invite.exhausted"  # 邀请码名额已用完
 
 # 服务端
 CODE_INTERNAL = "server.internal"

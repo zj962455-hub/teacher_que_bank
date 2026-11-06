@@ -5,13 +5,22 @@
 | 方法 | 路径 | 作用 |
 |---|---|---|
 | POST | /api/auth/login | 用户名密码登录，签发会话 |
+| POST | /api/auth/register | 邀请码自助注册（课 34），注册完直接签发会话 |
 | POST | /api/auth/logout | 注销当前会话 |
 | POST | /api/auth/change-password | 修改密码（改完踢掉其他设备）|
 | GET  | /api/auth/me | 当前登录用户信息 |
+| GET  | /api/auth/invites | 邀请码列表（**仅管理员**）|
+| POST | /api/auth/invites | 生成邀请码（**仅管理员**）|
+| PATCH | /api/auth/invites/{id} | 启停/改名额（**仅管理员**）|
 
 登录流程
 --------
 1. 查用户 → 2. 校验密码 → 3. 更新 last_login_at → 4. 签发 session → 5. 返回明文 token
+
+注册流程（课 34）
+----------------
+1. 验邀请码（不存在/停用/过期/用尽，各有各的机器码）
+2. 查用户名是否重复 → 3. 验密码强度 → 4. 建用户 → 5. 占用邀请码名额 → 6. 签发 session
 """
 
 from __future__ import annotations
@@ -21,18 +30,40 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Question, Paper, Session_, Upload, User
+from app.models import Invite, Question, Paper, Session_, Upload, User
 from app.services.auth import (
+    SESSION_TTL_DAYS,
     check_password_strength,
     create_session,
     get_current_user,
     hash_password,
+    require_admin,
     revoke_all_sessions,
     revoke_session,
     verify_password,
+)
+from app.services.errors import (
+    CODE_CONFLICT,
+    CODE_INVITE_INVALID,
+    CODE_NOT_FOUND,
+    CODE_PASSWORD_CHANGE_LOCKED,
+    CODE_VALIDATION,
+    ApiHTTPException,
+)
+from app.services.invites import (
+    DEFAULT_EXPIRE_DAYS,
+    DEFAULT_MAX_USES,
+    MAX_EXPIRE_DAYS,
+    MAX_MAX_USES,
+    assert_invite_usable,
+    consume_invite,
+    create_invite,
+    find_invite,
+    invite_state,
 )
 
 router = APIRouter(
@@ -53,6 +84,40 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(max_length=128)
 
 
+class RegisterRequest(BaseModel):
+    """邀请码自助注册（课 34 · 灰度试用入口）
+
+    ⚠️ 密码强度**不在** pydantic 里写（不写 ge/le 约束）——
+       弱密码要返一句中文（「至少一个大写字母」），不是一坨校验错误数组。
+       长度上限在这里挡，超长密码直接拒绝（别拿 10MB 密码来占 CPU）。
+    """
+
+    username: str = Field(min_length=2, max_length=50)
+    password: str = Field(min_length=1, max_length=128)
+    display_name: str = Field(default="", max_length=50)
+    invite_code: str = Field(min_length=1, max_length=32)
+
+
+class InviteCreateRequest(BaseModel):
+    """生成邀请码（管理员）"""
+
+    label: str = Field(default="", max_length=50)
+    max_uses: int = Field(default=DEFAULT_MAX_USES)
+    # 0 = 永不过期
+    expires_days: int = Field(default=DEFAULT_EXPIRE_DAYS)
+
+
+class InviteUpdateRequest(BaseModel):
+    """改邀请码（管理员）：停用/启用、改名额、改备注
+
+    全是可选 —— 只传要改的字段。
+    """
+
+    label: Optional[str] = Field(default=None, max_length=50)
+    max_uses: Optional[int] = Field(default=None)
+    is_active: Optional[bool] = Field(default=None)
+
+
 class UpdateProfileRequest(BaseModel):
     """修改个人资料
 
@@ -68,6 +133,45 @@ class UserOut(BaseModel):
     display_name: str
     must_change_password: bool
     last_login_at: str | None = None
+    # 管理员标记（课 34）—— 前端据此显示管理员入口（邀请码管理 / 全部反馈）
+    is_admin: bool = False
+    # 能不能自助改密码（课 34 · 共享试用账号锁死）
+    # ⚠️ 前端据此隐藏改密表单 —— 但**真正的门在后端**（改密接口自己 403）。
+    allow_password_change: bool = True
+
+
+class InviteOut(BaseModel):
+    """邀请码（管理员视角）
+
+    ⚠️ ``code`` 明文返回给管理员
+    ----------------------------
+    理由跟 ``paper_shares.token`` 一样：**要能反复复制分发**。
+    管理员要把码发微信、贴群公告、印在通知里 —— 存哈希就永远拿不回原文，
+    只能作废重发，那不叫邀请码，叫一次性口令。
+
+    它不是密码级秘密：
+    - 6 字节随机（48 位熵），猜不中
+    - 名额有限，用完即废
+    - 可停用、可过期
+    - **只有管理员看得到**（接口层面 require_admin 挡着，普通用户拿不到）
+    泄露的最坏后果 = 多注册一个账号，不是「拿到别人的数据」。
+    """
+
+    id: int
+    code: str
+    label: str
+    max_uses: int
+    used_count: int
+    remaining: int
+    expires_at: str | None = None
+    is_active: bool
+    state: str
+    created_at: str | None = None
+
+
+class InviteListOut(BaseModel):
+    items: list[InviteOut]
+    total: int
 
 
 class LoginResponse(BaseModel):
@@ -138,8 +242,209 @@ def login(
             display_name=user.display_name,
             must_change_password=user.must_change_password,
             last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
+            is_admin=user.is_admin,
+            allow_password_change=user.allow_password_change,
         ),
     )
+
+
+# === 注册（邀请码自助） ===
+
+@router.post("/register", response_model=LoginResponse)
+def register(
+    payload: RegisterRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """邀请码自助注册（课 34 · 灰度试用入口）
+
+    注册成功**直接签发会话**返回 token —— 老师填完表就进首页，
+    不用再登一次（多一步就少一半人注册完就走了）。
+    """
+    # 1. 邀请码：不存在 / 停用 / 过期 / 用尽 —— 四种情况各有各的机器码
+    invite = find_invite(session, payload.invite_code)
+    if invite is None:
+        raise ApiHTTPException(
+            status_code=400,
+            detail="邀请码不存在，请检查是否输错",
+            code=CODE_INVITE_INVALID,
+        )
+    assert_invite_usable(invite)
+
+    # 2. 用户名唯一
+    username = payload.username.strip()
+    if not username:
+        raise ApiHTTPException(
+            status_code=400,
+            detail="请填写用户名",
+            code=CODE_VALIDATION,
+        )
+    if session.exec(select(User).where(User.username == username)).first() is not None:
+        raise ApiHTTPException(
+            status_code=409,
+            detail="该用户名已被注册，换一个试试",
+            code=CODE_CONFLICT,
+        )
+
+    # 3. 密码强度（弱密码 → request.validation_failed）
+    problems = check_password_strength(payload.password)
+    if problems:
+        raise ApiHTTPException(
+            status_code=400,
+            detail=f"密码不合规：{'；'.join(problems)}",
+            code=CODE_VALIDATION,
+        )
+
+    # 4. 建用户 —— 老师自己定的密码，不用强制改密
+    user = User(
+        username=username,
+        display_name=(payload.display_name or "").strip() or username,
+        password_hash=hash_password(payload.password),
+        must_change_password=False,
+        is_active=True,
+        is_admin=False,
+    )
+
+    # 5. 建用户 + 占用邀请码名额：**同一个事务**
+    #    名额占用失败 → 用户也不落库（老师不会「码用掉了却没注册上」）
+    try:
+        session.add(user)
+        session.flush()
+        consume_invite(session, invite)
+        session.commit()
+    except ApiHTTPException:
+        session.rollback()
+        raise
+    except IntegrityError:
+        # 并发注册同名用户 → 唯一索引拦下来了
+        session.rollback()
+        raise ApiHTTPException(
+            status_code=409,
+            detail="该用户名已被注册，换一个试试",
+            code=CODE_CONFLICT,
+        )
+
+    session.refresh(user)
+
+    # 6. 签发会话（跟登录一样，前端注册完直接进首页）
+    client_ip = request.client.host if request.client else ""
+    user_agent = request.headers.get("user-agent", "")
+    token, _record = create_session(
+        user, session, ip=client_ip, user_agent=user_agent
+    )
+
+    user.last_login_at = datetime.now(timezone.utc)
+    session.add(user)
+    session.commit()
+
+    return LoginResponse(
+        token=token,
+        expires_in_days=SESSION_TTL_DAYS,
+        user=UserOut(
+            id=user.id or 0,
+            username=user.username,
+            display_name=user.display_name,
+            must_change_password=False,
+            last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
+            is_admin=user.is_admin,
+            allow_password_change=user.allow_password_change,
+        ),
+    )
+
+
+# === 邀请码管理（仅管理员） ===
+
+@router.get("/invites", response_model=InviteListOut)
+def list_invites(
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    """邀请码列表（管理员）
+
+    只返回码**自己的**信息（码/备注/名额/过期/状态）——
+    不带创建者的用户名：这条接口只需要回答「有哪些码、还能不能用」，
+    多带一个创建者字段没意义，还多漏一个信息。
+    """
+    records = session.exec(
+        select(Invite).order_by(Invite.created_at.desc()).limit(200)
+    ).all()
+    items = [_invite_out(r) for r in records]
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/invites", response_model=InviteOut)
+def create_invite_endpoint(
+    payload: InviteCreateRequest,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    """生成邀请码（管理员）
+
+    返回体里带明文 code —— **只有这一次**能拿到可分发的码
+    （列表里也能看到，但那是给管理员自己核对用的）。
+    """
+    try:
+        invite = create_invite(
+            session,
+            label=payload.label,
+            max_uses=payload.max_uses,
+            expires_days=payload.expires_days,
+            created_by_user_id=admin.id,
+        )
+    except ValueError as e:
+        raise ApiHTTPException(
+            status_code=400,
+            detail=str(e),
+            code=CODE_VALIDATION,
+        )
+    return _invite_out(invite)
+
+
+@router.patch("/invites/{invite_id}", response_model=InviteOut)
+def update_invite(
+    invite_id: int,
+    payload: InviteUpdateRequest,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    """改邀请码：停用/启用、改名额、改备注（管理员）
+
+    停用后老师拿这个码注册会收到「邀请码已被停用」——
+    比「邀请码不存在」诚实：老师知道自己拿过码。
+    """
+    invite = session.get(Invite, invite_id)
+    if invite is None:
+        raise ApiHTTPException(
+            status_code=404,
+            detail="邀请码不存在",
+            code=CODE_NOT_FOUND,
+        )
+
+    if payload.label is not None:
+        invite.label = payload.label.strip()[:50]
+
+    if payload.max_uses is not None:
+        if payload.max_uses < 1:
+            raise ApiHTTPException(
+                status_code=400,
+                detail="名额至少为 1",
+                code=CODE_VALIDATION,
+            )
+        if payload.max_uses > MAX_MAX_USES:
+            raise ApiHTTPException(
+                status_code=400,
+                detail=f"名额最多 {MAX_MAX_USES}",
+                code=CODE_VALIDATION,
+            )
+        invite.max_uses = payload.max_uses
+
+    if payload.is_active is not None:
+        invite.is_active = payload.is_active
+
+    session.add(invite)
+    session.commit()
+    session.refresh(invite)
+    return _invite_out(invite)
 
 
 # === 注销 ===
@@ -174,7 +479,23 @@ def change_password(
     """修改密码
 
     改完把该用户**其他设备**的会话全踢掉（当前这个保留）。
+
+    ⚠️ 共享试用账号（allow_password_change=false）直接 403
+    ------------------------------------------------------
+    灰度阶段几个老师**共用一个账号** —— 改密码会 revoke_all_sessions，
+    **一个人改密 = 所有人被踢下线**（改密的那位自己也一起掉线）。
+    所以这类账号不给改密，要改找管理员。
     """
+    if not user.allow_password_change:
+        raise ApiHTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "该账号是共享试用账号，改密码会把其他老师一起踢下线，"
+                "需要改请联系管理员。"
+            ),
+            code=CODE_PASSWORD_CHANGE_LOCKED,
+        )
+
     if not verify_password(payload.old_password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -233,6 +554,8 @@ def update_profile(
         display_name=user.display_name,
         must_change_password=False,
         last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
+        is_admin=user.is_admin,
+        allow_password_change=user.allow_password_change,
     )
 
 
@@ -338,10 +661,30 @@ def me(user: User = Depends(get_current_user)):
         display_name=user.display_name,
         must_change_password=user.must_change_password,
         last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
+        is_admin=user.is_admin,
+        allow_password_change=user.allow_password_change,
     )
 
 
 # === 辅助 ===
+
+def _invite_out(invite: Invite) -> InviteOut:
+    """邀请码 → 返回体
+
+    ``remaining`` 直接算好给前端（前端不该自己算 max-used）。
+    """
+    return InviteOut(
+        id=invite.id or 0,
+        code=invite.code,
+        label=invite.label,
+        max_uses=invite.max_uses,
+        used_count=invite.used_count,
+        remaining=max(0, invite.max_uses - invite.used_count),
+        expires_at=invite.expires_at.isoformat() if invite.expires_at else None,
+        is_active=invite.is_active,
+        state=invite_state(invite),
+        created_at=invite.created_at.isoformat() if invite.created_at else None,
+    )
 
 def _dummy_verify(password: str) -> None:
     """用户不存在时也跑一次 bcrypt，抹平响应时间差（防用户名枚举）"""

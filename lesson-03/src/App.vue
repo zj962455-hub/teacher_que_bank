@@ -19,6 +19,7 @@ import { NButton, NConfigProvider, zhCN, dateZhCN } from 'naive-ui'
 import { RouterView, useRouter, useRoute } from 'vue-router'
 import LoginPanel from './components/LoginPanel.vue'
 import SiteFooter from './components/SiteFooter.vue'
+import FeedbackModal from './components/FeedbackModal.vue'
 import { lightTheme, darkTheme, buildThemeOverrides } from './styles/theme'
 import { getToken, getCachedUser, fetchMe, setUnauthorizedHandler } from './api/auth'
 
@@ -97,13 +98,29 @@ function onProfileUpdated(user) {
 }
 
 // 顶栏导航
-const NAV_ITEMS = [
-  { name: 'dashboard', label: '首页' },
-  { name: 'questions', label: '题库' },
-  { name: 'capture', label: '录题' },
-  { name: 'categories', label: '分类' },
-  { name: 'papers', label: '组卷' },
-]
+// ⚠️ 「邀请码」是管理员入口（课 34）—— 只有 is_admin 才出现在导航里。
+//    注意这只是「界面不给你看」，真正的门在后端（require_admin → 403）。
+// ⚠️ 「使用指南」放最后 —— 它是给第一次用的老师看的，不是每天都要点的入口，
+//    塞在业务入口中间反而没人注意。
+const NAV_ITEMS = computed(() => {
+  const items = [
+    { name: 'dashboard', label: '首页' },
+    { name: 'questions', label: '题库' },
+    { name: 'capture', label: '录题' },
+    { name: 'categories', label: '分类' },
+    { name: 'papers', label: '组卷' },
+    { name: 'feedbacks', label: '反馈记录' },
+    { name: 'guide', label: '使用指南' },
+  ]
+  if (currentUser.value?.is_admin) {
+    items.push({ name: 'invites', label: '邀请码' })
+  }
+  return items
+})
+
+// === 反馈弹窗（课 34）===
+// 顶栏点「反馈」弹出来，随手写两句 —— 让人跳去另一个页面再写，多数人会放弃。
+const showFeedback = ref(false)
 
 function go(name) {
   router.push({ name })
@@ -151,6 +168,9 @@ function go(name) {
             </nav>
           </div>
           <NSpace :size="4" align="center">
+            <NButton quaternary size="small" title="遇到问题？提个反馈" @click="showFeedback = true">
+              💬 反馈
+            </NButton>
             <NButton quaternary size="small" :title="isDark ? '切到浅色' : '切到深色'" @click="toggleTheme">
               {{ isDark ? '🌙' : '☀️' }}
             </NButton>
@@ -166,6 +186,9 @@ function go(name) {
 
         <!-- 页脚 · ICP 备案号(公安联网备案要求公示) -->
         <SiteFooter />
+
+        <!-- 反馈弹窗（课 34）-->
+        <FeedbackModal v-model:show="showFeedback" />
       </template>
     </div>
   </NConfigProvider>

@@ -67,7 +67,13 @@ def client():
     return TestClient(app)
 
 
-def _make_user(username: str, display_name: str = "测试", password: str = PASSWORD) -> int:
+def _make_user(
+    username: str,
+    display_name: str = "测试",
+    password: str = PASSWORD,
+    *,
+    allow_password_change: bool = True,
+) -> int:
     with Session(engine) as session:
         user = User(
             username=username,
@@ -75,6 +81,7 @@ def _make_user(username: str, display_name: str = "测试", password: str = PASS
             password_hash=hash_password(password),
             must_change_password=False,
             is_active=True,
+            allow_password_change=allow_password_change,
         )
         session.add(user)
         session.commit()
@@ -231,6 +238,81 @@ def test_change_password_revokes_other_sessions(client):
     # 改密后所有会话都被踢（含当前这个 —— 改完要重新登录）
     assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {token_a}"}).status_code == 401
     assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {token_b}"}).status_code == 401
+
+
+# === 共享账号禁改密（课 34） ===
+
+
+def test_change_password_blocked_for_shared_account(client):
+    """共享试用账号改密 → 403 auth.password_change_locked + 人话提示
+
+    ⚠️ 改密会 revoke_all_sessions —— 一人改密 = 全员被踢下线。
+    """
+    _make_user("test2", allow_password_change=False)
+    token = _login(client, "test2").json()["token"]
+
+    resp = client.post(
+        "/api/auth/change-password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"old_password": PASSWORD, "new_password": OTHER_PASSWORD},
+    )
+    assert resp.status_code == 403
+    body = resp.json()
+    assert body["code"] == "auth.password_change_locked"
+    assert "共享试用账号" in body["detail"]
+    assert "踢下线" in body["detail"]
+    assert "联系管理员" in body["detail"]
+    assert body["request_id"]
+
+    # 旧密码仍然有效（没改成功）
+    assert _login(client, "test2", PASSWORD).status_code == 200
+
+
+def test_change_password_allowed_for_normal_account(client):
+    """没锁的账号照常改密（不能把普通账号也堵死）"""
+    _make_user("test1")
+    token = _login(client, "test1").json()["token"]
+
+    resp = client.post(
+        "/api/auth/change-password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"old_password": PASSWORD, "new_password": OTHER_PASSWORD},
+    )
+    assert resp.status_code == 200
+    assert _login(client, "test1", OTHER_PASSWORD).status_code == 200
+
+
+def test_me_reports_allow_password_change(client):
+    """/me 要带 allow_password_change —— 前端据此隐藏改密表单"""
+    _make_user("test2", allow_password_change=False)
+    token = _login(client, "test2").json()["token"]
+    body = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
+    assert body["allow_password_change"] is False
+
+    _make_user("test1")
+    token2 = _login(client, "test1").json()["token"]
+    body2 = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token2}"}).json()
+    assert body2["allow_password_change"] is True
+
+
+def test_create_users_script_lock_password_change(monkeypatch):
+    """建号脚本的 --lock-password-change 生效"""
+    from app.scripts import create_users
+
+    monkeypatch.setattr(sys, "argv", [
+        "create_users",
+        "--user", "shared:共享账号:Shared1234",
+        "--lock-password-change",
+        "--no-force-change",
+    ])
+    assert create_users.main() == 0
+
+    with Session(engine) as session:
+        from sqlmodel import select
+
+        user = session.exec(select(User).where(User.username == "shared")).first()
+        assert user is not None
+        assert user.allow_password_change is False
 
 
 # === 数据隔离 ===

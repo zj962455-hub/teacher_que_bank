@@ -266,3 +266,21 @@ def get_optional_user(
         return get_current_user(request, session)
     except HTTPException:
         return None
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """FastAPI 依赖：必须是管理员
+
+    未登录 → 401（get_current_user 抛的）；
+    登录了但不是管理员 → 403 auth.forbidden。
+
+    ⚠️ 前端只靠 ``is_admin`` 隐藏入口是不够的 —— 那只是「界面不给你看」，
+    接口这边必须自己挡（前端能改、请求能伪造）。
+    """
+    if not user.is_admin:
+        raise ApiHTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限",
+            code=CODE_FORBIDDEN,
+        )
+    return user

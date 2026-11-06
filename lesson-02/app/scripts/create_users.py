@@ -94,9 +94,16 @@ def create_user(
     password: str,
     *,
     must_change_password: bool = True,
+    is_admin: bool = False,
+    allow_password_change: bool = True,
     force: bool = False,
 ) -> User:
-    """创建一个用户；用户名已存在则抛错"""
+    """创建一个用户；用户名已存在则抛错
+
+    ``allow_password_change=False`` → 共享试用账号：
+    几个人共用一个账号时，**任何一个人改密都会把全员踢下线**
+    （改密会 revoke_all_sessions），所以这类账号禁掉自助改密。
+    """
     from sqlmodel import Session, select
 
     if not force:
@@ -120,6 +127,8 @@ def create_user(
             password_hash=hash_password(password),
             must_change_password=must_change_password,
             is_active=True,
+            is_admin=is_admin,
+            allow_password_change=allow_password_change,
         )
         session.add(user)
         session.commit()
@@ -145,6 +154,19 @@ def main() -> int:
         "--force",
         action="store_true",
         help="跳过密码强度校验（仅限测试）",
+    )
+    parser.add_argument(
+        "--admin",
+        action="store_true",
+        help="建的是**管理员**账号（课 34：能管邀请码 + 处理反馈）",
+    )
+    parser.add_argument(
+        "--lock-password-change",
+        action="store_true",
+        help=(
+            "禁止自助改密码（**共享试用账号必开**）—— "
+            "几个人共用一个账号时，一人改密会把全员踢下线"
+        ),
     )
     args = parser.parse_args()
 
@@ -174,11 +196,15 @@ def main() -> int:
                 display_name,
                 password,
                 must_change_password=not args.no_force_change,
+                is_admin=args.admin,
+                allow_password_change=not args.lock_password_change,
                 force=args.force,
             )
             print(
                 f"✅ {username} ({display_name}) id={user.id} "
-                f"强制改密={'否' if args.no_force_change else '是'}"
+                f"强制改密={'否' if args.no_force_change else '是'} "
+                f"管理员={'是' if args.admin else '否'} "
+                f"可改密码={'否' if args.lock_password_change else '是'}"
             )
         except ValueError as e:
             print(f"❌ {username}: {e}")
