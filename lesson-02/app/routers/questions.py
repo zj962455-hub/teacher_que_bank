@@ -21,6 +21,7 @@ import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.database import get_session
@@ -206,7 +207,8 @@ def recent_questions(
         .order_by(Question.updated_at.desc())
         .limit(limit)
     ).all()
-    return {"items": [_to_dict(q) for q in items]}
+    # ⚠️ 课 33：仪表盘卡片只要题干，不要 blocks（每题最多 50 KB）
+    return {"items": [_to_dict(q, with_blocks=False) for q in items]}
 
 
 # === Excel 导出 ===
@@ -489,7 +491,11 @@ def list_questions(
     items = session.exec(stmt).all()
 
     # 总数(不带 limit/offset,用于前端分页)
-    count_stmt = select(Question).where(Question.user_id == (current_user.id or 0))
+    # ⚠️ 课 33 性能：原来写的是 `len(session.exec(count_stmt).all())` ——
+    #    把**所有**符合条件的题拉进 Python 再数个数。
+    #    题库到几千道时,这一步就是「加载整表」—— 白白浪费一次全表扫描 + 内存。
+    #    正确做法：让数据库只回一个数字（COUNT 在库里算）。
+    count_stmt = select(func.count()).select_from(Question).where(Question.user_id == (current_user.id or 0))
     if subject:
         count_stmt = count_stmt.where(Question.subject == subject)
     if question_type:
@@ -523,14 +529,19 @@ def list_questions(
                 .where(QuestionTag.tag_id == tid)
             )
             count_stmt = count_stmt.where(Question.id.in_(sub))
-    total = len(session.exec(count_stmt).all())
+    total = session.exec(count_stmt).one()
 
     # 批量取标签（一次查询，别在循环里查）
     tag_map = _tags_map([q.id for q in items if q.id is not None], session)
 
     return {
         "items": [
-            _to_dict(q, tag_map.get(q.id, []) if q.id is not None else [])
+            # ⚠️ 课 33：列表不带 blocks（单题最多 50 KB，50 道题 = 165 KB 白下）
+            _to_dict(
+                q,
+                tag_map.get(q.id, []) if q.id is not None else [],
+                with_blocks=False,
+            )
             for q in items
         ],
         "total": total,
@@ -759,12 +770,25 @@ def _tags_map(question_ids: list[int], session: Session) -> dict[int, list[dict]
     return result
 
 
-def _to_dict(question: Question, tags: list[dict] | None = None) -> dict:
+def _to_dict(
+    question: Question,
+    tags: list[dict] | None = None,
+    *,
+    with_blocks: bool = True,
+) -> dict:
     """ORM 对象 → dict（给前端）
 
     tags 传了就带上标签数组（批量查一次，别在循环里查库）。
+
+    ⚠️ 课 33 性能：**列表接口不要带 blocks**
+    ------------------------------------
+    ``blocks`` 是 OCR 的原始识别块（含每块 bbox 坐标），单题最多 50 KB。
+    列表接口一次返回 50 道题 —— 实测响应从 24 KB 涨到 **165 KB**，
+    而列表页（题目列表）**根本不用 blocks**（只有 OCR 校对页 / 题目详情页要）。
+
+    所以列表走 ``with_blocks=False``；详情/新建/更新保持带（详情页要溯源 blocks）。
     """
-    return {
+    data = {
         "id": question.id,
         "subject": question.subject,
         "question_type": question.question_type,
@@ -772,7 +796,6 @@ def _to_dict(question: Question, tags: list[dict] | None = None) -> dict:
         "difficulty": question.difficulty,
         "content_plain": question.content_plain,
         "content_markdown": question.content_markdown,
-        "blocks": question.blocks,
         "image_path": question.image_path,
         "ocr_task_id": question.ocr_task_id,
         "category_id": question.category_id,
@@ -780,3 +803,6 @@ def _to_dict(question: Question, tags: list[dict] | None = None) -> dict:
         "updated_at": question.updated_at.isoformat() if question.updated_at else None,
         "tags": tags or [],
     }
+    if with_blocks:
+        data["blocks"] = question.blocks
+    return data

@@ -20,8 +20,9 @@ import {
   NButton, NSpace, NTree, NInput, NAlert, NEmpty, NSpin, NTag, NCard,
 } from 'naive-ui'
 import {
-  getCategoryTree, getCategoryFlat, createCategory, updateCategory,
-  deleteCategory, reorderCategories, toTreeOptions,
+  getCategoryTree, createCategory, updateCategory,
+  toTreeOptions, flattenTree,
+  deleteCategory, reorderCategories,
 } from '../api/categories'
 import { message, dialog } from '../composables/discreteApi'
 import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
@@ -41,9 +42,11 @@ const editing = ref({ mode: null, parentId: null, value: '' })
 async function loadTree() {
   loading.value = true
   try {
-    const [treeRes, flatRes] = await Promise.all([getCategoryTree(), getCategoryFlat()])
+    // ⚠️ 课 33 性能：原来并发拉两个接口（树 + 扁平），数据完全重叠 ——
+    //    扁平列表直接从树推出来（树节点本来就带 parent_id）。
+    const treeRes = await getCategoryTree()
     rawTree.value = treeRes.data.tree || []
-    flat.value = flatRes.data || []
+    flat.value = flattenTree(rawTree.value)
     options.value = toTreeOptions(rawTree.value)
   } catch (e) {
     message.error(parseError(e).message)

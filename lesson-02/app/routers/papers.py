@@ -17,6 +17,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.database import get_session
@@ -70,23 +71,34 @@ def list_papers(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """试卷列表（只返回当前用户的）"""
+    """试卷列表（只返回当前用户的）
+
+    ⚠️ 课 33 性能：题目数用**一条 GROUP BY** 查出来，
+    不在循环里每张卷查一次（N 张卷 = N+1 次往返 → 1 次）。
+    """
     papers = session.exec(
         select(Paper)
         .where(Paper.user_id == (current_user.id or 0))
         .order_by(Paper.created_at.desc())
     ).all()
 
+    # 批量数题目：一条 SQL 拿到「每张卷几道题」
+    counts: dict[int, int] = {}
+    if papers:
+        rows = session.exec(
+            select(PaperQuestion.paper_id, func.count())
+            .where(PaperQuestion.paper_id.in_([p.id for p in papers if p.id is not None]))
+            .group_by(PaperQuestion.paper_id)
+        ).all()
+        counts = {pid: n for pid, n in rows}
+
     items = []
     for p in papers:
-        count = len(session.exec(
-            select(PaperQuestion).where(PaperQuestion.paper_id == p.id)
-        ).all())
         items.append({
             "id": p.id,
             "title": p.title,
             "subtitle": p.subtitle,
-            "question_count": count,
+            "question_count": counts.get(p.id, 0),
             "created_at": p.created_at.isoformat() if p.created_at else None,
         })
 
@@ -469,16 +481,29 @@ def _get_own_paper(paper_id: int, session: Session, user: User) -> Paper:
 
 
 def _paper_detail(paper: Paper, session: Session) -> dict:
-    """试卷详情（题目 + 题号 + 分值）"""
+    """试卷详情（题目 + 题号 + 分值）
+
+    ⚠️ 课 33 性能：题目**批量查一次**，不在循环里 session.get
+    （25 道题 = 25 次往返 → 1 次）。
+    """
     pqs = session.exec(
         select(PaperQuestion)
         .where(PaperQuestion.paper_id == paper.id)
         .order_by(PaperQuestion.order_index)
     ).all()
 
+    # 批量取题目 —— 一次查询，别在循环里查库（N+1）
+    qids = [pq.question_id for pq in pqs]
+    question_by_id: dict[int, Question] = {}
+    if qids:
+        rows = session.exec(
+            select(Question).where(Question.id.in_(qids))
+        ).all()
+        question_by_id = {q.id: q for q in rows if q.id is not None}
+
     questions = []
     for index, pq in enumerate(pqs):
-        question = session.get(Question, pq.question_id)
+        question = question_by_id.get(pq.question_id)
         if not question:
             continue
         questions.append({

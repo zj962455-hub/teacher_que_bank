@@ -78,6 +78,46 @@ export function toFlatOptions(flat = [], parents = new Map()) {
   }))
 }
 
+/**
+ * 树 → 扁平列表
+ *
+ * ⚠️ 课 33 性能：为什么要有这个
+ * ---------------------------
+ * 列表页原本要**两个请求**才能渲染：
+ *   GET /api/categories/       （树）
+ *   GET /api/categories/flat   （扁平，给下拉框）
+ * 两个接口的数据完全重叠（都是同一张 categories 表），
+ * 而树节点里**本来就带 parent_id** —— 扁平列表可以直接从树推出来。
+ *
+ * 于是每个页面首屏少一次往返。
+ */
+export function flattenTree(nodes = [], out = []) {
+  for (const n of nodes) {
+    out.push({
+      id: n.id,
+      name: n.name,
+      parent_id: n.parent_id ?? null,
+      sort_order: n.sort_order ?? 0,
+    })
+    if (n.children && n.children.length) flattenTree(n.children, out)
+  }
+  return out
+}
+
+/** 扁平列表 → 下拉框选项（按父子缩进） */
+export function flatToOptions(flat = []) {
+  const byId = new Map(flat.map((f) => [f.id, f]))
+  const labelOf = (f, seen = new Set()) => {
+    // 防环（后端已防，这里再兜一层）
+    if (seen.has(f.id)) return f.name
+    seen.add(f.id)
+    const parent = f.parent_id != null ? byId.get(f.parent_id) : null
+    if (!parent) return f.name
+    return `${labelOf(parent, seen)} / ${f.name}`
+  }
+  return flat.map((f) => ({ label: labelOf(f), value: f.id }))
+}
+
 export default {
   getCategoryTree,
   getCategoryFlat,
@@ -87,4 +127,6 @@ export default {
   reorderCategories,
   toTreeOptions,
   toFlatOptions,
+  flattenTree,
+  flatToOptions,
 }

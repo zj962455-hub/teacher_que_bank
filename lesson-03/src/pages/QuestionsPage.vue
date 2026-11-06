@@ -24,7 +24,7 @@ import {
   listQuestions, deleteQuestion, exportQuestionsExcel, exportBackupJson,
 } from '../api/questions'
 import { batchDeleteQuestions, batchUpdateQuestions } from '../api/batch'
-import { getCategoryTree, getCategoryFlat, toTreeOptions } from '../api/categories'
+import { getCategoryTree, toTreeOptions, flattenTree, flatToOptions } from '../api/categories'
 import { listTags, createTag, deleteTag } from '../api/tags'
 import { renderMathText } from '../utils/mathRenderer'
 import { message } from '../composables/discreteApi'
@@ -136,9 +136,13 @@ async function load() {
 async function loadTree() {
   treeLoading.value = true
   try {
-    const [treeRes, flatRes] = await Promise.all([getCategoryTree(), getCategoryFlat()])
-    tree.value = toTreeOptions(treeRes.data.tree || [])
-    categoryOptions.value = (flatRes.data || []).map((c) => ({ label: c.name, value: c.id }))
+    // ⚠️ 课 33 性能：原来并发拉两个接口（/categories/ 树 + /categories/flat 扁平），
+    //    数据完全重叠 —— 树节点本来就带 parent_id，扁平列表能直接推出来。
+    //    现在只拉一次树，省一次往返。
+    const treeRes = await getCategoryTree()
+    const nodes = treeRes.data.tree || []
+    tree.value = toTreeOptions(nodes)
+    categoryOptions.value = flatToOptions(flattenTree(nodes))
   } catch (e) {
     // ⚠️ 课 32：之前是 console.error → 分类树加载失败时页面左边空一块，
     //    老师以为「我没建分类」。现在给一句人话（但不断页面）。

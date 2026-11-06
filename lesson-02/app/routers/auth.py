@@ -249,17 +249,21 @@ def my_stats(
 
     uid = user.id or 0
 
-    question_count = len(session.exec(
-        select(Question).where(Question.user_id == uid)
-    ).all())
+    # ⚠️ 课 33 性能：原来三个计数都是 `len(session.exec(select(X).where(...)).all())`
+    #    —— 把**整表**拉进 Python 再 len()。
+    #    题库几千道题时,打开仪表盘就是把题目全查一遍再扔掉。
+    #    正确做法：COUNT 交给数据库,只回一个数字。
+    question_count = session.exec(
+        select(func.count()).select_from(Question).where(Question.user_id == uid)
+    ).one()
 
-    paper_count = len(session.exec(
-        select(Paper).where(Paper.user_id == uid)
-    ).all())
+    paper_count = session.exec(
+        select(func.count()).select_from(Paper).where(Paper.user_id == uid)
+    ).one()
 
-    upload_count = len(session.exec(
-        select(Upload).where(Upload.user_id == uid)
-    ).all())
+    upload_count = session.exec(
+        select(func.count()).select_from(Upload).where(Upload.user_id == uid)
+    ).one()
 
     # 题目按学科分组
     rows = session.exec(
