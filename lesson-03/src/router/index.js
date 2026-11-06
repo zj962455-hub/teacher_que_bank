@@ -122,6 +122,20 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
+// === 页面标题：跟着路由走 ===
+// ⚠️ 之前 meta.title 是摆设 —— 全站标题永远是 index.html 里的 "Vite App"。
+//    老师开多个标签页分不清自己在哪；把试卷链接发到班级群，
+//    微信卡片标题也是 "Vite App"（微信抓的是 document.title）。
+//
+//    格式：<页面名> · 蓝狐题库
+//    分享页（/share/:token）单独处理 —— 那页站在外面，
+//    标题写「XX 的试卷 · 蓝狐题库」比「试卷分享」有信息量。
+const SITE_NAME = '蓝狐题库'
+router.afterEach((to) => {
+  const page = to.meta?.title
+  document.title = page ? `${page} · ${SITE_NAME}` : SITE_NAME
+})
+
 // === 守卫：未登录去登录页 ===
 router.beforeEach((to) => {
   if (to.meta.public) {

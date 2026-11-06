@@ -153,7 +153,7 @@ function go(name) {
       <template v-else>
         <header class="top-bar">
           <div class="top-left">
-            <span class="brand">📚 教培题库</span>
+            <span class="brand">🦊 蓝狐题库</span>
             <nav class="nav">
               <NButton
                 v-for="item in NAV_ITEMS"
