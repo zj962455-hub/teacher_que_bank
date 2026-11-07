@@ -141,6 +141,17 @@
       color: #999;
       padding: 60px 0;
     }
+  /* 题目配图（几何示意图）—— 图不能被分页切开 */
+  .figure {
+    margin: 8px 0 2px 28px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .figure img {
+    max-width: 72%;
+    max-height: 62mm;
+    object-fit: contain;
+  }
   </style>
 </head>
 <body>
@@ -162,6 +173,10 @@
       <span class="score">{{ item.score }} 分</span>
       {% endif %}
     </div>
+      {% if item.figure %}
+      <!-- 几何示意图 —— OCR 认不出来，靠原图裁出来的那份带上 -->
+      <div class="figure"><img src="{{ item.figure }}" alt=""></div>
+      {% endif %}
   </div>
   {% endfor %}
   {% else %}

@@ -226,6 +226,11 @@ class Question(SQLModel, table=True):
     image_path: str = Field(default="", max_length=500)
     ocr_task_id: str = Field(default="", index=True, max_length=100)
 
+    # === 题目配图（几何示意图）===
+    # OCR 认不出图 —— 从原图里裁出来的独立 PNG，导出试卷时带上。
+    # 和 image_path（原图 / OCR 来源）不是一回事，别混。
+    figure_path: str = Field(default="", max_length=500)
+
     # === 章节归属 ===
     # 属于哪个章节（分类树节点）；空 = 未归类
     category_id: Optional[int] = Field(default=None, foreign_key="categories.id", index=True)
