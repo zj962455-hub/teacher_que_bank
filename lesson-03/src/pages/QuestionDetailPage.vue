@@ -182,6 +182,10 @@ function doDelete() {
       :with-formulas="question.content_markdown"
       :blocks="question.blocks"
       :figure-path="question.figure_path || ''"
+      :initial-subject="question.subject || ''"
+      :initial-question-type="question.question_type || ''"
+      :initial-grade="question.grade || ''"
+      :initial-difficulty="question.difficulty || ''"
       @close="editing = false"
       @saved="onSaved"
     />

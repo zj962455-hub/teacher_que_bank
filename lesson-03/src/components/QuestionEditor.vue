@@ -46,6 +46,17 @@ const props = defineProps({
   questionId: { type: Number, default: null },
   // edit 模式下题目当前归属的章节（categories.id）
   categoryId: { type: Number, default: null },
+
+  // edit 模式下题目**已经存下来的**分类（学科/题型/学段/难度）
+  // ⚠️ 为什么必须单独传进来：
+  //    编辑器里的分类下拉框以前是拿内容重新跑一遍 AI 分类填的 ——
+  //    老师存过一次「难度=困难」，再打开编辑，框里又变回 AI 算的「简单」。
+  //    保存时如果把这套 AI 值写回去，等于把老师的修改覆盖掉了。
+  //    所以 edit 模式要用库里存的值打底，AI 分类只在 OCR 流程里用。
+  initialSubject: { type: String, default: '' },
+  initialQuestionType: { type: String, default: '' },
+  initialGrade: { type: String, default: '' },
+  initialDifficulty: { type: String, default: '' },
   // 几何配图（OCR 认不出图，从原图裁出来的那份）—— 编辑时让老师看得见图
   figurePath: { type: String, default: '' },
 })
@@ -125,7 +136,7 @@ watch(
   () => [props.plainText, props.withFormulas],
   () => {
     content.value = initialContent()
-    autoClassify()
+    applyInitialMeta()
   },
   { immediate: true },
 )
@@ -147,6 +158,23 @@ function autoClassify() {
     `分类完成：${r.subject} / ${r.type}（置信度 ${Math.round(r.confidence * 100)}%）`,
     { duration: 2500 }
   )
+}
+
+// === 初始化分类 ===
+// edit 模式（改题库里已存的题）：用**存下来的**分类，不重跑 AI
+// ocr 模式（刚识别完还没入库）：用 AI 分类
+function applyInitialMeta() {
+  if (props.mode === 'edit' && (props.initialSubject || props.initialDifficulty)) {
+    meta.value = {
+      ...meta.value,
+      subject: props.initialSubject || meta.value.subject,
+      type: props.initialQuestionType || meta.value.type,
+      grade: props.initialGrade || meta.value.grade,
+      difficulty: props.initialDifficulty || meta.value.difficulty,
+    }
+    return
+  }
+  autoClassify()
 }
 
 // === 用户手动改分类 ===
@@ -207,6 +235,13 @@ async function saveToDatabase() {
     await updateQuestion(props.questionId, {
       content_plain: buildPlainText.value,
       content_markdown: props.withFormulas || content.value,
+      // ⚠️ 分类必须一起发 —— 以前这里只发正文和章节，
+      //    老师在下拉框里改的「难度」根本没送到后端，
+      //    库里一直留着 AI 判的难度，刷新一看又变回去了。
+      subject: meta.value.subject,
+      question_type: meta.value.type,
+      grade: meta.value.grade,
+      difficulty: meta.value.difficulty,
       // 章节：传 null = 不归属任何分类（后端用 exclude_unset 区分“没传”和“清空”）
       category_id: categoryId.value ?? null,
     })
