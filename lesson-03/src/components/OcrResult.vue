@@ -39,6 +39,44 @@ const saving = ref(false)         // lesson-08:入库中
 // === 计算属性 ===
 const allBlocks = computed(() => result.value?.blocks ?? [])
 
+// === 题图（figure 块） ===
+// 强模型会把三角形这类图形标成 figure 块并给出 bbox。
+// 以前图混在文字流末尾（tab 列表最后一行），老师很容易以为「图没识别出来」。
+// 这里把图形抽出来单独一张卡 —— 一眼就看到图确实在。
+const figureBlocks = computed(() =>
+  result.value?.blocks?.filter(b => b.type === 'figure') ?? []
+)
+
+/** 按 bbox 从原图里裁出图形（和 OcrBlockList 同一套算法） */
+function figureCropStyle(b) {
+  if (!imageBlobUrl.value) return null
+  const bbox = b && b.bbox
+  if (!bbox || bbox.length < 4) return null
+  const size = imgSize.value || {}
+  if (!size.w || !size.h) return null
+
+  const x1 = Number(bbox[0])
+  const y1 = Number(bbox[1])
+  const x2 = Number(bbox[2])
+  const y2 = Number(bbox[3])
+  const bw = Math.max(1, x2 - x1)
+  const bh = Math.max(1, y2 - y1)
+
+  const targetW = 220
+  const scale = targetW / bw
+  return {
+    width: targetW + 'px',
+    height: Math.round(bh * scale) + 'px',
+    backgroundImage: 'url(' + imageBlobUrl.value + ')',
+    backgroundSize: Math.round(size.w * scale) + 'px ' + Math.round(size.h * scale) + 'px',
+    backgroundPosition: -Math.round(x1 * scale) + 'px ' + -Math.round(y1 * scale) + 'px',
+    backgroundRepeat: 'no-repeat',
+    backgroundColor: '#fff',
+    border: '1px solid #e0e0e0',
+    borderRadius: '4px',
+  }
+}
+
 const textBlocks = computed(() =>
   result.value?.blocks.filter(b => b.type === 'text') ?? []
 )
@@ -120,7 +158,8 @@ async function selectHistory(tid) {
 const emit = defineEmits(['update:imageUrl', 'question-saved', 'ocr-done'])
 
 // 父组件（CapturePage）用它驱动「多张图排队识别」
-defineExpose({ startOcr })
+// selectHistory 也暴露出去 —— 多张图时老师要能翻回前面某张的结果
+defineExpose({ startOcr, selectHistory })
 
 onMounted(() => {
   loadHistory()
@@ -180,12 +219,20 @@ function startPolling() {
         result.value = data.result
         stopPolling()
         loadHistory()   // 新记录入库 → 刷下拉
-        emit('ocr-done', 'completed')
+        emit('ocr-done', {
+          status: 'completed',
+          taskId: taskId.value,
+          imageUrl: props.imageUrl,
+        })
       } else if (data.status === 'failed') {
         status.value = 'failed'
         error.value = data.error || 'OCR 识别失败'
         stopPolling()
-        emit('ocr-done', 'failed')
+        emit('ocr-done', {
+          status: 'failed',
+          taskId: taskId.value,
+          imageUrl: props.imageUrl,
+        })
       }
       // processing 继续轮询
     } catch (e) {
@@ -234,6 +281,19 @@ function onFormulaUpdate({ index, latex }) {
   message.success('公式已更新')
 }
 
+/**
+ * 符号疑点一键修改（平行符号 / 角符号）
+ * 用「原对象 → 新对象」定位，不靠下标 —— 父组件的 blocks 可能是过滤过的
+ */
+function onBlockUpdate({ from, to }) {
+  const blocks = result.value?.blocks
+  if (!blocks) return
+  const idx = blocks.indexOf(from)
+  if (idx < 0) return
+  blocks[idx] = to
+  message.success('已改为：' + (to.type === 'formula' ? to.latex : to.text))
+}
+
 // === 任务 2:拼「带公式排版的纯文本」 ===
 // ------------------------------------------------------------------
 // withFormulas 是 Markdown 版(带 $...$ 和 ^{2}),老师复制到 Word 里不合适。
@@ -275,7 +335,12 @@ async function saveToBank() {
           difficulty: m.difficulty,
         }
       : {}
-    const res = await createQuestionFromOcr(taskId.value, overrides)
+    // 把老师在校对页改过的块一起送上去
+    // （以前只传 task_id，后端从 ocr_store 读原始块 → 老师改的公式当场就丢了）
+    const res = await createQuestionFromOcr(taskId.value, {
+      ...overrides,
+      blocks: allBlocks.value,
+    })
     message.success(`已入库（第 ${res.data.question.id} 题）`)
     emit('question-saved')
   } catch (e) {
@@ -377,6 +442,25 @@ async function copyPlainText() {
 
         <!-- 右:识别结果(hover 触发左侧高亮) -->
         <div style="flex: 1; min-width: 0;">
+          <!-- 题图：图形从文字流里抽出来单独一张卡，老师一眼就能看到 -->
+          <NCard
+            v-if="figureBlocks.length"
+            size="small"
+            title="🖼 题图（从原图裁出，入库时随题保存）"
+            style="margin-bottom: 8px;"
+          >
+            <NSpace>
+              <div
+                v-for="(fb, fi) in figureBlocks"
+                :key="fi"
+                class="ocr-figure-card"
+              >
+                <div :style="figureCropStyle(fb) || {}" />
+                <NText depth="3" style="font-size: 11px;">图形 {{ fi + 1 }}</NText>
+              </div>
+            </NSpace>
+          </NCard>
+
           <NTabs type="line" animated size="small">
             <NTabPane name="text" tab="① 纯文本">
               <OcrBlockList
@@ -385,8 +469,10 @@ async function copyPlainText() {
                 :hover-index="hoverIndex"
                 :figure-image-url="imageBlobUrl"
                 :figure-image-size="imgSize"
+                :show-figure="false"
                 @hover="hoverIndex = $event"
                 @update-formula="onFormulaUpdate"
+                @update-block="onBlockUpdate"
               />
               <NSpace align="center" justify="space-between" style="margin-top: 6px;">
                 <NText depth="3" style="font-size: 12px">
@@ -413,8 +499,10 @@ async function copyPlainText() {
                 :hover-index="hoverIndex"
                 :figure-image-url="imageBlobUrl"
                 :figure-image-size="imgSize"
+                :show-figure="false"
                 @hover="hoverIndex = $event"
                 @update-formula="onFormulaUpdate"
+                @update-block="onBlockUpdate"
               />
             </NTabPane>
           </NTabs>
@@ -445,4 +533,12 @@ async function copyPlainText() {
   border-radius: 2px;
 }
 /* 注:block 列表的 hover 样式已搬到 OcrBlockList.vue(父组件 scoped 样式不作用到子组件 DOM) */
+
+/* 题图卡片里的图形 */
+.ocr-figure-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
 </style>

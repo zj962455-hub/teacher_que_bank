@@ -331,3 +331,122 @@ VERIFY_IMAGES="/tmp/a.png,/tmp/b.png,/tmp/c.png,/tmp/d.png" node scripts/verify-
 **残余误差（导出图里也看得到）**：`BO⊥AD` 应为 `BQ⊥AD` —— 强模型把字母 Q 认成 O。
 公式字母间仍有多余空格（`AE = CD`、`BE = AD`）。这类属于模型识别精度，不是链路问题。
 
+# 课 35 · 第二轮：把「识别不准」拆成三层，定位到真正的根因
+
+> 2026-11-08。老大反馈：「平行符号识别成功率不高」「角符号识别错误」「题里的图识别到了但是不显示」。
+> 这次的结论是：**三个反馈其实是三个不同层的根因，模型只占了其中一个**，而且最严重的那个模型是对的。
+
+## 一、分层归因（先定位再改，别一上来换模型）
+
+| 层 | 现象 | 真实原因 | 证据 |
+|---|---|---|---|
+| 模型层 | 平行符号 `PE∥OA` → `PE/OA` | 确实没还原 | 原始 OCR latex 里就是 `PE/OA` |
+| 模型层 | 角符号 | **模型是对的**（`\angle AOB=30^{\circ}`） | 原始 latex 无误 |
+| 解析层 | 公式里混进中文（`OB 于 E,\angle...`) | 强模型把整段包进 `$...$` | 原始 block 可见 |
+| 渲染层 | 页面上一行**红字** | **KaTeX 渲染失败**（公式含中文），红字是 KaTeX 的报错样式 | DOM 里 `.katex-error` |
+| 展示层 | 图「识别到了但不显示」 | 列表页/详情页**根本没渲染** `figure_path`；校对页图混在文字流末尾 | 详情页 DOM 里 0 个 `<img>` |
+| 数据层 | 填空题少下划线 | 横线是「画出来的线」，OCR 读不到 | 原图有横线，OCR 文本里没有 |
+| 数据层 | 校对页改的公式没生效 | `from-ocr` 只读服务端原始块，**前端改动全丢** | 后端只收 task_id |
+
+> 教训：老师说的「识别不准」是**现象**，不是根因。
+> 这次的三个反馈里，**两个在渲染/展示层，一个在数据层**，模型层只占一个。
+
+## 二、这一轮做了什么
+
+### P0-1 · 列表页/详情页显示题图
+- `lesson-03/src/components/FigureThumb.vue`（新）—— 列表页 64×44 缩略图
+- `lesson-03/src/pages/QuestionsPage.vue` —— 表格加「图」列
+- `lesson-03/src/pages/QuestionDetailPage.vue` —— 详情页显示 `figure_path`
+- 图片接口要鉴权 → 统一走 `fetchImageBlobUrl()` 取 blob（`<img src>` 带不了 Authorization 头）
+
+### P0-2 · 公式块混中文 → 不再吐红字
+- 后端 `math_parser.py`：新增 `split_cjk_in_formula()` / `split_formula_block()`
+  —— 公式块里的中文被拆成 text 块，公式块里不再有中文
+- 前端 `mathRenderer.js`：识别 `katex-error`（KaTeX 报错时吐红字源码）
+  → 降级成**可读纯文本 + 淡黄底**，不再刺眼
+- 顺带修了 `latex_to_plain()` 丢角度单位的问题（`30^{\circ}` → 之前是 `30^`）
+
+### P0-3 · 校对页图形独立卡片 + 多图结果不互相覆盖
+- `OcrResult.vue`：新增「🖼 题图」卡片（图形从文字流里抽出来单独一张卡）
+- `OcrBlockList.vue`：新增 `show-figure` prop，图不再在文字流里重复画
+- `CapturePage.vue`：多图识别完成后留一份清单「第 N 张」，点任意一张都能翻回那次的结果
+  （以前一次传 4 张，面板只留最后一张）
+
+### P0-4 · 压缩字母间多余空格
+- `normalize_math_spacing()`：`A E=C D` → `AE=CD`，`C E=` → `CE=`
+- 只压「两边都是单个大写字母」的空格 —— `AB CD`（两个线段）不动
+
+### P1-5 · 填空横线补回（本机 OCR 服务）
+- `deploy/local-ocr/local_ocr_service.py`：OpenCV 形态学找正文横向长线
+  （核宽 = 图宽的 ~3%，实测 639/644 宽的题图用 20~21 正好命中，不会把汉字横笔画算进来）
+- 用 `parsing_res_list` 里 image 块的 bbox **排除图形内部的边线**（否则每张带图的题都被塞假下划线）
+- 用 `overall_ocr_res` 的 `rec_texts/rec_polys`（行级）定位横线属于哪一行
+- 插回原文时如果落在 `$...$` 里 → 插到公式结束符**之后**（公式里塞下划线 KaTeX 会报错）
+
+### P1-6 · 符号疑点：只提示 + 一键改（老大定的策略）
+- `lesson-03/src/utils/symbolHints.js`（新）：检测 `PE/OA`（疑似平行）、`ZAOB`（疑似角）
+- 校对页显示「疑似平行符号 · 点击改为 PE ∥ OA」的提示标签
+- **不静默自动替换** —— 老师点了才改
+
+### 附带修掉的一个真 bug
+- `POST /api/questions/from-ocr/{task_id}` 现在接受前端回传的 `blocks`
+  （后端 `_sanitize_client_blocks()` 白名单校验 type/text/latex/bbox/confidence）
+- 以前只收 task_id，后端从 `ocr_store` 读**原始**块 → 老师在校对页改的公式、
+  点的「疑似平行符号 → ∥」**全部在校对过程里丢掉了**
+- 不传 blocks 的老客户端行为不变（仍是 AI 分类 + 原始块）
+
+## 三、验收（真实账号 test2，线上 https://tqb.lanhu-lab.top）
+
+无头脚本：`lesson-03/scripts/verify-lesson35.cjs`（新增，可复跑）
+
+一次上传那张同时踩中三个坑的题图（`20261108_004950_d8b6b398.png`）：
+
+| # | 检查项 | 结果 |
+|---|---|---|
+| 1 | 题图独立卡片 | ✅ 220×135px，background 是原图 blob URL |
+| 2 | KaTeX 红字 | ✅ `.katex-error` 0 个，红字元素 0 个 |
+| 3 | 填空横线 | ✅ 正文含 `____` |
+| 4 | 符号疑点提示 | ✅ 「疑似平行符号 · 点击改为 PE ∥ OA」 |
+| 5 | 一键改 | ✅ 点击后 `PE/OA` → `PE∥OA`，旧串消失 |
+| 6 | 一键入库 | ✅ 落库，**改后的内容一起进去了** |
+| 7 | 列表页缩略图 | ✅ 表头多「图」列，6 张缩略图都加载出真实像素（166×106 等） |
+| 8 | 详情页题图 | ✅ `.figure-box` 有 `<img>`，naturalWidth=166 |
+
+落库内容（PostgreSQL 实查）：
+
+```
+PD=3cm
+ ，过点P作PE∥OA交
+OB 于
+E,∠AOB=30°
+ ，求PE的长度____cm.
+```
+
+> `PE∥OA`（一键改的结果）、`____`（补回的横线）、`∠AOB=30°`（角度没丢）—— 三样都在库里。
+
+## 四、这一轮改的文件
+
+```
+deploy/local-ocr/local_ocr_service.py        填空横线检测 + 回填
+lesson-02/app/services/math_parser.py        公式块清理（拆中文/压空格/保角度）
+lesson-02/app/routers/questions.py           from-ocr 接受前端改过的 blocks
+lesson-02/tests/test_math_parser.py          +6 条回归用例
+lesson-03/src/utils/mathRenderer.js          KaTeX 报错 → 纯文本兜底
+lesson-03/src/utils/symbolHints.js           符号疑点检测（新）
+lesson-03/src/components/OcrBlockList.vue    疑点提示 + show-figure
+lesson-03/src/components/OcrResult.vue       题图卡片 + 改动随入库生效
+lesson-03/src/components/FigureThumb.vue     列表页缩略图（新）
+lesson-03/src/pages/CapturePage.vue          多图结果清单
+lesson-03/src/pages/QuestionDetailPage.vue  详情页题图
+lesson-03/src/pages/QuestionsPage.vue        列表页「图」列
+lesson-03/scripts/verify-lesson35.cjs       端到端验收脚本（新）
+```
+
+## 五、还没解决的（留给下一轮）
+
+- **平行符号的模型精度**：`PE/OA` 仍靠人工一键改，没有自动还原。
+  探针结论：对整行混排文本做二次公式识别会输出垃圾，**二次识别必须只裁符号附近区域**。
+  这轮按老大定的「先提示」策略落地，没上自动改。
+- **低分辨率图片**：模型吞掉的内容放大也救不回来，要加质量提示/最低分辨率检查。
+- **本机 OCR 与反向隧道的存活监控**：launchd `KeepAlive` 有了，但没告警。
+- **ECS 升级**：老大明确「还在验证阶段，不急着升级」—— 这轮**没有**动 ECS 的 OCR 引擎。

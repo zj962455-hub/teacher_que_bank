@@ -7,11 +7,13 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NCard, NSpin, NButton, NSpace, NTag, NDivider, NAlert, NSelect } from 'naive-ui'
+import { NCard, NSpin, NButton, NSpace, NTag, NDivider, NAlert, NSelect, NText } from 'naive-ui'
 import { getQuestion, deleteQuestion } from '../api/questions'
 import { listTags, getQuestionTags, setQuestionTags } from '../api/tags'
 import { dialog, message } from '../composables/discreteApi'
 import { renderMathText } from '../utils/mathRenderer'
+import { parseError } from '../utils/errors'
+import { fetchImageBlobUrl } from '../api/auth'
 import QuestionEditor from '../components/QuestionEditor.vue'
 
 const route = useRoute()
@@ -21,6 +23,23 @@ const question = ref(null)
 const loading = ref(true)
 const errorMsg = ref('')
 const editing = ref(false)
+
+// === 题图（图形裁剪图） ===
+// 图片接口要鉴权 → <img src> 带不了 Authorization 头 → 取 blob
+// 以前详情页/列表页都不渲染 figure_path → 老师说「识别到了但是不显示」
+const figureBlobUrl = ref('')
+const figureFailed = ref(false)
+
+async function loadFigure(path) {
+  figureBlobUrl.value = ''
+  figureFailed.value = false
+  if (!path) return
+  try {
+    figureBlobUrl.value = await fetchImageBlobUrl(path)
+  } catch (e) {
+    figureFailed.value = true
+  }
+}
 
 /** 全部标签（选择器用） */
 const allTags = ref([])
@@ -37,6 +56,7 @@ async function load() {
   try {
     const res = await getQuestion(questionId.value)
     question.value = res.data
+    loadFigure(res.data.figure_path)
     // 详情接口已经带 tags 了，兜底再查一次（老数据可能没有）
     if (Array.isArray(res.data.tags)) {
       questionTagIds.value = res.data.tags.map((t) => t.id)
@@ -164,6 +184,19 @@ function doDelete() {
         <!-- 题干(公式用 KaTeX 渲染) -->
         <div class="content" v-html="renderMathText(question.content_markdown || question.content_plain)" />
 
+        <!-- 题图：OCR 从原图里裁出来的图形，随题保存、随题显示 -->
+        <div v-if="question.figure_path" class="figure-box">
+          <img
+            v-if="figureBlobUrl"
+            :src="figureBlobUrl"
+            alt="题图"
+            style="max-width: 100%; border: 1px solid #e0e0e0; border-radius: 4px;"
+          />
+          <NText v-else depth="3" style="font-size: 12px;">
+            {{ figureFailed ? '题图加载失败' : '题图加载中…' }}
+          </NText>
+        </div>
+
         <NDivider />
 
         <div class="meta">
@@ -212,5 +245,9 @@ function doDelete() {
 .meta {
   font-size: 12px;
   color: #999;
+}
+
+.figure-box {
+  margin-top: 12px;
 }
 </style>

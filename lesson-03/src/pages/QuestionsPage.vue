@@ -27,6 +27,7 @@ import { batchDeleteQuestions, batchUpdateQuestions } from '../api/batch'
 import { getCategoryTree, toTreeOptions, flattenTree, flatToOptions } from '../api/categories'
 import { listTags, createTag, deleteTag } from '../api/tags'
 import { renderMathText } from '../utils/mathRenderer'
+import FigureThumb from '../components/FigureThumb.vue'
 import { message } from '../composables/discreteApi'
 import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 
@@ -360,6 +361,16 @@ const columns = computed(() => [
       style: 'white-space: pre-wrap; max-height: 80px; overflow: hidden; font-size: 13px;',
       innerHTML: renderMathText(row.content_markdown || row.content_plain),
     }),
+  },
+  {
+    // 题图缩略图 —— 以前列表页完全不渲染图，
+    // 老师看不到「这题其实有图」，以为 OCR 把图丢了
+    title: '图',
+    key: 'figure_path',
+    width: 84,
+    render: (row) => (row.figure_path
+      ? h(FigureThumb, { path: row.figure_path })
+      : h('span', { style: 'color: #ccc;' }, '—')),
   },
   {
     title: '学科',

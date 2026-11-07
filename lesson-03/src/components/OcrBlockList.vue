@@ -24,6 +24,7 @@
 import { ref, computed } from 'vue'
 import { NTag, NText, NInput, NButton, NSpace } from 'naive-ui'
 import { renderLatex, renderMathText } from '../utils/mathRenderer'
+import { detectSymbolHints, applySymbolHint } from '../utils/symbolHints'
 
 // === Props ===
 const props = defineProps({
@@ -46,6 +47,11 @@ const props = defineProps({
   // figure 块（图形区域）的裁切预览用：原图 blob URL + 原图像素尺寸
   figureImageUrl: { type: String, default: '' },
   figureImageSize: { type: Object, default: () => ({ w: 0, h: 0 }) },
+
+  // 图是否在列表里内联显示。
+  // false = 文字流里只留一行标记，图形统一放到上方的「题图」卡片里
+  // （老师反馈「图识别到了但是不显示」—— 图混在文字流末尾既不显眼也容易看漏）
+  showFigure: { type: Boolean, default: true },
 })
 
 // === figure 块：按 bbox 从原图里裁出图形预览 ===
@@ -82,7 +88,7 @@ const editingIndex = ref(-1)    // 正在编辑的 block 下标，-1 = 没在编
 const editingLatex = ref('')    // 编辑框里的 LaTeX 源码
 
 // === Emits：把 hover 事件抛给父组件 ===
-const emit = defineEmits(['hover', 'update-formula'])
+const emit = defineEmits(['hover', 'update-formula', 'update-block'])
 
 /**
  * 找到 block 在 blocks 数组里的**全局下标**
@@ -102,6 +108,23 @@ function onEnter(block) {
 /** hover 离开时清空（-1） */
 function onLeave() {
   emit('hover', -1)
+}
+
+// === 符号疑点（平行符号 / 角符号） ===
+// 只提示 + 一键改，不静默自动替换（老师明确要求：先提示，再由老师确认）。
+// 平行符号被识别成 "PE/OA" 时，给老师一个「改为 PE∥OA」的按钮。
+const blockHints = computed(() =>
+  props.blocks.map(b => detectSymbolHints(b))
+)
+
+/** 点提示 → 算出新 block 抛给父组件（父组件负责落到 result.blocks） */
+function applyHint(blockIndex, hintIndex) {
+  const b = props.blocks[blockIndex]
+  const hint = blockHints.value[blockIndex]?.[hintIndex]
+  if (!b || !hint) return
+  const next = applySymbolHint(b, hint)
+  if (next === b) return
+  emit('update-block', { from: b, to: next })
 }
 
 // === 任务 3：公式编辑 ===
@@ -194,12 +217,16 @@ const renderedContent = computed(() => {
       </div>
 
       <!-- ===== figure 块：把图形那块从原图里裁出来显示 ===== -->
+      <!-- showFigure=false 时不在文字流里重复画图（图统一在上方「题图」卡片） -->
       <div
         v-else-if="b.type === 'figure'"
         class="ocr-figure-crop"
-        :style="figureCropStyle(b) || {}"
+        :style="showFigure ? (figureCropStyle(b) || {}) : {}"
       >
-        <NText v-if="!figureCropStyle(b)" depth="3" style="font-size: 11px;">
+        <NText v-if="!showFigure" depth="3" style="font-size: 11px;">
+          🖼 图形（见上方「题图」）
+        </NText>
+        <NText v-else-if="!figureCropStyle(b)" depth="3" style="font-size: 11px;">
           🖼 检测到图形区域
         </NText>
       </div>
@@ -234,6 +261,21 @@ const renderedContent = computed(() => {
           @click="startEdit(blockIndex, b)"
         />
       </template>
+
+      <!-- ===== 符号疑点：只提示，一键改（不自动替换） ===== -->
+      <div v-if="blockHints[blockIndex]?.length" class="ocr-hints">
+        <NTag
+          v-for="(h, hi) in blockHints[blockIndex]"
+          :key="h.kind + hi"
+          size="small"
+          type="warning"
+          :bordered="false"
+          style="cursor: pointer;"
+          @click.stop="applyHint(blockIndex, hi)"
+        >
+          {{ h.label }} · 点击改为 {{ h.detail }}
+        </NTag>
+      </div>
     </div>
   </div>
 </template>
@@ -269,6 +311,16 @@ const renderedContent = computed(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;   /* 疑点提示独占下一行 */
+}
+
+/* 符号疑点提示行 */
+.ocr-hints {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
 }
 
 /* 渲染内容容器 */

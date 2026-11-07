@@ -54,6 +54,65 @@ const KATEX_OPTIONS = {
 
 /** 渲染失败时的占位样式（黄色底 + 保留原文） */
 const ERROR_STYLE = 'background:#fffbe6;border:1px solid #ffe08a;border-radius:3px;padding:0 3px;color:#874d00;'
+/**
+ * 渲染失败时的降级显示
+ * --------------------
+ * KaTeX 报错时最难受的是「吐源码」—— 老师看到的是 \angle 这种原始命令，
+ * 会以为是识别错了（lesson-35 实测：强模型识别是对的，是 KaTeX 炸了）。
+ * 这里降级成可读的纯文本 + 淡黄底，保留信息但不再刺眼。
+ */
+function fallbackHtml(text, reason = '') {
+  const tip = reason
+    ? '公式渲染失败，已显示纯文本：' + reason
+    : '公式渲染失败，已显示纯文本'
+  return '<span style="' + ERROR_STYLE + '" title="' + escapeHtml(tip) + '">' + escapeHtml(text) + '</span>'
+}
+
+/**
+ * LaTeX → 可读纯文本（渲染失败的兜底）
+ * 只处理初中几何/代数常见的命令，不追求完整。
+ */
+export function latexToPlain(latex) {
+  if (!latex) return ''
+  let s = String(latex)
+  // 分数 \frac{a}{b} → a/b
+  s = s.replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '$1/$2')
+  // 上下标：^{...} / _{...} → 内容
+  s = s.replace(/\^\{([^{}]*)\}/g, '$1')
+  s = s.replace(/_\{([^{}]*)\}/g, '$1')
+  // 常见符号
+  const map = {
+    '\\angle': '∠',
+    '\\perp': '⊥',
+    '\\parallel': '∥',
+    '\\triangle': '△',
+    '\\circ': '°',
+    '\\times': '×',
+    '\\div': '÷',
+    '\\pm': '±',
+    '\\neq': '≠',
+    '\\leq': '≤',
+    '\\geq': '≥',
+    '\\approx': '≈',
+    '\\because': '∵',
+    '\\therefore': '∴',
+    '\\sim': '∽',
+    '\\rightarrow': '→',
+    '\\leftarrow': '←',
+    '\\Rightarrow': '⇒',
+    '\\overline': '',
+    '\\underline': '',
+  }
+  for (const k of Object.keys(map)) {
+    s = s.split(k).join(map[k])
+  }
+  // 剩下的命令（\alpha 这种）去掉反斜杠
+  s = s.replace(/\\([a-zA-Z]+)/g, '$1')
+  // 去掉剩余的大括号
+  s = s.replace(/[{}]/g, '')
+  return s
+}
+
 
 /**
  * 渲染单个 LaTeX 公式
@@ -62,17 +121,24 @@ const ERROR_STYLE = 'background:#fffbe6;border:1px solid #ffe08a;border-radius:3
  * @param {boolean} displayMode - 是否块级显示（独立成行居中）
  * @returns {string} HTML 字符串（可直接 v-html）
  */
-export function renderLatex(latex, displayMode = false) {
+export function renderLatex(latex, displayMode = false, fallbackPlain = '') {
   if (!latex || !latex.trim()) return ''
 
   try {
-    return katex.renderToString(latex, {
+    const html = katex.renderToString(latex, {
       ...KATEX_OPTIONS,
       displayMode,
     })
+    // throwOnError:false 时 KaTeX 不抛异常，而是把源码吐成
+    // <span class="katex-error" style="color:#cc0000"> —— 老师看到的就是一行红字，
+    // 很容易误以为是「识别错了」。这里识别出来，改显示纯文本。
+    if (html.includes('katex-error')) {
+      return fallbackHtml(fallbackPlain || latex)
+    }
+    return html
   } catch (e) {
     // strict:"error" 才会走到这里（throwOnError:false 时多数错误被 KaTeX 内部处理）
-    return `<code style="${ERROR_STYLE}" title="LaTeX 渲染失败: ${escapeHtml(e.message)}">${escapeHtml(latex)}</code>`
+    return fallbackHtml(fallbackPlain || latex, e.message)
   }
 }
 
@@ -155,7 +221,7 @@ export function renderMathText(text) {
       buffer = ''
     }
 
-    html += renderLatex(latex, isDisplay)
+    html += renderLatex(latex, isDisplay, latexToPlain(latex))
     i = end + delimiter.length
   }
 
@@ -180,7 +246,8 @@ export function renderBlock(block) {
   if (!block) return ''
 
   if (block.type === 'formula') {
-    return renderLatex(block.latex, true)
+    // 公式块带 plain（后端算好的纯文本）→ 渲染失败时用它兜底
+    return renderLatex(block.latex, true, block.plain || latexToPlain(block.latex))
   }
 
   if (block.type === 'text') {

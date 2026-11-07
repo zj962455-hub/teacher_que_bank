@@ -688,6 +688,51 @@ def _extract_figure(
 
 # === 从 OCR 一键入库 ===
 # 完整路径: POST /api/questions/from-ocr/{task_id}
+def _sanitize_client_blocks(raw_blocks) -> list[dict]:
+    """校验前端回传的 OCR 块（老师在校对页改过的内容）
+
+    只放行 text / formula / table 三种类型 + 必要字段，
+    免得前端塞脏数据进 blocks_json。
+    """
+    out: list[dict] = []
+    if not isinstance(raw_blocks, list):
+        return out
+    for b in raw_blocks[:500]:
+        if not isinstance(b, dict):
+            continue
+        btype = b.get("type")
+        if btype not in ("text", "formula", "table"):
+            continue
+        item: dict = {"type": btype}
+        if btype == "text":
+            text = str(b.get("text") or "")
+            if not text.strip():
+                continue
+            item["text"] = text
+        elif btype == "formula":
+            latex = str(b.get("latex") or "")
+            if not latex.strip():
+                continue
+            item["latex"] = latex
+            item["plain"] = str(b.get("plain") or latex)
+        else:
+            item["text"] = str(b.get("text") or "")
+        bbox = b.get("bbox")
+        if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+            try:
+                item["bbox"] = [float(v) for v in bbox]
+            except (TypeError, ValueError):
+                pass
+        conf = b.get("confidence")
+        if isinstance(conf, (int, float)):
+            item["confidence"] = float(conf)
+        for key in ("figure", "path", "url", "src"):
+            if key in b and isinstance(b.get(key), str):
+                item[key] = b[key]
+        out.append(item)
+    return out
+
+
 @router.post("/from-ocr/{task_id}")
 def create_from_ocr(
     task_id: str,
@@ -717,6 +762,16 @@ def create_from_ocr(
 
     result = record.get("result") or {}
     blocks = result.get("blocks") or []
+
+    # === 老师在校对页改过的内容优先 ===
+    # 以前这里只读 ocr_store 里的原始块 —— 老师在校对页改的公式、
+    # 点的「疑似平行符号 → ∥」全部在校对过程里丢掉了。
+    # 前端把改完的块一起传上来（老客户端不传 → 行为不变）。
+    override = payload or {}
+    client_blocks = _sanitize_client_blocks(override.get("blocks"))
+    if client_blocks:
+        blocks = client_blocks
+
     if not blocks:
         raise HTTPException(status_code=400, detail="该 OCR 任务没有识别结果")
 
@@ -727,7 +782,6 @@ def create_from_ocr(
     # 老师在 OCR 校对页把难度从「简单」改成「困难」，点一键入库时，
     # 以前这里只用 AI 的分类结果 —— 老师改的难度当场就丢了。
     # 前端不传（老客户端）就还是走 AI 分类，行为不变。
-    override = payload or {}
     subject = override.get("subject") or auto["subject"]
     question_type = override.get("question_type") or auto["type"]
     grade = override.get("grade") or auto["grade"]
