@@ -189,3 +189,15 @@
 2. 「安全技术措施说明」可直接引用本文第二节，**但要与提交时线上实际状态一致** —— 若期间又改了配置，需同步更新。
 3. 网站截图建议用「个人中心 → 设备会话管理」和「章节分类管理」页面，能体现真实业务与安全设计。
 4. 取得公安备案号后，需按要求在网站底部公示（与 ICP 备案号并列）。
+
+---
+
+## 附：备份与恢复演练证据（2026-11 更新）
+
+| 项 | 证据 |
+|---|---|
+| 每日备份 | cron `17 4 * * *` → `/opt/teacher-bank/backups/`，同时产出 `db-YYYYMMDD-HHMMSS.dump`（PostgreSQL 自定义格式）与 `uploads-YYYYMMDD-HHMMSS.tar.gz`，保留 14 天 |
+| 最近备份 | `db-20261107-041701.dump`（58114 字节）+ `uploads-20261107-041701.tar.gz` |
+| 恢复演练 | 脚本 `/usr/local/bin/teacherbank-restore-drill.sh`（cron 每周日 05:17）—— **不是检查文件在不在**，而是取新 dump → pg_restore 到临时库 → 逐表比对行数 → 删临时库，线上库零改动 |
+| 最近一次实跑 | **2026-11-06 14:21 通过**：9 张表行数全部一致（users 2 / sessions 84 / uploads 1 / questions 3 / papers 1 / paper_questions 1 / paper_shares 4，其余为空表），临时库已删除 |
+| 演练日志 | `/var/log/teacherbank-drill.log`（服务器留存，可直接截图作附件） |
