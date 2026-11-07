@@ -132,11 +132,12 @@ async function uploadFiles() {
   // 图片要带 token 才能读 → 转成 blob URL
   await loadHistoryImages(ok)
 
-  // ⚠️ lesson-35：emit **最后一个成功的** url
-  //    多个文件时，老师在 OCR 面板看的是哪张图就对哪张 ——
-  //    最后一次成功的那张是老师最可能想识别的那张。
+  // ⚠️ lesson-35：emit **所有**成功的 url（数组）
+  //    以前只 emit 最后一张 —— 老师一次传 4 张，只有 1 张进了 OCR 面板，
+  //    另外 3 张压根没发起识别，看着就像「识别不出来」。
+  //    现在全部交给父组件，由它排队一张张识别。
   if (ok.length > 0) {
-    emit('uploaded', ok[ok.length - 1].url)
+    emit('uploaded', ok.map(item => item.url))
   }
 
   if (failed.length > 0) {

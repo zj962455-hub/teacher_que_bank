@@ -76,7 +76,10 @@ def recognize(image_path: str) -> dict:
 
     if strong_url and strong_key:
         try:
-            data = _post_ocr(strong_url, strong_key, image_path, timeout=90)
+            # 240s：老师一次传多张时，本机服务是单 worker，会排队
+            # （每张约 21 秒）。超时太短会让后面的图**误判失败**掉回轻量模型，
+            # 结果就是「有的图准、有的图不准」——比慢更糟。
+            data = _post_ocr(strong_url, strong_key, image_path, timeout=240)
             data.setdefault("stats", {})["engine"] = "strong"
             enrich_blocks(data)
             return data

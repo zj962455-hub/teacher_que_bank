@@ -42,7 +42,40 @@ const props = defineProps({
 
   // 列表最大高度（px），超出滚动
   maxHeight: { type: Number, default: 360 },
+
+  // figure 块（图形区域）的裁切预览用：原图 blob URL + 原图像素尺寸
+  figureImageUrl: { type: String, default: '' },
+  figureImageSize: { type: Object, default: () => ({ w: 0, h: 0 }) },
 })
+
+// === figure 块：按 bbox 从原图里裁出图形预览 ===
+// 强模型（PP-StructureV3）会把三角形这类图形标成 figure 块并给出 bbox。
+// 以前这里按「未知类型」渲染 → 出来一行空白，
+// 老师看着就像「图还是没识别出来」。这里用 background 定位裁出那块区域。
+function figureCropStyle(b) {
+  if (!props.figureImageUrl) return null
+  const bbox = b && b.bbox
+  if (!bbox || bbox.length < 4) return null
+  const size = props.figureImageSize || {}
+  if (!size.w || !size.h) return null
+
+  const x1 = Number(bbox[0])
+  const y1 = Number(bbox[1])
+  const x2 = Number(bbox[2])
+  const y2 = Number(bbox[3])
+  const bw = Math.max(1, x2 - x1)
+  const bh = Math.max(1, y2 - y1)
+
+  const targetW = 190
+  const scale = targetW / bw
+  return {
+    width: targetW + 'px',
+    height: Math.round(bh * scale) + 'px',
+    backgroundImage: 'url(' + props.figureImageUrl + ')',
+    backgroundSize: Math.round(size.w * scale) + 'px ' + Math.round(size.h * scale) + 'px',
+    backgroundPosition: -Math.round(x1 * scale) + 'px ' + -Math.round(y1 * scale) + 'px',
+  }
+}
 
 // === 任务 3：公式编辑态 ===
 const editingIndex = ref(-1)    // 正在编辑的 block 下标，-1 = 没在编辑
@@ -160,6 +193,17 @@ const renderedContent = computed(() => {
         </NSpace>
       </div>
 
+      <!-- ===== figure 块：把图形那块从原图里裁出来显示 ===== -->
+      <div
+        v-else-if="b.type === 'figure'"
+        class="ocr-figure-crop"
+        :style="figureCropStyle(b) || {}"
+      >
+        <NText v-if="!figureCropStyle(b)" depth="3" style="font-size: 11px;">
+          🖼 检测到图形区域
+        </NText>
+      </div>
+
       <!-- ===== simple 模式：type 标签 + 渲染内容 + 置信度 ===== -->
       <template v-else-if="renderMode === 'simple'">
         <NTag
@@ -256,6 +300,17 @@ const renderedContent = computed(() => {
 }
 
 /* 公式编辑面板 */
+/* figure 块：从原图裁出来的图形预览 */
+.ocr-figure-crop {
+  display: inline-block;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-repeat: no-repeat;
+  background-color: #fff;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 .ocr-formula-editor {
   width: 100%;
   display: flex;

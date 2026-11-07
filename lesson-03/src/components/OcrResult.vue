@@ -84,10 +84,16 @@ async function loadHistory() {
   try {
     const res = await http.get('/ocr/history', { params: { limit: 20 } })
     history.value = res.data.items ?? []
-    historyOptions.value = history.value.map(item => ({
-      label: `${item.image_url.split('/').pop()} · ${item.created_at.slice(0, 16).replace('T', ' ')}`,
-      value: item.task_id,
-    }))
+    historyOptions.value = history.value.map(item => {
+      // 标清楚是哪个引擎 —— 强模型和轻量模型的结果差别很大，
+      // 老师翻历史看到旧记录（轻量）会以为「改了也没用」
+      const engine = item.result?.stats?.engine
+      const engineTag = engine === 'strong' ? '强模型' : engine === 'light' ? '轻量' : ''
+      return {
+        label: `${engineTag ? engineTag + ' · ' : ''}${item.image_url.split('/').pop()} · ${item.created_at.slice(0, 16).replace('T', ' ')}`,
+        value: item.task_id,
+      }
+    })
   } catch (e) {
     // 历史拉不到不影响主流程,静默即可
   }
@@ -111,7 +117,10 @@ async function selectHistory(tid) {
 }
 
 // 切历史要同步换图 → 需要通知父组件
-const emit = defineEmits(['update:imageUrl', 'question-saved'])
+const emit = defineEmits(['update:imageUrl', 'question-saved', 'ocr-done'])
+
+// 父组件（CapturePage）用它驱动「多张图排队识别」
+defineExpose({ startOcr })
 
 onMounted(() => {
   loadHistory()
@@ -171,10 +180,12 @@ function startPolling() {
         result.value = data.result
         stopPolling()
         loadHistory()   // 新记录入库 → 刷下拉
+        emit('ocr-done', 'completed')
       } else if (data.status === 'failed') {
         status.value = 'failed'
         error.value = data.error || 'OCR 识别失败'
         stopPolling()
+        emit('ocr-done', 'failed')
       }
       // processing 继续轮询
     } catch (e) {
@@ -372,6 +383,8 @@ async function copyPlainText() {
                 :blocks="allBlocks"
                 render-mode="simple"
                 :hover-index="hoverIndex"
+                :figure-image-url="imageBlobUrl"
+                :figure-image-size="imgSize"
                 @hover="hoverIndex = $event"
                 @update-formula="onFormulaUpdate"
               />
@@ -398,6 +411,8 @@ async function copyPlainText() {
                 :blocks="allBlocks"
                 render-mode="rich"
                 :hover-index="hoverIndex"
+                :figure-image-url="imageBlobUrl"
+                :figure-image-size="imgSize"
                 @hover="hoverIndex = $event"
                 @update-formula="onFormulaUpdate"
               />
