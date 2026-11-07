@@ -42,7 +42,7 @@ app.add_middleware(
 )
 
 # OCR 引擎单例(模型大,启动慢)
-engine = PaddleOCREngine()
+engine = PaddleOCREngine(model_name=settings.ocr_model, lang=settings.ocr_lang)
 
 
 # ========== 依赖 ==========
