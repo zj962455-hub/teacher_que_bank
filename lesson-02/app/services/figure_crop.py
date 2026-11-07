@@ -303,3 +303,36 @@ def crop_figure_png(
         buf = io.BytesIO()
         region.save(buf, format="PNG")
         return buf.getvalue()
+
+
+def crop_bbox_png(
+    image_path: str | Path,
+    bbox: list[float],
+    padding: int = 4,
+) -> bytes | None:
+    """按给定 bbox 裁图并返回 PNG 字节
+
+    强模型(PP-StructureV3)的版面模型会把图形标成 figure 块并给出 bbox ——
+    那是模型直接说的「图在这儿」，比自己猜准得多。
+    """
+    import io
+
+    from PIL import Image
+
+    path = Path(image_path)
+    if not path.is_file() or not bbox or len(bbox) < 4:
+        return None
+
+    with Image.open(path) as im:
+        width, height = im.size
+        x1, y1, x2, y2 = [float(v) for v in bbox[:4]]
+        x1 = max(0, int(x1) - padding)
+        y1 = max(0, int(y1) - padding)
+        x2 = min(width, int(x2) + padding)
+        y2 = min(height, int(y2) + padding)
+        if x2 <= x1 or y2 <= y1:
+            return None
+        region = im.crop((x1, y1, x2, y2))
+        buf = io.BytesIO()
+        region.save(buf, format="PNG")
+        return buf.getvalue()

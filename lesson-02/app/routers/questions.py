@@ -630,7 +630,7 @@ def _extract_figure(
 
     裁不出来宁可没有：宁可题里没图，也不要把一行没认出来的字当成图贴上去。
     """
-    from app.services.figure_crop import crop_figure_png
+    from app.services.figure_crop import crop_bbox_png, crop_figure_png
 
     image_url = record.get("image_url", "")
     filename = (image_url or "").rsplit("/", 1)[-1]
@@ -638,8 +638,21 @@ def _extract_figure(
     if not src:
         return ""
 
+    # 强模型(PP-StructureV3)的版面模型会把图形标成 figure 块并给出 bbox ——
+    # 模型直接说「图在这儿」，比自己猜准得多，有就用它的。
+    fig_bbox = None
+    for b in blocks or []:
+        if isinstance(b, dict) and b.get("type") == "figure":
+            bb = b.get("bbox")
+            if bb and len(bb) >= 4:
+                fig_bbox = [float(v) for v in bb[:4]]
+                break
+
     try:
-        png = crop_figure_png(src, blocks)
+        if fig_bbox:
+            png = crop_bbox_png(src, fig_bbox)
+        else:
+            png = crop_figure_png(src, blocks)
     except Exception:
         # 裁图失败不许影响入库 —— 图是锦上添花，题才是主菜
         return ""

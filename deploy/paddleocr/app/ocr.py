@@ -21,7 +21,7 @@ logger = logging.getLogger("paddleocr-api.ocr")
 class PaddleOCREngine:
     """PaddleOCR 单例,内部锁保证并发安全。"""
 
-    def __init__(self, model_name: str = "PP-StructureV3", lang: str = "ch"):
+    def __init__(self, model_name: str = "PP-OCRv4-mobile", lang: str = "ch"):
         self.model_name = model_name
         self.lang = lang
         self._ocr: PaddleOCR | None = None

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 class Settings:
     api_keys: set[str] = field(default_factory=set)
     max_image_bytes: int = 10 * 1024 * 1024  # 10MB
-    ocr_model: str = "PP-StructureV3"
+    ocr_model: str = "PP-OCRv4-mobile"
     ocr_lang: str = "ch"
 
     @classmethod

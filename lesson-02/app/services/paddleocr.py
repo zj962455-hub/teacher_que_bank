@@ -56,43 +56,68 @@ def validate_image(image_path: str) -> None:
 # === 任务 1:分类错误处理 ===
 def recognize(image_path: str) -> dict:
     """
-    调 PaddleOCR 同步接口,返回识别结果(blocks + stats)
-    
-    PaddleOCR 服务在阿里云 ECS,域名 lanhu-lab.top
-    单图 3-10 秒,平均 5 秒
+    调 OCR 服务,返回识别结果(blocks + stats)
+
+    两个引擎
+    --------
+    - **强模型**: 本机 M4 跑 PP-StructureV3(含 PP-FormulaNet),
+      ECS 通过反向隧道访问 —— 符号/分数/公式准,单张 18~21 秒
+    - **轻量模型**: ECS 本机 PP-OCRv4 mobile —— 2~4 秒,兜底
+
+    强模型不可用(隧道断了/Mac 关机/超时)时**自动回落**轻量模型,
+    线上永不掉线 —— 这也正是当初没把线上直接换成重模型的原因。
     """
-    # 先做本地校验(任务 2)
     validate_image(image_path)
-    
+
+    strong_url = os.getenv("PADDLEOCR_STRONG_BASE_URL", "").rstrip("/")
+    strong_key = os.getenv("PADDLEOCR_STRONG_API_KEY", "")
     base_url = os.getenv("PADDLEOCR_BASE_URL", "").rstrip("/")
     api_key = os.getenv("PADDLEOCR_API_KEY", "")
-    
+
+    if strong_url and strong_key:
+        try:
+            data = _post_ocr(strong_url, strong_key, image_path, timeout=90)
+            data.setdefault("stats", {})["engine"] = "strong"
+            enrich_blocks(data)
+            return data
+        except OcrError as exc:
+            # 强模型挂了不能影响老师用题 —— 回落轻量模型
+            print(f"[ocr] 强模型不可用,回落轻量模型: {exc}")
+
     if not base_url or not api_key:
         raise OcrError(
             "PADDLEOCR_BASE_URL / PADDLEOCR_API_KEY 未配置",
             status_code=500,
-            hint="检查 lesson-02/.env 文件",
+            hint="检查 /etc/teacherbank/app.env",
         )
-    
+
+    data = _post_ocr(base_url, api_key, image_path, timeout=60)
+    data.setdefault("stats", {})["engine"] = "light"
+    enrich_blocks(data)
+    return data
+
+
+def _post_ocr(base_url: str, api_key: str, image_path: str, timeout: int) -> dict:
+    """真正发一次请求(两个引擎共用),失败一律抛 OcrError"""
     try:
         with open(image_path, "rb") as f:
             res = requests.post(
                 f"{base_url}/api/v1/ocr/image",
                 headers={"X-API-Key": api_key},
                 files={"image": (os.path.basename(image_path), f, "image/jpeg")},
-                timeout=60,
+                timeout=timeout,
             )
     except requests.exceptions.Timeout:
         raise OcrError(
-            "OCR 服务响应超时(60s)",
+            f"OCR 服务响应超时({timeout}s)",
             status_code=504,
-            hint="请稍后重试,或检查 ECS 服务状态",
+            hint="请稍后重试,或检查 OCR 服务状态",
         )
     except requests.exceptions.ConnectionError as e:
         raise OcrError(
             f"OCR 服务连接失败:{e}",
             status_code=503,
-            hint="检查 ECS 服务器是否在跑 / 域名是否过期 / 防火墙",
+            hint="检查 OCR 服务是否在跑 / 隧道是否断了",
         )
     except requests.exceptions.RequestException as e:
         raise OcrError(
@@ -100,34 +125,33 @@ def recognize(image_path: str) -> dict:
             status_code=500,
             hint="网络问题或服务异常",
         )
-    
+
     # === HTTP 错误码分类 ===
     if res.status_code == 401:
         raise OcrError(
             "OCR 鉴权失败(401)",
             status_code=401,
-            hint="PADDLEOCR_API_KEY 配置错或过期,检查 .env",
+            hint="API key 配置错或过期",
         )
     if res.status_code == 413:
         raise OcrError(
-            "ECS 拒收:图片过大",
+            "拒收:图片过大",
             status_code=413,
-            hint="虽然本地校验过,但 ECS 端还有更严的限",
+            hint="虽然本地校验过,服务端还有更严的限",
         )
     if res.status_code == 415:
         raise OcrError(
-            "ECS 拒收:图片类型不支持",
+            "拒收:图片类型不支持",
             status_code=415,
-            hint="虽然本地校验过,但 ECS mime 白名单不同",
+            hint="虽然本地校验过,服务端 mime 白名单不同",
         )
     if 500 <= res.status_code < 600:
         raise OcrError(
-            f"ECS 服务错误({res.status_code})",
+            f"OCR 服务错误({res.status_code})",
             status_code=502,
-            hint="ECS 服务暂时不可用,5 分钟后重试",
+            hint="OCR 服务暂时不可用,稍后重试",
         )
-    
-    # === 成功路径 ===
+
     try:
         data = res.json()
     except requests.exceptions.JSONDecodeError:
@@ -136,16 +160,11 @@ def recognize(image_path: str) -> dict:
             status_code=500,
             hint=f"原始响应:{res.text[:200]}",
         )
-    
+
     if not data.get("ok"):
         raise OcrError(
             f"OCR 业务失败:{data.get('error', '未知错误')}",
             status_code=500,
         )
-
-    # === lesson-07:把 text block 里的 Unicode 数学字符拆成 formula block ===
-    # PaddleOCR 对简单公式会当成普通文字输出(如 "x²" 是 Unicode 不是 LaTeX),
-    # 这里统一转成 latex 字段,前端 KaTeX 才能渲染。
-    enrich_blocks(data)
 
     return data

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.lanhu.localocr</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/rrobot/.openclaw/workspace/ocr-local-venv/bin/python</string>
+    <string>/Users/rrobot/.openclaw/workspace/local_ocr_service.py</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/rrobot/.openclaw/workspace</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>OCR_API_KEYS_FILE</key><string>/Users/rrobot/.openclaw/ocr-strong.key</string>
+    <key>OCR_MAX_IMAGE_MB</key><string>12</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/rrobot/.openclaw/logs/localocr.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/rrobot/.openclaw/logs/localocr.err.log</string>
+</dict>
+</plist>

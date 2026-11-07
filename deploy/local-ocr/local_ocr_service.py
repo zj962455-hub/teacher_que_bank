@@ -24,7 +24,30 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-API_KEYS = {k.strip() for k in os.getenv("OCR_API_KEYS", "").split(",") if k.strip()}
+def _load_api_keys() -> set:
+    """key 从环境变量或文件读
+
+    文件模式（launchd 常驻用）：OCR_API_KEYS_FILE 指向一个 0600 的文件，
+    一行一个 key —— 免得密钥进 launchd 的 plist。
+    """
+    keys = set()
+    for k in os.getenv("OCR_API_KEYS", "").split(","):
+        if k.strip():
+            keys.add(k.strip())
+    path = os.getenv("OCR_API_KEYS_FILE", "").strip()
+    if path and os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        keys.add(line)
+        except OSError:
+            pass
+    return keys
+
+
+API_KEYS = _load_api_keys()
 MAX_BYTES = int(os.getenv("OCR_MAX_IMAGE_MB", "10")) * 1024 * 1024
 ALLOWED = {"image/jpeg", "image/png", "image/webp", "image/bmp"}
 MODEL_NAME = "PP-StructureV3(PP-FormulaNet_plus-L)"
