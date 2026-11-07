@@ -18,6 +18,7 @@
 """
 
 import json
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -25,10 +26,12 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Category, Paper, PaperQuestion, Question, User
+from app.models import Category, Paper, PaperQuestion, Question, Upload, User
 from app.services.auth import get_current_user
 from app.services.classifier import build_content_versions, classify_blocks
 from app.services.errors import CODE_NOT_FOUND, ApiHTTPException
+from app.services.paths import upload_file_path, uploads_dir
+from app.services.paths import upload_file_path, uploads_dir
 
 router = APIRouter(
     prefix="/questions",
@@ -47,6 +50,8 @@ class QuestionCreate(BaseModel):
     content_markdown: str = Field(default="", max_length=10000)
     blocks: list[dict] = Field(default_factory=list)
     image_path: str = Field(default="", max_length=500)
+    # 题目配图（几何示意图）—— /api/uploads/ 下的文件名路径
+    figure_path: str = Field(default="", max_length=500)
     ocr_task_id: str = Field(default="", max_length=100)
     # 分类：前端可以传（用户手动改过），不传就后端自动分类
     subject: Optional[str] = None
@@ -86,6 +91,10 @@ class QuestionUpdate(BaseModel):
     grade: Optional[str] = None
     difficulty: Optional[str] = None
     image_path: Optional[str] = None
+    figure_path: Optional[str] = None
+    # 允许置空（把题从章节里摘出去）
+    figure_path: Optional[str] = None
+    # 允许置空（把题从章节里摘出去）
     # 允许置空（把题从章节里摘出来）—— 靠 exclude_unset 区分「没传」和「传 null」
     category_id: Optional[int] = None
 
@@ -369,6 +378,7 @@ def export_backup(
                 "content_markdown": q.content_markdown,
                 "blocks_json": q.blocks_json,
                 "image_path": q.image_path,
+                "figure_path": q.figure_path,
                 "ocr_task_id": q.ocr_task_id,
                 "created_at": q.created_at.isoformat() if q.created_at else None,
             }
@@ -599,6 +609,118 @@ def create_question(
     return _to_dict(question)
 
 
+# === 几何示意图：从原图里裁出来 ===
+
+
+def _extract_figure(
+    record: dict,
+    blocks: list[dict],
+    session: Session,
+    current_user: User,
+) -> str:
+    """把题图里的几何示意图裁出来，存成独立文件
+
+    返回 /api/uploads/xxx_fig.png；裁不出来返回空串。
+
+    为什么单独存一份
+    ----------------
+    OCR 认出的只是**文字**，三角形、垂足这些图形元素它一个也读不出来。
+    原图里图明明还在 —— 但题目库里只存了路径，导出时那张图就被扔了，
+    学生的卷子上只剩一段没有图的证明题。
+
+    裁不出来宁可没有：宁可题里没图，也不要把一行没认出来的字当成图贴上去。
+    """
+    from app.services.figure_crop import crop_figure_png
+
+    image_url = record.get("image_url", "")
+    filename = (image_url or "").rsplit("/", 1)[-1]
+    src = upload_file_path(filename)
+    if not src:
+        return ""
+
+    try:
+        png = crop_figure_png(src, blocks)
+    except Exception:
+        # 裁图失败不许影响入库 —— 图是锦上添花，题才是主菜
+        return ""
+    if not png:
+        return ""
+
+    out_name = f"{Path(filename).stem}_fig.png"
+    try:
+        (uploads_dir() / out_name).write_bytes(png)
+    except OSError:
+        return ""
+
+    session.add(
+        Upload(
+            user_id=current_user.id or 0,
+            filename=out_name,
+            url=f"/api/uploads/{out_name}",
+            original_name=f"{filename} (配图)"[:255],
+            size=len(png),
+            content_type="image/png",
+        )
+    )
+    return f"/api/uploads/{out_name}"
+
+
+# === 几何示意图：从原图里裁出来 ===
+
+
+def _extract_figure(
+    record: dict,
+    blocks: list[dict],
+    session: Session,
+    current_user: User,
+) -> str:
+    """把题图里的几何示意图裁出来，存成独立文件
+
+    返回 /api/uploads/xxx_fig.png；裁不出来返回空串。
+
+    为什么单独存一份
+    ----------------
+    OCR 认出的只是**文字**，三角形、垂足这些图形元素它一个也读不出来。
+    原图里图明明还在 —— 但题目库里只存了路径，导出时那张图就被扔了，
+    学生的卷子上只剩一段没有图的证明题。
+
+    裁不出来宁可没有：宁可题里没图，也不要把一行没认出来的字当成图贴上去。
+    """
+    from app.services.figure_crop import crop_figure_png
+
+    image_url = record.get("image_url", "")
+    filename = (image_url or "").rsplit("/", 1)[-1]
+    src = upload_file_path(filename)
+    if not src:
+        return ""
+
+    try:
+        png = crop_figure_png(src, blocks)
+    except Exception:
+        # 裁图失败不许影响入库 —— 图是锦上添花，题才是主菜
+        return ""
+    if not png:
+        return ""
+
+    out_name = f"{Path(filename).stem}_fig.png"
+    try:
+        (uploads_dir() / out_name).write_bytes(png)
+    except OSError:
+        return ""
+
+    session.add(
+        Upload(
+            user_id=current_user.id or 0,
+            filename=out_name,
+            url=f"/api/uploads/{out_name}",
+            original_name=f"{filename} (配图)"[:255],
+            size=len(png),
+            content_type="image/png",
+        )
+    )
+    return f"/api/uploads/{out_name}"
+
+
 # === 从 OCR 一键入库 ===
 # 完整路径: POST /api/questions/from-ocr/{task_id}
 @router.post("/from-ocr/{task_id}")
@@ -635,6 +757,11 @@ def create_from_ocr(
     versions = build_content_versions(blocks)
     auto = classify_blocks(blocks)
 
+    # === 几何示意图 ===
+    # OCR 只能读文字，读不出三角形、垂足、辅助线 —— 图会整个丢掉。
+    # 这里从原图里把图裁出来单独存一份，导出试卷时再带上。
+    figure_path = _extract_figure(record, blocks, session, current_user)
+
     question = Question(
         user_id=current_user.id or 0,
         subject=auto["subject"],
@@ -645,6 +772,7 @@ def create_from_ocr(
         content_markdown=versions["markdown"],
         blocks_json=versions["blocks_json"],
         image_path=_normalize_image_path(record.get("image_url", "")),
+        figure_path=figure_path,
         ocr_task_id=task_id,
     )
 
@@ -689,6 +817,7 @@ def update_question(
         "grade",
         "difficulty",
         "image_path",
+        "figure_path",
     ):
         if field in data and data[field] is not None:
             setattr(question, field, data[field])
@@ -807,6 +936,7 @@ def _to_dict(
         "content_plain": question.content_plain,
         "content_markdown": question.content_markdown,
         "image_path": question.image_path,
+        "figure_path": question.figure_path,
         "ocr_task_id": question.ocr_task_id,
         "category_id": question.category_id,
         "created_at": question.created_at.isoformat() if question.created_at else None,

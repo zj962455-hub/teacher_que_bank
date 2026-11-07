@@ -24,7 +24,7 @@ from app.database import get_session
 from app.models import Paper, PaperQuestion, Question, User, auto_label
 from app.services.auth import get_current_user
 from app.services.jpg_export import JpgExportError, build_jpg_zip
-from app.services.pdf_export import PdfExportError, export_paper_pdf
+from app.services.pdf_export import PdfExportError, export_paper_pdf, figure_file_url
 
 router = APIRouter(
     prefix="/papers",
@@ -364,6 +364,8 @@ def export_pdf(
             # 用 markdown 版 → Chromium 里的 KaTeX 能渲染 $...$
             "content": item["question"]["content_markdown"] or item["question"]["content_plain"],
             "score": item["score"],
+            # 几何示意图 —— OCR 读不出来，靠原图裁出来的那份带上
+            "figure": figure_file_url(item["question"].get("figure_path", "")),
         })
 
     try:
@@ -420,6 +422,8 @@ def export_jpg(
             "label": item["label"],
             "content": item["question"]["content_markdown"] or item["question"]["content_plain"],
             "score": item["score"],
+            # 几何示意图 —— OCR 读不出来，靠原图裁出来的那份带上
+            "figure": figure_file_url(item["question"].get("figure_path", "")),
         })
 
     try:
@@ -522,6 +526,8 @@ def _paper_detail(paper: Paper, session: Session) -> dict:
                 "content_plain": question.content_plain,
                 "content_markdown": question.content_markdown,
                 "image_path": question.image_path,
+                "figure_path": question.figure_path,
+                "figure_path": question.figure_path,
             },
         })
 

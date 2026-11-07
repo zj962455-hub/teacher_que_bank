@@ -35,17 +35,21 @@ npm run build 2>&1 | grep -E "✓ built|error" | head -3
 
 # === 2. rsync ===
 echo "[2/5] 同步代码到 ECS..."
-rsync -az --delete \
+rsync -az --delete --chown=teacherbank:teacherbank \
   --exclude 'venv' --exclude 'node_modules' --exclude '.git' --exclude 'dist' \
   --exclude 'backups' --exclude '__pycache__' --exclude '.env' --exclude 'uploads' \
   "$REPO_DIR/lesson-02/" "$ECS_USER@$ECS_HOST:$APP_ROOT/app/"
 
-rsync -az --delete \
+rsync -az --delete --chown=nginx:nginx \
   --exclude 'node_modules' --exclude '.git' --exclude 'dist' \
   --exclude '__pycache__' --exclude '.env*' \
   "$REPO_DIR/lesson-03/" "$ECS_USER@$ECS_HOST:$APP_ROOT/frontend/"
 
-rsync -az --delete "$REPO_DIR/lesson-03/dist/" "$ECS_USER@$ECS_HOST:$APP_ROOT/web/"
+# ⚠️ 前端 web 根目录必须归 nginx，且目录 755 / 文件 644
+#    —— rsync -a 会把本机的 UID 和 0700 权限原样带上来，
+#    nginx 读不到 index.html 就是**整站 403**（2026-11-07 踩过）。
+rsync -az --delete --chown=nginx:nginx "$REPO_DIR/lesson-03/dist/" "$ECS_USER@$ECS_HOST:$APP_ROOT/web/"
+ssh "$ECS_USER@$ECS_HOST" "find $APP_ROOT/web -type d -exec chmod 755 {} + ; find $APP_ROOT/web -type f -exec chmod 644 {} +"
 
 # === 2.5 版本标记（部署可追溯：线上跑的是哪个 commit）===
 # 线上 /opt/teacher-bank/app 不是 git 仓库，没有版本标记时只能靠 md5 猜。

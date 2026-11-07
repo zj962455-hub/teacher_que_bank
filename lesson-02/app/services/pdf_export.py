@@ -34,6 +34,10 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from app.services.paths import uploads_dir
+
+from app.services.paths import uploads_dir
+
 # === 路径 ===
 APP_DIR = Path(__file__).resolve().parent.parent      # lesson-02/app/
 BASE_DIR = APP_DIR.parent                               # lesson-02/
@@ -47,6 +51,62 @@ jinja_env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
     autoescape=select_autoescape(["html"]),
 )
+
+
+def figure_file_url(image_path: str) -> str:
+    """把 /api/uploads/xxx.png 解析成本地文件的 file:// URL
+
+    为什么必须是本地绝对路径
+    ----------------------
+    PDF 渲染走的是 file:// 临时 HTML —— 模板里引 http://127.0.0.1:8000
+    会让 Chromium 反过来请求 FastAPI，而生成 PDF 的请求正占着这个服务，
+    单 worker 直接死锁。而 /api/uploads/xxx 还要 Authorization，Chromium 也没有。
+
+    解析不出来（没图 / 文件没了 / 路径越界）就返回空串，模板会跳过这一段。
+    """
+    if not image_path:
+        return ""
+    name = image_path.rsplit("/", 1)[-1]
+    if not name or name != Path(name).name:
+        return ""          # 非法文件名 / 路径穿越
+    base = uploads_dir()
+    path = base / name
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(base.resolve())
+    except (ValueError, OSError):
+        return ""
+    if not resolved.is_file():
+        return ""
+    return resolved.as_uri()
+
+
+def figure_file_url(image_path: str) -> str:
+    """把 /api/uploads/xxx.png 解析成本地文件的 file:// URL
+
+    为什么必须是本地绝对路径
+    ----------------------
+    PDF 渲染走的是 file:// 临时 HTML —— 模板里引 http://127.0.0.1:8000
+    会让 Chromium 反过来请求 FastAPI，而生成 PDF 的请求正占着这个服务，
+    单 worker 直接死锁。而 /api/uploads/xxx 还要 Authorization，Chromium 也没有。
+
+    解析不出来（没图 / 文件没了 / 路径越界）就返回空串，模板会跳过这一段。
+    """
+    if not image_path:
+        return ""
+    name = image_path.rsplit("/", 1)[-1]
+    if not name or name != Path(name).name:
+        return ""          # 非法文件名 / 路径穿越
+    base = uploads_dir()
+    path = base / name
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(base.resolve())
+    except (ValueError, OSError):
+        return ""
+    if not resolved.is_file():
+        return ""
+    return resolved.as_uri()
 
 
 class PdfExportError(Exception):

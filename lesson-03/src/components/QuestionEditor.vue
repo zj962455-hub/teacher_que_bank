@@ -25,6 +25,7 @@ import {
   SUBJECT_OPTIONS, TYPE_OPTIONS, GRADE_OPTIONS, DIFFICULTY_OPTIONS,
 } from '../utils/classifier'
 import { renderMathText } from '../utils/mathRenderer'   // ← lesson-07:KaTeX 预览
+import { fetchImageBlobUrl } from '../api/auth'             // ← 几何配图（要带 token 取）
 import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 
 // === Props：OCR 结果 ===
@@ -45,12 +46,35 @@ const props = defineProps({
   questionId: { type: Number, default: null },
   // edit 模式下题目当前归属的章节（categories.id）
   categoryId: { type: Number, default: null },
+  // 几何配图（OCR 认不出图，从原图裁出来的那份）—— 编辑时让老师看得见图
+  figurePath: { type: String, default: '' },
 })
 
 // === 状态 ===
 // 用 discreteApi 的全局实例，而不是 useMessage()
 // useMessage() 必须配合 <NMessageProvider>，而本项目没用 Provider（见 main.js 注释）
 const emit = defineEmits(['close', 'saved'])
+
+// === 几何配图 ===
+// OCR 只能读文字，三角形、垂足这些图形元素它读不出来 ——
+// 但图还在像素里，后端把图裁出来单独存了一份（figure_path）。
+// 编辑时把图显示出来：老师改文字时得看得见图，才知道自己在改什么。
+const figureBlobUrl = ref('')
+
+async function loadFigure(path) {
+  if (!path) {
+    figureBlobUrl.value = ''
+    return
+  }
+  try {
+    figureBlobUrl.value = await fetchImageBlobUrl(path)
+  } catch (e) {
+    // 配图加载失败不致命 —— 图没了不影响改文字
+    console.warn('配图加载失败:', path, parseError(e).message)
+  }
+}
+
+watch(() => props.figurePath, loadFigure, { immediate: true })
 
 // 编辑框内容
 // ⚠️ 优先用 withFormulas 而不是 plainText
@@ -328,6 +352,18 @@ function resetContent() {
     </NSpace>
 
     <NDivider style="margin: 8px 0;" />
+
+    <!-- === 几何配图（OCR 读不出来的那部分）=== -->
+    <div v-if="figureBlobUrl" style="margin-bottom: 10px;">
+      <NText depth="3" style="font-size: 12px; display: block; margin-bottom: 4px;">
+        🖼 题目配图（导出试卷时会一起带上）
+      </NText>
+      <img
+        :src="figureBlobUrl"
+        alt="题目配图"
+        style="max-width: 100%; max-height: 260px; border: 1px solid #d9d9d9; border-radius: 4px;"
+      />
+    </div>
 
     <!-- === 编辑区 + 预览区（左右分栏） === -->
     <div style="display: flex; gap: 12px; align-items: stretch;">

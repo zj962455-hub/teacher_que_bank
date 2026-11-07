@@ -181,6 +181,7 @@ function doDelete() {
       :plain-text="question.content_plain"
       :with-formulas="question.content_markdown"
       :blocks="question.blocks"
+      :figure-path="question.figure_path || ''"
       @close="editing = false"
       @saved="onSaved"
     />
