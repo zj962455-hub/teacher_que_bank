@@ -34,6 +34,10 @@ class PaddleOCREngine:
                 use_angle_cls=True,
                 lang=self.lang,
                 show_log=False,
+                # 检测框不被内部缩回 960：放大后的图要保持原分辨率送进检测
+                # （默认 det_limit_side_len=960 会把 2 倍放大的图再缩回去）
+                det_limit_side_len=int(os.getenv("OCR_DET_LIMIT", "1920")),
+                det_limit_type="max",
                 # PP-StructureV3 是新版 pipeline,会自动启用版面分析
                 # 见 https://github.com/PaddlePaddle/PaddleOCR/blob/release/2.7/doc/doc_ch/PP-StructureV3_introduction.md
             )

@@ -14,8 +14,8 @@
 
 1. Z / 7 + 顶点字母(A~E) 开头的串 -> ∠      （ZAOB -> ∠AOB）
 2. 行首 L + 三个以上大写字母                -> ∠      （LAOB -> ∠AOB）
-3. 大写字母中间夹 I / l / 1                  -> ⊥      （BQIAD -> BQ⊥AD）
-4. 数字后紧跟的 O                            -> 0      （6O° -> 60°）
+3. 大写字母中间夹 I / l / L / 1            -> ⊥      （BQIAD -> BQ⊥AD）
+4. 数字后紧跟的 O                          -> 0      （6O° -> 60°）
 
 另外提供竖式分数重建：分辨率低时 1/2 会被识别成两个独立小块
 （分子在上、分母在下），靠 bbox 几何能拼回一个分数公式块。
@@ -36,10 +36,10 @@ _ANGLE_Z_RE = re.compile(r"(?<![A-Za-z0-9])[Z7](?=[A-E][A-Z]*)")
 # 行首 L + 三个以上大写字母 -> ∠
 _ANGLE_L_RE = re.compile(r"(?<![A-Za-z0-9])L(?=[A-E][A-Z]{2,})")
 
-# 大写字母中间的 I / l / 1 -> ⊥
+# 大写字母中间的 I / l / L / 1 -> ⊥
 _PERP_RE = re.compile(r"(?<=[A-Z])[IlL1](?=[A-Z]{2})")
 
-# 数字后紧跟的 O -> 0
+# 数字里的 O 当成 0
 _ZERO_RE = re.compile(r"(?<=\d)O(?=[\d°])")
 
 # 分数的分子/分母：1~3 位数字
@@ -80,19 +80,14 @@ def _bbox(b: dict) -> list:
     return list(bb) if isinstance(bb, (list, tuple)) and len(bb) >= 4 else []
 
 
-def _h(b: dict) -> float:
-    bb = _bbox(b)
-    return (bb[3] - bb[1]) if bb else 0.0
-
-
 def _w(b: dict) -> float:
     bb = _bbox(b)
     return (bb[2] - bb[0]) if bb else 0.0
 
 
-def _cx(b: dict) -> float:
+def _h(b: dict) -> float:
     bb = _bbox(b)
-    return (bb[0] + bb[2]) / 2 if bb else 0.0
+    return (bb[3] - bb[1]) if bb else 0.0
 
 
 def _conf(b: dict) -> float:
@@ -106,24 +101,20 @@ def rebuild_fractions(blocks: list) -> list:
     """竖式分数重建：分子块 + 分母块 -> 一个公式块
 
     实测（2026-11-07）：分辨率低时 1/2 被识别成两个独立小块，
-    分子在上、分母在下，靠 bbox 几何（上下排列、水平居中、字号偏小）
-    能拼回一个分数。
+    分子在上、分母在下。靠 bbox 几何（上下排列、水平对齐、几乎贴着）
+    能把这两个块拼回一个分数公式块。
 
-    只在「两个小块都是 1~3 位数字 + 几何关系成立」时才合并，
-    宁可不合并，也不要把两个并列数字错拼成分数。
+    判定条件全部满足才合并：
+    - 两块文本都是 1~3 位纯数字
+    - 两块都是「窄块」（宽 ≤ 3 倍高，数字的形状特征）
+    - 水平方向重叠 ≥ 60%（同一个列）
+    - 垂直方向几乎相邻（间隙 ≤ 0.8 倍块高，且不重叠）
+    - 宽高相近（不是一个数字一个大段）
+
+    条件不满足宁可不合并，也不要把两个并列数字错拼成分数。
     """
     if not isinstance(blocks, list) or len(blocks) < 2:
         return blocks
-
-    heights = sorted(
-        h for h in (_h(b) for b in blocks
-                    if isinstance(b, dict) and isinstance(b.get("text"), str))
-        if h > 0
-    )
-    if not heights:
-        return blocks
-    median = heights[len(heights) // 2]
-    small = 0.75 * median
 
     cands = []
     for idx, b in enumerate(blocks):
@@ -132,9 +123,12 @@ def rebuild_fractions(blocks: list) -> list:
         t = (b.get("text") or "").strip()
         if not t or not _NUM_RE.match(t):
             continue
-        if not (0 < _h(b) <= small):
+        bb = _bbox(b)
+        if not bb:
             continue
-        if not _bbox(b):
+        w = bb[2] - bb[0]
+        h = bb[3] - bb[1]
+        if w <= 0 or h <= 0 or w > 3.0 * h:
             continue
         cands.append(idx)
 
@@ -155,12 +149,24 @@ def rebuild_fractions(blocks: list) -> list:
             else:
                 top, bot = blocks[j], blocks[i]
             bt, bb_ = _bbox(top), _bbox(bot)
+            h_top = bt[3] - bt[1]
+            h_bot = bb_[3] - bb_[1]
+            w_top = bt[2] - bt[0]
+            w_bot = bb_[2] - bb_[0]
+            if h_top <= 0 or h_bot <= 0:
+                continue
+            iw = min(bt[2], bb_[2]) - max(bt[0], bb_[0])
+            if iw <= 0:
+                continue
+            if iw < 0.6 * min(w_top, w_bot):
+                continue
+            if max(w_top, w_bot) > 2.2 * min(w_top, w_bot):
+                continue
             gap = bb_[1] - bt[3]
-            if gap < -2:
+            if gap < -2 or gap > 0.8 * max(h_top, h_bot):
                 continue
-            if abs(_cx(top) - _cx(bot)) > 0.6 * max(_w(top), _w(bot)):
-                continue
-            if gap > 0.8 * median:
+            ih = min(bt[3], bb_[3]) - max(bt[1], bb_[1])
+            if ih > 0.5 * min(h_top, h_bot):
                 continue
             merged[i] = (j, top, bot)
             drop.add(j)
