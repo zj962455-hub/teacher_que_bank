@@ -380,6 +380,11 @@ def latex_to_plain(latex: str) -> str:
 
     result = latex
 
+    # 0. 角度单位 ^{\circ} → °
+    #    ⚠️ 必须排在上下标处理之前:_latex_scripts_to_plain 只认数字/字母,
+    #    遇到 \circ 这种命令会直接丢掉 → "30^{\circ}" 变成 "30^"（度没了）。
+    result = re.sub(r"\^\s*\{?\s*\\circ\s*\}?", "°", result)
+
     # 顺序有讲究:
     # 1. 黑板粗体(带花括号,先处理掉免得被后面的花括号清理误伤)
     result = BLACKBOARD_RE.sub(r"\1", result)
@@ -524,9 +529,15 @@ def split_text_block_into_blocks(block: dict[str, Any]) -> list[dict[str, Any]]:
 
     block_type = block.get("type")
 
-    # formula / table 原样返回
-    if block_type in ("formula", "table"):
+    # table 原样返回
+    if block_type == "table":
         return [block]
+
+    # formula 块：清空格 + 把混进来的中文拆出去
+    # （强模型会把「OB 于 E,\angle AOB=30^{\circ}」整段包进 $...$，
+    #   KaTeX 渲染中文直接报错 → 页面吐一行红色源码）
+    if block_type == "formula":
+        return split_formula_block(block)
 
     if block_type != "text":
         return [block]
@@ -551,10 +562,11 @@ def split_text_block_into_blocks(block: dict[str, Any]) -> list[dict[str, Any]]:
         if not seg:
             continue
         if is_math:
+            _latex = normalize_math_spacing(unicode_to_latex(seg.strip()))
             out.append({
                 "type": "formula",
-                "latex": unicode_to_latex(seg.strip()),
-                "plain": latex_to_plain(unicode_to_latex(seg.strip())),
+                "latex": _latex,
+                "plain": latex_to_plain(_latex),
                 "bbox": block.get("bbox"),
                 "confidence": block.get("confidence"),
             })
@@ -567,6 +579,109 @@ def split_text_block_into_blocks(block: dict[str, Any]) -> list[dict[str, Any]]:
             })
 
     return out
+
+
+# === 公式块清理（lesson-35） ===
+# 强模型会把「OB 于 E,\angle AOB=30^{\circ}」整段包进 $...$，
+# 公式里混了中文 → KaTeX 渲染直接报错 → 页面吐一行红色源码。
+# 这里把中文从公式里拆出去，并把 OCR 的字母间噪声空格压掉。
+
+
+def _is_cjk_char(ch: str) -> bool:
+    """是否中文/中文标点（全角符号也算，KaTeX 一样不认识）"""
+    o = ord(ch)
+    return (0x4E00 <= o <= 0x9FFF) or (0x3000 <= o <= 0x303F) or (0xFF00 <= o <= 0xFFEF)
+
+
+def normalize_math_spacing(text: str) -> str:
+    """压掉 OCR 的字母间噪声空格：A E=C D → AE=CD，C E= → CE=
+
+    只处理「两边都是单个大写字母」的空格 —— "AB CD"（两个线段）不动。
+    """
+    if not text:
+        return text
+    return re.sub(r"(?<![A-Za-z])([A-Z])\s+([A-Z])(?![A-Za-z])", r"\1\2", text)
+
+
+# 非中文段里出现这些记号 → 判定为公式（而不是普通文字）
+_MATH_MARK_RE = re.compile(r"[\\=<>≤≥≠±≌⊥∥+\-*/^_()\[\]{}]")
+
+
+def split_cjk_in_formula(latex: str) -> list[tuple[str, bool]]:
+    """把公式里混进来的中文切开 → [(片段, 是否公式)]
+
+    切法：按中文/非中文切成若干段；非中文段里，含 LaTeX 命令或
+    运算符的才算公式，否则当普通文字（"OB 于 E" → 文字 "OB 于" +
+    公式 "E,\\angle AOB=30^{\\circ}"）。
+    """
+    if not latex:
+        return []
+
+    runs: list[tuple[str, bool]] = []
+    for ch in latex:
+        cjk = _is_cjk_char(ch)
+        if runs and runs[-1][1] == cjk:
+            runs[-1] = (runs[-1][0] + ch, cjk)
+        else:
+            runs.append((ch, cjk))
+
+    out: list[tuple[str, bool]] = []
+    for text, cjk in runs:
+        if cjk:
+            out.append((text, False))
+            continue
+        # 非中文段：带数学记号的才算公式（LaTeX 命令 / 运算符 / 数字 /
+        # 上下标 / 括号）。纯字母段（"OB"）当文字 —— 它是"交OB于E"里的
+        # 普通文字部分，做成公式块反而会被 KaTeX 排成斜体。
+        # ⚠️ 判据里必须有 '^' 和数字，否则 "x^2" 会被当成文字。
+        is_math = bool(_MATH_MARK_RE.search(text)) or any(ch.isdigit() for ch in text)
+        out.append((text, is_math))
+
+    # 合并相邻同类
+    merged: list[tuple[str, bool]] = []
+    for text, is_math in out:
+        if merged and merged[-1][1] == is_math:
+            merged[-1] = (merged[-1][0] + text, is_math)
+        else:
+            merged.append((text, is_math))
+    return merged
+
+
+def split_formula_block(block: dict[str, Any]) -> list[dict[str, Any]]:
+    """公式块 → 拆掉混进来的中文 + 压掉字母间空格
+
+    - 混进中文 → 拆成 text 段 + formula 段（KaTeX 不认中文）
+    - 字母间空格（A E=C D）→ 压掉（AE=CD）
+    """
+    raw = block.get("latex") or ""
+    latex = normalize_math_spacing(raw)
+    if not latex.strip():
+        return [block]
+
+    bbox = block.get("bbox")
+    conf = block.get("confidence")
+
+    out: list[dict[str, Any]] = []
+    for seg, is_math in split_cjk_in_formula(latex):
+        seg = seg.strip()
+        if not seg:
+            continue
+        if is_math:
+            out.append({
+                "type": "formula",
+                "latex": seg,
+                "plain": latex_to_plain(seg),
+                "bbox": bbox,
+                "confidence": conf,
+            })
+        else:
+            out.append({
+                "type": "text",
+                "text": seg,
+                "bbox": bbox,
+                "confidence": conf,
+            })
+    return out or [block]
 
 
 def enrich_blocks(result: dict[str, Any]) -> dict[str, Any]:

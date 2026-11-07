@@ -21,6 +21,8 @@ from app.services.math_parser import (  # noqa: E402
     split_math_segments,
     split_text_block_into_blocks,
     enrich_blocks,
+    normalize_math_spacing,
+    latex_to_plain,
 )
 
 
@@ -98,9 +100,19 @@ class TestSplitBlocks(unittest.TestCase):
         self.assertEqual(blocks[1]["type"], "formula")
         self.assertEqual(blocks[1]["latex"], "f(x)=x^{2}")
 
-    def test_formula_block_untouched(self):
-        original = {"type": "formula", "latex": "x^2"}
-        self.assertEqual(split_text_block_into_blocks(original), [original])
+    def test_formula_block_cleaned_not_split(self):
+        """lesson-35: 公式块不再「原样返回」
+
+        以前 formula block 直接透传，导致两件事：
+        - 强模型把中文包进公式 → KaTeX 报错吐红字
+        - "C E=" 这种字母间空格原样进库
+        现在公式块会做清理（压空格 / 拆中文），但干净的公式
+        仍然是一个公式块，latex 不变。
+        """
+        blocks = split_text_block_into_blocks({"type": "formula", "latex": "x^2"})
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0]["type"], "formula")
+        self.assertEqual(blocks[0]["latex"], "x^2")
 
     def test_table_block_untouched(self):
         original = {"type": "table", "html": "<table></table>"}
@@ -140,5 +152,64 @@ class TestEnrichBlocks(unittest.TestCase):
         self.assertEqual(enrich_blocks({"blocks": "not a list"}), {"blocks": "not a list"})
 
 
+
+class TestLesson35FormulaCleanup(unittest.TestCase):
+    """lesson-35：公式块清理
+
+    背景（老师报「识别不准」，实际是三个不同根因）：
+    1. 强模型把「OB 于 E,\angle AOB=30^{\circ}」整段包进 $...$
+       → 公式里混了中文 → KaTeX 渲染报错 → 页面吐一行红字源码
+    2. OCR 的字母间噪声空格：A E=C D / C E=
+    3. 角度单位 ^{\circ} 在转纯文本时被丢掉 → "30^"
+    """
+
+    def test_normalize_spacing_single_uppercase_letters(self):
+        self.assertEqual(normalize_math_spacing("A E=C D"), "AE=CD")
+        self.assertEqual(normalize_math_spacing("C E="), "CE=")
+
+    def test_normalize_spacing_keeps_real_segments(self):
+        """AB CD 是两个线段，不能压成 ABCD"""
+        self.assertEqual(normalize_math_spacing("AB CD"), "AB CD")
+        self.assertEqual(normalize_math_spacing("AD=1,BC=6"), "AD=1,BC=6")
+        self.assertEqual(normalize_math_spacing(""), "")
+
+    def test_formula_with_cjk_is_split(self):
+        blocks = split_text_block_into_blocks({
+            "type": "formula",
+            "latex": "OB 于 E,\\angle AOB=30^{\\circ}",
+        })
+        types = [b["type"] for b in blocks]
+        self.assertIn("text", types)
+        self.assertIn("formula", types)
+        # 中文必须不在 formula 块里 —— KaTeX 渲染不了
+        for b in blocks:
+            if b["type"] == "formula":
+                self.assertNotIn("于", b["latex"])
+
+    def test_formula_plain_keeps_degree(self):
+        blocks = split_text_block_into_blocks({
+            "type": "formula",
+            "latex": "E,\\angle AOB=30^{\\circ}",
+        })
+        formula = [b for b in blocks if b["type"] == "formula"][0]
+        self.assertEqual(formula["plain"], "E,∠AOB=30°")
+
+    def test_enrich_blocks_normalizes_and_splits(self):
+        result = {"blocks": [
+            {"type": "formula", "latex": "OB 于 E,\\angle AOB=30^{\\circ}"},
+            {"type": "formula", "latex": "C E="},
+        ]}
+        enrich_blocks(result)
+        types = [b["type"] for b in result["blocks"]]
+        self.assertIn("text", types)
+        lates = [b["latex"] for b in result["blocks"] if b["type"] == "formula"]
+        self.assertIn("CE=", lates)
+        self.assertTrue(all("于" not in l for l in lates))
+
+    def test_latex_to_plain_degree(self):
+        self.assertEqual(latex_to_plain("30^{\\circ}"), "30°")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

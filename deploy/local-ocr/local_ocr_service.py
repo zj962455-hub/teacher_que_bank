@@ -20,6 +20,9 @@ import re
 import time
 from typing import Annotated, Optional
 
+import cv2
+import numpy as np
+
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -206,6 +209,148 @@ def _bbox(value) -> list:
     return nums
 
 
+# === 填空横线检测（lesson-35） ===
+# 填空题的横线是「画出来的线」，不是字符 —— OCR 必然读不到。
+# 结果就是 "CE=" 后面没有下划线，老师拿到的是残题。
+# 这里用 OpenCV 找出正文里的横向长线，再按行级坐标把它贴回原文。
+#
+# 图形内部的边线（图里的三角形边）要排除 —— 否则每张带图的题
+# 都会被塞一堆假下划线。用 parsing_res_list 里的 image 块 bbox 排除。
+
+
+def _detect_blank_lines(contents: bytes, figure_boxes: list) -> list:
+    """返回正文里的横向长线 [(x, y, w, h), ...]（图形内部的线排除）"""
+    try:
+        buf = np.frombuffer(contents, dtype=np.uint8)
+        gray = cv2.imdecode(buf, cv2.IMREAD_GRAYSCALE)
+    except Exception:
+        return []
+    if gray is None or gray.size == 0:
+        return []
+    h, w = gray.shape
+    inv = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 25, 10
+    )
+    # 核宽取图片宽度的 ~3%（实测 639/644 宽的题图用 20~21 正好命中横线，
+    # 不会把汉字的横笔画也算进来）
+    kern_w = max(16, min(30, w // 30))
+    kern = cv2.getStructuringElement(cv2.MORPH_RECT, (kern_w, 1))
+    horiz = cv2.morphologyEx(inv, cv2.MORPH_OPEN, kern)
+    cnts, _ = cv2.findContours(horiz, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    out = []
+    for c in cnts:
+        x, y, ww, hh = cv2.boundingRect(c)
+        if hh > 6 or ww < 25:
+            continue
+        if ww < 4 * max(hh, 1):
+            continue
+        in_figure = False
+        for fb in figure_boxes:
+            if not (x + ww <= fb[0] or x >= fb[2] or y + hh <= fb[1] or y >= fb[3]):
+                in_figure = True
+                break
+        if in_figure:
+            continue
+        out.append((x, y, ww, hh))
+    return sorted(out, key=lambda b: (b[1], b[0]))
+
+
+def _ocr_lines(payload: dict) -> list:
+    """行级 OCR 结果 [(文本, (x1, y1, x2, y2)), ...]
+
+    PP-StructureV3 的 overall_ocr_res 里 rec_texts/rec_polys 是逐行的，
+    用来把横线定位到「哪一行文字后面」。
+    """
+    res = payload.get("overall_ocr_res") or {}
+    texts = res.get("rec_texts") or []
+    polys = res.get("rec_polys") or []
+    lines = []
+    for i, t in enumerate(texts):
+        if i >= len(polys):
+            break
+        try:
+            xs = [float(p[0]) for p in polys[i]]
+            ys = [float(p[1]) for p in polys[i]]
+        except Exception:
+            continue
+        lines.append((str(t), (min(xs), min(ys), max(xs), max(ys))))
+    return lines
+
+
+def _inside_math(content: str, idx: int) -> bool:
+    """idx 位置是否落在 $...$ 公式段里"""
+    return content.count("$", 0, idx) % 2 == 1
+
+
+def _insert_blank_after_text(parsing: list, anchor_text: str) -> bool:
+    """在指定文本后面插入 '____'
+
+    若锚点落在公式 $...$ 里 → 插到公式结束符之后（公式里不能塞下划线，
+    KaTeX 会报错）。返回是否插入成功。
+    """
+    for blk in parsing:
+        if blk.get("block_label") != "text":
+            continue
+        content = str(blk.get("block_content") or "")
+        pos = content.find(anchor_text)
+        if pos < 0:
+            continue
+        ins = pos + len(anchor_text)
+        if _inside_math(content, ins):
+            close = content.find("$", ins)
+            if close < 0:
+                continue
+            ins = close + 1
+        blk["block_content"] = content[:ins] + "____" + content[ins:]
+        return True
+    return False
+
+
+def _insert_fill_blanks(payload: dict, contents: bytes) -> int:
+    """把检测到的填空横线插回原文（就地改 parsing_res_list 的 text 块）
+
+    返回插入了几条。
+    """
+    parsing = payload.get("parsing_res_list") or []
+    if not parsing:
+        return 0
+    figure_boxes = []
+    for blk in parsing:
+        if blk.get("block_label") == "image":
+            figure_boxes.append(tuple(_bbox(blk.get("block_bbox"))))
+    blanks = _detect_blank_lines(contents, figure_boxes)
+    if not blanks:
+        return 0
+    lines = _ocr_lines(payload)
+    if not lines:
+        return 0
+
+    inserted = 0
+    used = set()
+    for (bx, by, bw, bh) in blanks:
+        anchor = None
+        best = None
+        for idx, (text, (x1, y1, x2, y2)) in enumerate(lines):
+            if idx in used or not text.strip():
+                continue
+            # 同一行：横线的 y 要落在这行的上下范围内（留一点余量）
+            if by < y1 - 6 or by + bh > y2 + 6:
+                continue
+            # 横线紧跟在某行文字右边
+            if abs(bx - x2) > 25:
+                continue
+            if best is None or abs(bx - x2) < best:
+                best = abs(bx - x2)
+                anchor = (idx, text)
+        if anchor is None:
+            continue
+        if _insert_blank_after_text(parsing, anchor[1]):
+            used.add(anchor[0])
+            inserted += 1
+    return inserted
+
+
 def _split_latex(text: str):
     """把 PP-StructureV3 的正文拆成 text 段和 formula 段
 
@@ -300,6 +445,15 @@ async def ocr_image(
     payload = res.json
     if isinstance(payload, dict) and "res" in payload:
         payload = payload["res"]
+
+    # 填空横线补回 —— OCR 读不到「画出来的线」，这里按行级坐标贴回去
+    try:
+        n_blanks = _insert_fill_blanks(payload, contents)
+        if n_blanks:
+            print(f"[ocr] 补回填空横线 {n_blanks} 条", flush=True)
+    except Exception as exc:
+        print("[ocr] 填空横线检测失败(忽略):", exc, flush=True)
+
     blocks = _blocks_from(payload)
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
     return OCRResponse(

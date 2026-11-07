@@ -6,7 +6,7 @@
  * 现在复用 UploadImage（上传）+ OcrResult（OCR 校对入库）
  */
 import { ref, nextTick } from 'vue'
-import { NAlert } from 'naive-ui'
+import { NAlert, NSpace, NTag, NText } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import UploadImage from '../components/UploadImage.vue'
 import OcrResult from '../components/OcrResult.vue'
@@ -22,6 +22,12 @@ const ocrRef = ref(null)
 const queue = ref([])
 const queuedTotal = ref(0)
 const doneCount = ref(0)
+
+// 每张识别完成的图（taskId + 图片 URL）
+// 以前一次传 4 张，面板只留最后一张的结果 —— 前 3 张的结果看不见、
+// 容易被当成「没识别」。这里留一份清单，老师随时点回任意一张。
+const doneItems = ref([])
+const activeTaskId = ref('')
 
 function onUploaded(urls) {
   const list = Array.isArray(urls) ? urls : [urls]
@@ -40,9 +46,25 @@ async function runNext() {
   ocrRef.value?.startOcr()
 }
 
-function onOcrDone() {
+function onOcrDone(payload) {
   doneCount.value += 1
+  if (payload?.status === 'completed' && payload.taskId) {
+    activeTaskId.value = payload.taskId
+    if (!doneItems.value.some(it => it.taskId === payload.taskId)) {
+      doneItems.value = [
+        ...doneItems.value,
+        { taskId: payload.taskId, imageUrl: payload.imageUrl },
+      ]
+    }
+  }
   runNext()
+}
+
+/** 翻回前面某张的识别结果（多张图之间不互相覆盖） */
+function backTo(item) {
+  currentImage.value = item.imageUrl
+  activeTaskId.value = item.taskId
+  nextTick(() => ocrRef.value?.selectHistory(item.taskId))
 }
 </script>
 
@@ -67,6 +89,21 @@ function onOcrDone() {
       本次共 {{ queuedTotal }} 张，已识别 {{ doneCount }} 张，剩余 {{ queue.length }} 张排队中
       （强模型单张约 21 秒，当前这张完成后自动继续下一张）
     </NAlert>
+
+    <!-- 多张图识别完的清单：点任意一张都能翻回那次的识别结果 -->
+    <NSpace v-if="doneItems.length" align="center" style="margin: 8px 0;">
+      <NText depth="3" style="font-size: 12px;">已识别：</NText>
+      <NTag
+        v-for="(it, i) in doneItems"
+        :key="it.taskId"
+        size="small"
+        :type="it.taskId === activeTaskId ? 'primary' : 'default'"
+        style="cursor: pointer;"
+        @click="backTo(it)"
+      >
+        第 {{ i + 1 }} 张
+      </NTag>
+    </NSpace>
 
     <OcrResult
       ref="ocrRef"
