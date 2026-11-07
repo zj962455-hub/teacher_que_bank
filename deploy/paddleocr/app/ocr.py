@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import os
 from typing import Literal
 
 from PIL import Image
@@ -55,6 +56,25 @@ class PaddleOCREngine:
                 None, self._recognize_sync, image_bytes
             )
 
+    # 小图放大（2026-11-07 灰度实测）
+    # 老师上传的截图短边常常只有 90~330 像素，这个尺度下检测框
+    # 根本找不到竖式分数和 ∠，放大 2 倍后就能认出来。
+    # 倍数由环境变量控制：OCR_MIN_SIDE（触发阈值）/ OCR_UPSCALE（倍数）
+    # OCR_MAX_LONG（超过这个长边就不再放大，避免 CPU 扛不住）
+    def _preprocess(self, img):
+        """短边太小就整体放大
+
+        返回 (放大后的图, 放大倍数)；bbox 要按倍数缩回原图坐标。
+        """
+        min_side = int(os.getenv("OCR_MIN_SIDE", "350"))
+        upscale = float(os.getenv("OCR_UPSCALE", "2"))
+        max_long = int(os.getenv("OCR_MAX_LONG", "2400"))
+        w, h = img.size
+        short = min(w, h)
+        if short >= min_side or short <= 0 or max(w, h) >= max_long:
+            return img, 1.0
+        return img.resize((int(w * upscale), int(h * upscale)), Image.LANCZOS), upscale
+
     def _recognize_sync(self, image_bytes: bytes) -> list[Block]:
         self._ensure_loaded()
 
@@ -63,6 +83,9 @@ class PaddleOCREngine:
             img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         except Exception as e:
             raise ValueError(f"Invalid image: {e}")
+
+        # 小图放大：分数、小符号在这个尺度下检测不到
+        img, scale = self._preprocess(img)
 
         # 跑 OCR(structure 模式输出结构化结果)
         # PaddleOCR 2.7.x 用 ocr(img, cls=True),3.x 才用 predict()
@@ -105,6 +128,11 @@ class PaddleOCREngine:
                 bbox=table["bbox"],
                 confidence=table["confidence"],
             ))
+
+        # bbox 缩回原图坐标（放大过的图必须还原，否则前端高亮框错位）
+        if scale != 1.0:
+            for b in blocks:
+                b.bbox = [c / scale for c in b.bbox]
 
         return blocks
 

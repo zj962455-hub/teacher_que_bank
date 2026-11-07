@@ -29,6 +29,8 @@ PaddleOCR (PP-StructureV3) 对数学公式有**两种输出**：
 import re
 from typing import Any
 
+from app.services.ocr_fixups import fix_math_symbols, rebuild_fractions
+
 
 # === Unicode → LaTeX 映射表 ===
 
@@ -529,7 +531,8 @@ def split_text_block_into_blocks(block: dict[str, Any]) -> list[dict[str, Any]]:
     if block_type != "text":
         return [block]
 
-    text = block.get("text", "")
+    # 先修符号误识别（∠→Z、⊥→I、6O°→60°），再切公式
+    text = fix_math_symbols(block.get("text", ""))
     if not text:
         return [block]
 
@@ -573,6 +576,9 @@ def enrich_blocks(result: dict[str, Any]) -> dict[str, Any]:
     blocks = result.get("blocks")
     if not isinstance(blocks, list):
         return result
+
+    # 先把竖式分数（分子/分母两块）拼回一个公式块
+    blocks = rebuild_fractions(blocks)
 
     new_blocks: list[dict[str, Any]] = []
     for block in blocks:
