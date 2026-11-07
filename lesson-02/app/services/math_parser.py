@@ -538,9 +538,13 @@ def split_text_block_into_blocks(block: dict[str, Any]) -> list[dict[str, Any]]:
 
     segments = split_math_segments(text)
 
-    # 没有可拆的部分 → 原样返回
+    # 没有可拆的部分 → 整块作为文本返回
+    # ⚠️ 必须带上修好的 text：符号纠错（∠/⊥/60°）在这一步已经生效，
+    #    直接 return [block] 会把原始错字丢掉（实测 BQIAD → B⊥AD 修不回来）
     if not any(is_math for _, is_math in segments):
-        return [block]
+        fixed = dict(block)
+        fixed["text"] = text
+        return [fixed]
 
     out: list[dict[str, Any]] = []
     for seg, is_math in segments:
