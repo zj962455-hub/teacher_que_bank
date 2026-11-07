@@ -292,3 +292,42 @@ PADDLEOCR_BASE_URL 指到 http://127.0.0.1:8099 就能直接对比。
 - `PE/OA` 没还原成 `PE∥OA`（平行符号识别不稳）
 - 图上标注字母偶尔混入题干
 
+### 浏览器端完整验收（真实账号 test2，线上站点）
+
+无头验收脚本（新增，可复跑）：
+- `lesson-03/scripts/verify-ocr-queue.cjs` —— 多图排队 + 角符号 + 图形预览
+- `lesson-03/scripts/verify-ocr-figure.cjs` —— 逐张切历史看图形裁图 + 引擎标签 + 一键入库
+
+跑法：
+```
+cd lesson-03
+VERIFY_IMAGES="/tmp/a.png,/tmp/b.png,/tmp/c.png,/tmp/d.png" node scripts/verify-ocr-figure.cjs
+```
+
+**实测结果（4 张真实图，线上 https://tqb.lanhu-lab.top）**：
+
+| 项 | 结果 |
+|---|---|
+| 一次上传 4 张 | ✅ 已上传 4 张 |
+| 排队进度提示 | ✅ 已识别 1/4 → 4/4，剩余数递减 |
+| 每张都发起 OCR | ✅ POST /api/ocr/ 共 4 次 |
+| 引擎标签 | ✅ 历史下拉「强模型 · 文件名 · 时间」 |
+| 图形裁图 | ✅ 3 张含 figure 块，**3/3 裁出真实图形**（190x174 / 190x117 / 190x179，background 是 blob: 原图） |
+| 角符号 | ✅ 3/4 张渲染出 ∠ |
+| 一键入库 | ✅ POST /api/questions/from-ocr/ → 200，落库 id=22 |
+| 运行时错误 | 无 |
+| **总计** | **9/9 项通过** |
+
+**落库与导出**：
+- `questions.figure_path = /api/uploads/20261108_004337_c88e7f02_fig.png`（原图 650x326，裁图 169x160）
+- 组卷后 `export.pdf` 200（109KB，PDF 内含 1 个位图 XObject）、`export.jpg` 200（zip，内含 1 张 1192x1686 页面图）
+- **肉眼确认导出图里三角形完整渲染**（A/B/C/D/E/P/Q 标注齐全）、`PQ={\frac{1}{2}}BP` 分数正常、`BO⊥AD` 垂直符号正常
+
+> 上一版 `verify-ocr-queue.cjs` 的三个失败断言是**脚本口径错**，不是产品缺陷：
+> 请求记录里只存了状态码没存方法名（找 `POST` 找不到）、入库后页面自动跳到题目列表页所以读不到 toast、
+> naive-ui 下拉要真实 click 才展开（`.n-base-select-option`）。
+> 修正后 `verify-ocr-figure.cjs` 9/9 通过。
+
+**残余误差（导出图里也看得到）**：`BO⊥AD` 应为 `BQ⊥AD` —— 强模型把字母 Q 认成 O。
+公式字母间仍有多余空格（`AE = CD`、`BE = AD`）。这类属于模型识别精度，不是链路问题。
+
