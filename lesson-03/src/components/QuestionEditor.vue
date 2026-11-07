@@ -64,7 +64,7 @@ const props = defineProps({
 // === 状态 ===
 // 用 discreteApi 的全局实例，而不是 useMessage()
 // useMessage() 必须配合 <NMessageProvider>，而本项目没用 Provider（见 main.js 注释）
-const emit = defineEmits(['close', 'saved'])
+const emit = defineEmits(['close', 'saved', 'meta-change'])
 
 // === 几何配图 ===
 // OCR 只能读文字，三角形、垂足这些图形元素它读不出来 ——
@@ -141,18 +141,33 @@ watch(
   { immediate: true },
 )
 
+// === 把当前分类抛给父组件 ===
+// OCR 校对页要靠它把老师手动改的难度带进「一键入库」的请求里 ——
+// 以前父组件拿不到，一入库就又变回 AI 判的值。
+function emitMeta() {
+  emit('meta-change', {
+    subject: meta.value.subject,
+    type: meta.value.type,
+    grade: meta.value.grade,
+    difficulty: meta.value.difficulty,
+  })
+}
+
 // === 自动分类（任务 5C）===
-function autoClassify() {
+function autoClassify({ force = false } = {}) {
+  // 老师手改过分类时，内容一变不该把人家的设置冲掉
+  if (manuallyEdited.value && !force) {
+    message.info('已保留你手动设置的分类')
+    return
+  }
+
   // 用纯文本分类（公式标记 $...$ 会干扰关键词匹配）
   const source = props.plainText || content.value
   const r = classify(source, props.blocks)
 
   meta.value = r
-
-  if (manuallyEdited.value) {
-    message.info('已保留你手动设置的分类')
-    return
-  }
+  manuallyEdited.value = false
+  emitMeta()
 
   message.success(
     `分类完成：${r.subject} / ${r.type}（置信度 ${Math.round(r.confidence * 100)}%）`,
@@ -172,6 +187,7 @@ function applyInitialMeta() {
       grade: props.initialGrade || meta.value.grade,
       difficulty: props.initialDifficulty || meta.value.difficulty,
     }
+    emitMeta()
     return
   }
   autoClassify()
@@ -181,12 +197,13 @@ function applyInitialMeta() {
 function onMetaChange(key, value) {
   manuallyEdited.value = true
   meta.value = { ...meta.value, [key]: value }
+  emitMeta()
 }
 
 /** 恢复自动分类（丢弃手动改动） */
 function resetMeta() {
   manuallyEdited.value = false
-  autoClassify()
+  autoClassify({ force: true })
 }
 
 // === 预览：把 Markdown 的 $...$ 转成可读形式 ===
@@ -361,7 +378,7 @@ function resetContent() {
 
     <!-- === 分类操作条 === -->
     <NSpace align="center" size="small" style="margin-bottom: 8px;">
-      <NButton size="small" type="primary" @click="autoClassify">
+      <NButton size="small" type="primary" @click="autoClassify({ force: true })">
         🤖 自动分类
       </NButton>
       <NButton size="small" @click="resetMeta" :disabled="!manuallyEdited">

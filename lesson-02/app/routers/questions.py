@@ -652,61 +652,13 @@ def _extract_figure(
     except OSError:
         return ""
 
-    session.add(
-        Upload(
-            user_id=current_user.id or 0,
-            filename=out_name,
-            url=f"/api/uploads/{out_name}",
-            original_name=f"{filename} (配图)"[:255],
-            size=len(png),
-            content_type="image/png",
-        )
-    )
-    return f"/api/uploads/{out_name}"
-
-
-# === 几何示意图：从原图里裁出来 ===
-
-
-def _extract_figure(
-    record: dict,
-    blocks: list[dict],
-    session: Session,
-    current_user: User,
-) -> str:
-    """把题图里的几何示意图裁出来，存成独立文件
-
-    返回 /api/uploads/xxx_fig.png；裁不出来返回空串。
-
-    为什么单独存一份
-    ----------------
-    OCR 认出的只是**文字**，三角形、垂足这些图形元素它一个也读不出来。
-    原图里图明明还在 —— 但题目库里只存了路径，导出时那张图就被扔了，
-    学生的卷子上只剩一段没有图的证明题。
-
-    裁不出来宁可没有：宁可题里没图，也不要把一行没认出来的字当成图贴上去。
-    """
-    from app.services.figure_crop import crop_figure_png
-
-    image_url = record.get("image_url", "")
-    filename = (image_url or "").rsplit("/", 1)[-1]
-    src = upload_file_path(filename)
-    if not src:
-        return ""
-
-    try:
-        png = crop_figure_png(src, blocks)
-    except Exception:
-        # 裁图失败不许影响入库 —— 图是锦上添花，题才是主菜
-        return ""
-    if not png:
-        return ""
-
-    out_name = f"{Path(filename).stem}_fig.png"
-    try:
-        (uploads_dir() / out_name).write_bytes(png)
-    except OSError:
-        return ""
+    # 同一张图重复入库（比如老师把同一张截图 OCR 两次）时，配图文件名会撞 ——
+    # uploads.filename 是唯一键，硬插直接 500。已经在就复用，不重复登记。
+    existing = session.exec(
+        select(Upload).where(Upload.filename == out_name)
+    ).first()
+    if existing is not None:
+        return f"/api/uploads/{out_name}"
 
     session.add(
         Upload(
@@ -726,6 +678,7 @@ def _extract_figure(
 @router.post("/from-ocr/{task_id}")
 def create_from_ocr(
     task_id: str,
+    payload: dict | None = None,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -757,6 +710,16 @@ def create_from_ocr(
     versions = build_content_versions(blocks)
     auto = classify_blocks(blocks)
 
+    # === 老师手动改过的分类优先 ===
+    # 老师在 OCR 校对页把难度从「简单」改成「困难」，点一键入库时，
+    # 以前这里只用 AI 的分类结果 —— 老师改的难度当场就丢了。
+    # 前端不传（老客户端）就还是走 AI 分类，行为不变。
+    override = payload or {}
+    subject = override.get("subject") or auto["subject"]
+    question_type = override.get("question_type") or auto["type"]
+    grade = override.get("grade") or auto["grade"]
+    difficulty = override.get("difficulty") or auto["difficulty"]
+
     # === 几何示意图 ===
     # OCR 只能读文字，读不出三角形、垂足、辅助线 —— 图会整个丢掉。
     # 这里从原图里把图裁出来单独存一份，导出试卷时再带上。
@@ -764,10 +727,10 @@ def create_from_ocr(
 
     question = Question(
         user_id=current_user.id or 0,
-        subject=auto["subject"],
-        question_type=auto["type"],
-        grade=auto["grade"],
-        difficulty=auto["difficulty"],
+        subject=subject,
+        question_type=question_type,
+        grade=grade,
+        difficulty=difficulty,
         content_plain=versions["plain"],
         content_markdown=versions["markdown"],
         blocks_json=versions["blocks_json"],

@@ -20,6 +20,9 @@ const props = defineProps({
 
 // === 状态 ===
 const taskId = ref(null)
+// 老师在编辑器里手动改过的分类（难度等）—— 一键入库时必须带上，
+// 否则后端又用 AI 的分类结果，把老师改的难度顶掉
+const metaOverride = ref(null)
 const status = ref('idle')      // idle / processing / completed / failed
 const result = ref(null)        // PaddleOCR blocks + stats
 const error = ref(null)
@@ -252,7 +255,16 @@ async function saveToBank() {
   }
   saving.value = true
   try {
-    const res = await createQuestionFromOcr(taskId.value)
+    const m = metaOverride.value
+    const overrides = m
+      ? {
+          subject: m.subject,
+          question_type: m.type,
+          grade: m.grade,
+          difficulty: m.difficulty,
+        }
+      : {}
+    const res = await createQuestionFromOcr(taskId.value, overrides)
     message.success(`已入库（第 ${res.data.question.id} 题）`)
     emit('question-saved')
   } catch (e) {
@@ -401,6 +413,7 @@ async function copyPlainText() {
         :with-formulas="withFormulas"
         :blocks="allBlocks"
         @close="showEditor = false"
+        @meta-change="m => (metaOverride = m)"
       />
     </NSpace>
   </NCard>

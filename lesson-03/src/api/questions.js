@@ -49,8 +49,10 @@ export function createQuestion(payload) {
  * 后端自己读 OCR 记录 + 跑分类器，前端只传 task_id
  * @param {string} taskId - OCR task_id
  */
-export function createQuestionFromOcr(taskId) {
-  return http.post(`/questions/from-ocr/${taskId}`)
+export function createQuestionFromOcr(taskId, overrides = {}) {
+  // overrides: 老师手动改过的分类 {subject, question_type, grade, difficulty}
+  // —— 不传就是用后端的 AI 分类
+  return http.post(`/questions/from-ocr/${taskId}`, overrides)
 }
 
 /** 更新题目 */
