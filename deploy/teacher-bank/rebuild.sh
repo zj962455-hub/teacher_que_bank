@@ -47,6 +47,18 @@ rsync -az --delete \
 
 rsync -az --delete "$REPO_DIR/lesson-03/dist/" "$ECS_USER@$ECS_HOST:$APP_ROOT/web/"
 
+# === 2.5 版本标记（部署可追溯：线上跑的是哪个 commit）===
+# 线上 /opt/teacher-bank/app 不是 git 仓库，没有版本标记时只能靠 md5 猜。
+echo "[2.5/5] 写版本标记..."
+VERSION_SHA="$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+VERSION_TIME="$(date '+%Y-%m-%d %H:%M:%S %z')"
+printf 'commit=%s\nbuilt_at=%s\nrepo=teacher_question_bank\ndomain=%s\n' \
+  "$VERSION_SHA" "$VERSION_TIME" "$DOMAIN" > /tmp/tb-version.txt
+scp -q /tmp/tb-version.txt "$ECS_USER@$ECS_HOST:/tmp/tb-version.txt"
+ssh "$ECS_USER@$ECS_HOST" "install -o teacherbank -g teacherbank -m 644 /tmp/tb-version.txt $APP_ROOT/VERSION && rm -f /tmp/tb-version.txt"
+rm -f /tmp/tb-version.txt
+echo "  OK VERSION: $VERSION_SHA"
+
 # === 3. 权限 ===
 echo "[3/5] 修权限（nginx 要能读静态文件）..."
 ssh "$ECS_USER@$ECS_HOST" "chown -R teacherbank:teacherbank $APP_ROOT && \
