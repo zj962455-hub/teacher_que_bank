@@ -51,19 +51,29 @@ class TestFixMathSymbols(unittest.TestCase):
 
 class TestRebuildFractions(unittest.TestCase):
 
-    def _blocks(self):
-        return [
+    def test_fraction_merged(self):
+        blocks = [
             {"type": "text", "text": "（2）求证：PQ=", "bbox": [12, 265, 125, 283], "confidence": 0.97},
             {"type": "text", "text": "1", "bbox": [130, 255, 136, 265], "confidence": 0.9},
             {"type": "text", "text": "2", "bbox": [130, 268, 136, 278], "confidence": 0.9},
             {"type": "text", "text": "BP", "bbox": [140, 265, 160, 283], "confidence": 0.9},
         ]
-
-    def test_fraction_merged(self):
-        out = rebuild_fractions(self._blocks())
+        out = rebuild_fractions(blocks)
         latex = [b.get("latex") for b in out if b.get("type") == "formula"]
         self.assertIn("\\frac{1}{2}", latex)
         self.assertEqual(len(out), 3)
+
+    def test_fraction_merged_live_geometry(self):
+        """线上实测几何（样本 D：PQ = 1/2 BP）"""
+        blocks = [
+            {"type": "text", "text": "（2）求证：PQ", "bbox": [12, 265, 125, 283], "confidence": 0.97},
+            {"type": "text", "text": "1", "bbox": [126.0, 258.0, 138.0, 269.5], "confidence": 0.9},
+            {"type": "text", "text": "2", "bbox": [120.0, 270.5, 139.0, 291.0], "confidence": 0.9},
+            {"type": "text", "text": "BP", "bbox": [140, 265, 160, 283], "confidence": 0.9},
+        ]
+        out = rebuild_fractions(blocks)
+        latex = [b.get("latex") for b in out if b.get("type") == "formula"]
+        self.assertIn("\\frac{1}{2}", latex)
 
     def test_no_false_merge(self):
         blocks = [
@@ -73,6 +83,15 @@ class TestRebuildFractions(unittest.TestCase):
         out = rebuild_fractions(blocks)
         self.assertEqual(len(out), 2)
         self.assertTrue(all(b.get("type") == "text" for b in out))
+
+    def test_no_merge_for_side_by_side_digits(self):
+        """并排的两个数字不能拼成分数"""
+        blocks = [
+            {"type": "text", "text": "1", "bbox": [10, 60, 20, 74], "confidence": 0.9},
+            {"type": "text", "text": "2", "bbox": [40, 60, 50, 74], "confidence": 0.9},
+        ]
+        out = rebuild_fractions(blocks)
+        self.assertEqual(len(out), 2)
 
 
 class TestEnrichIntegration(unittest.TestCase):
