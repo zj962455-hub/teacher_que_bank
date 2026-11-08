@@ -311,6 +311,7 @@ const buildPlainText = computed(() => {
     .map(b => {
       if (b.type === 'formula') return b.plain ?? b.latex ?? ''
       if (b.type === 'table') return b.html ?? ''
+      if (b.type === 'figure') return '【题图】'
       return b.text ?? ''
     })
     .filter(Boolean)
@@ -457,6 +458,7 @@ async function copyPlainText() {
               >
                 <div :style="figureCropStyle(fb) || {}" />
                 <NText depth="3" style="font-size: 11px;">图形 {{ fi + 1 }}</NText>
+                <NText v-if="fb.content" depth="3" style="font-size: 11px;">图内标注：{{ fb.content }}</NText>
               </div>
             </NSpace>
           </NCard>

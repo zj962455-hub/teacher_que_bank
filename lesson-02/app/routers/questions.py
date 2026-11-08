@@ -641,12 +641,17 @@ def _extract_figure(
     # 强模型(PP-StructureV3)的版面模型会把图形标成 figure 块并给出 bbox ——
     # 模型直接说「图在这儿」，比自己猜准得多，有就用它的。
     fig_bbox = None
-    for b in blocks or []:
-        if isinstance(b, dict) and b.get("type") == "figure":
-            bb = b.get("bbox")
-            if bb and len(bb) >= 4:
-                fig_bbox = [float(v) for v in bb[:4]]
-                break
+    # 服务端原始块里的 figure 最可信（前端回传的块可能被过滤/改过）
+    server_blocks = (record.get("result") or {}).get("blocks") or []
+    for source in (server_blocks, blocks or []):
+        for b in source:
+            if isinstance(b, dict) and b.get("type") == "figure":
+                bb = b.get("bbox")
+                if bb and len(bb) >= 4:
+                    fig_bbox = [float(v) for v in bb[:4]]
+                    break
+        if fig_bbox:
+            break
 
     try:
         if fig_bbox:
@@ -701,7 +706,9 @@ def _sanitize_client_blocks(raw_blocks) -> list[dict]:
         if not isinstance(b, dict):
             continue
         btype = b.get("type")
-        if btype not in ("text", "formula", "table"):
+        # figure 也要放行：它带着 bbox —— 入库裁图靠它定位，
+        # 以前这里把 figure 过滤掉了 → 裁图只能退回启发式 → 有的题就裁不出图。
+        if btype not in ("text", "formula", "table", "figure"):
             continue
         item: dict = {"type": btype}
         if btype == "text":
@@ -715,6 +722,9 @@ def _sanitize_client_blocks(raw_blocks) -> list[dict]:
                 continue
             item["latex"] = latex
             item["plain"] = str(b.get("plain") or latex)
+        elif btype == "figure":
+            # 图块里模型读到的顶点标注（A/E/P/Q…）也要留住
+            item["content"] = str(b.get("content") or b.get("text") or "")
         else:
             item["text"] = str(b.get("text") or "")
         bbox = b.get("bbox")

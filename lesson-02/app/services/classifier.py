@@ -174,6 +174,11 @@ def build_content_versions(blocks: list[dict]) -> dict[str, str]:
         elif btype == "table":
             plain_parts.append(b.get("html") or "")
             md_parts.append(b.get("html") or "")
+        elif btype == "figure":
+            # 图块在纯文本/Markdown 里留个占位 —— 以前整块消失，
+            # 老师复制出去才发现图没了（图片本身在 figure_path 里）。
+            plain_parts.append("【题图】")
+            md_parts.append("【题图】")
 
     return {
         "plain": "\n".join(p for p in plain_parts if p),
