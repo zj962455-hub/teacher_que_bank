@@ -226,6 +226,9 @@ const renderedContent = computed(() => {
         <NText v-if="!showFigure" depth="3" style="font-size: 11px;">
           🖼 图形（见上方「题图」）
         </NText>
+        <NText v-if="b.content" depth="3" style="font-size: 11px;">
+          图内标注：{{ b.content }}
+        </NText>
         <NText v-else-if="!figureCropStyle(b)" depth="3" style="font-size: 11px;">
           🖼 检测到图形区域
         </NText>
