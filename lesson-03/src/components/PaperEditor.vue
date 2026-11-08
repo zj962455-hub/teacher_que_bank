@@ -24,6 +24,7 @@ import {
   reorderPaperQuestions, exportPaperPdf,
 } from '../api/papers'
 import { listQuestions } from '../api/questions'
+import { fetchImageBlobUrl } from '../api/auth'   // 题图预览要带 token 取 blob
 
 // === 试卷 ===
 const papers = ref([])
@@ -45,6 +46,28 @@ const selectedCandidateIds = ref([])
 
 // === 中栏：试卷里的题 ===
 const paperItems = ref([])
+
+// === 右栏预览里的题图 ===
+// 题图排版（figure_layout）是老师自己定的，预览必须跟导出 PDF 一致，
+// 否则老师在组卷页看到的排版跟导出来的不一样，等于白设。
+// 图片接口要鉴权 → 逐题取 blob（按 question.id 存）。
+const previewFigures = ref({})
+
+async function loadPreviewFigures(items) {
+  const map = {}
+  for (const it of items || []) {
+    const q = it.question || {}
+    const layout = q.figure_layout || 'bottom_right'
+    if (!q.figure_path || layout === 'none') continue
+    try {
+      map[q.id] = await fetchImageBlobUrl(q.figure_path)
+    } catch (e) {
+      // 图没了就不显示，不影响排版
+      console.warn('题图加载失败:', q.figure_path, e && e.message)
+    }
+  }
+  previewFigures.value = map
+}
 const dragging = ref(false)
 
 // === 右栏：预览 ===
@@ -73,6 +96,7 @@ async function openPaper(paper) {
     const res = await getPaper(paper.id)
     current.value = res.data
     paperItems.value = res.data.questions || []
+    await loadPreviewFigures(paperItems.value)
   } catch (e) {
     message.error(`打开失败：${e.message}`)
   }
@@ -435,10 +459,22 @@ onMounted(() => {
             <NDivider style="margin: 10px 0" />
             <div v-for="item in paperItems" :key="item.id" class="preview-item">
               <span class="preview-label">{{ item.label || '·' }}</span>
-              <span
-                class="preview-text"
-                v-html="renderMathText(item.question.content_markdown || item.question.content_plain)"
-              />
+              <!-- 题干 + 题图：版式跟导出 PDF 一致（右下/右侧/下方居中/下方靠左/不显示） -->
+              <div
+                class="preview-q"
+                :class="'q-' + (item.question.figure_layout || 'bottom_right')"
+              >
+                <span
+                  class="preview-text"
+                  v-html="renderMathText(item.question.content_markdown || item.question.content_plain)"
+                />
+                <img
+                  v-if="previewFigures[item.question.id]"
+                  class="preview-figure"
+                  :src="previewFigures[item.question.id]"
+                  alt="题图"
+                />
+              </div>
               <span v-if="item.score" class="preview-score">{{ item.score }} 分</span>
             </div>
             <NEmpty v-if="!paperItems.length" description="还没有题" size="small" />
@@ -555,6 +591,44 @@ onMounted(() => {
   align-items: baseline;
   gap: 6px;
   margin-bottom: 8px;
+}
+
+/* === 题干 + 题图（版式跟 PDF 导出同一套）=== */
+.preview-q {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.preview-q .preview-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.preview-figure {
+  flex: 0 0 auto;
+  max-width: 38%;
+  border: 1px solid #e8e8e8;
+  border-radius: 3px;
+}
+.preview-q.q-bottom_right {
+  align-items: flex-end;
+}
+.preview-q.q-right .preview-figure {
+  max-width: 32%;
+}
+.preview-q.q-bottom_left,
+.preview-q.q-bottom_center {
+  display: block;
+}
+.preview-q.q-bottom_left .preview-figure,
+.preview-q.q-bottom_center .preview-figure {
+  max-width: 60%;
+  margin-top: 4px;
+}
+.preview-q.q-bottom_center .preview-figure {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .preview-label {
