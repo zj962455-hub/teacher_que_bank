@@ -23,6 +23,8 @@ const taskId = ref(null)
 // 老师在编辑器里手动改过的分类（难度等）—— 一键入库时必须带上，
 // 否则后端又用 AI 的分类结果，把老师改的难度顶掉
 const metaOverride = ref(null)
+// 老师设定的题图排版 —— 一键入库时必须带上，否则后端用默认版式
+const figureOverride = ref(null)
 const status = ref('idle')      // idle / processing / completed / failed
 const result = ref(null)        // PaddleOCR blocks + stats
 const error = ref(null)
@@ -328,14 +330,22 @@ async function saveToBank() {
   saving.value = true
   try {
     const m = metaOverride.value
-    const overrides = m
-      ? {
-          subject: m.subject,
-          question_type: m.type,
-          grade: m.grade,
-          difficulty: m.difficulty,
-        }
-      : {}
+    const overrides = {
+      ...(m
+        ? {
+            subject: m.subject,
+            question_type: m.type,
+            grade: m.grade,
+            difficulty: m.difficulty,
+          }
+        : {}),
+      ...(figureOverride.value
+        ? {
+            figure_layout: figureOverride.value.figure_layout,
+            figure_width: figureOverride.value.figure_width,
+          }
+        : {}),
+    }
     // 把老师在校对页改过的块一起送上去
     // （以前只传 task_id，后端从 ocr_store 读原始块 → 老师改的公式当场就丢了）
     const res = await createQuestionFromOcr(taskId.value, {
@@ -519,6 +529,7 @@ async function copyPlainText() {
         :blocks="allBlocks"
         @close="showEditor = false"
         @meta-change="m => (metaOverride = m)"
+        @figure-change="f => (figureOverride = f)"
       />
     </NSpace>
   </NCard>

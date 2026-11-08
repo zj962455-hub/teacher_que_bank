@@ -52,6 +52,10 @@ class QuestionCreate(BaseModel):
     image_path: str = Field(default="", max_length=500)
     # 题目配图（几何示意图）—— /api/uploads/ 下的文件名路径
     figure_path: str = Field(default="", max_length=500)
+    # 题图排版（老师自定义）：bottom_right / right / bottom_left / bottom_center / none
+    figure_layout: str = Field(default="bottom_right", max_length=20)
+    # 题图宽度（占题目宽度百分比），0 = 自动
+    figure_width: int = 0
     ocr_task_id: str = Field(default="", max_length=100)
     # 分类：前端可以传（用户手动改过），不传就后端自动分类
     subject: Optional[str] = None
@@ -97,7 +101,34 @@ class QuestionUpdate(BaseModel):
     # 允许置空（把题从章节里摘出去）
     # 允许置空（把题从章节里摘出来）—— 靠 exclude_unset 区分「没传」和「传 null」
     category_id: Optional[int] = None
+    # 题图排版（老师自定义）
+    figure_layout: Optional[str] = None
+    figure_width: Optional[int] = None
 
+
+
+# === 题图排版（老师自定义）===
+
+# 版式白名单 —— 非法值一律回落到默认，别让脏数据进库
+FIGURE_LAYOUTS = ("bottom_right", "right", "bottom_left", "bottom_center", "none")
+DEFAULT_FIGURE_LAYOUT = "bottom_right"
+
+
+def _normalize_figure_layout(value) -> str:
+    # 题图版式规范化：非法值回落到默认
+    v = str(value or "").strip()
+    return v if v in FIGURE_LAYOUTS else DEFAULT_FIGURE_LAYOUT
+
+
+def _normalize_figure_width(value) -> int:
+    # 题图宽度（占题目宽度百分比）—— 0=自动，范围 15~80
+    try:
+        w = int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+    if w <= 0:
+        return 0
+    return max(15, min(80, w))
 
 
 def _normalize_image_path(path: str) -> str:
@@ -598,6 +629,8 @@ def create_question(
         content_markdown=payload.content_markdown or versions["markdown"],
         blocks_json=versions["blocks_json"],
         image_path=_normalize_image_path(payload.image_path),
+        figure_layout=_normalize_figure_layout(payload.figure_layout),
+        figure_width=_normalize_figure_width(payload.figure_width),
         ocr_task_id=payload.ocr_task_id,
         category_id=_own_category_id(payload.category_id, session, current_user),
     )
@@ -813,6 +846,8 @@ def create_from_ocr(
         blocks_json=versions["blocks_json"],
         image_path=_normalize_image_path(record.get("image_url", "")),
         figure_path=figure_path,
+        figure_layout=_normalize_figure_layout(override.get("figure_layout")),
+        figure_width=_normalize_figure_width(override.get("figure_width")),
         ocr_task_id=task_id,
     )
 
@@ -861,6 +896,12 @@ def update_question(
     ):
         if field in data and data[field] is not None:
             setattr(question, field, data[field])
+
+    # 题图排版要规范化后再存（非法值回落默认）
+    if "figure_layout" in data and data["figure_layout"] is not None:
+        question.figure_layout = _normalize_figure_layout(data["figure_layout"])
+    if "figure_width" in data and data["figure_width"] is not None:
+        question.figure_width = _normalize_figure_width(data["figure_width"])
 
     # category_id 单独处理：允许置空（把题从章节里摘出来）
     if "category_id" in data:
@@ -977,6 +1018,8 @@ def _to_dict(
         "content_markdown": question.content_markdown,
         "image_path": question.image_path,
         "figure_path": question.figure_path,
+        "figure_layout": question.figure_layout,
+        "figure_width": question.figure_width,
         "ocr_task_id": question.ocr_task_id,
         "category_id": question.category_id,
         "created_at": question.created_at.isoformat() if question.created_at else None,

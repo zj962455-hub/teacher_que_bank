@@ -141,17 +141,45 @@
       color: #999;
       padding: 60px 0;
     }
-  /* 题目配图（几何示意图）—— 图不能被分页切开 */
-  .figure {
-    margin: 8px 0 2px 28px;
+  /* ===== 题图排版（老师可自定义）=====
+     bottom_right  = 右下角（默认，教材式：文字在左、图在右下）
+     right         = 右侧，与文字顶部对齐
+     bottom_left   = 下方靠左（旧版排版）
+     bottom_center = 下方居中
+     none          = 不显示题图 */
+  .q-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 5mm;
+  }
+  .q-body .content {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .q-body .figure {
+    flex: 0 0 auto;
     page-break-inside: avoid;
     break-inside: avoid;
   }
-  .figure img {
-    max-width: 72%;
-    max-height: 62mm;
+  .q-body .figure img {
+    max-width: 100%;
+    max-height: 50mm;
     object-fit: contain;
   }
+  /* 每种版式的默认宽度（老师可单独覆盖 → 内联 width 优先级更高） */
+  .q-bottom_right { align-items: flex-end; }
+  .q-bottom_right .figure { width: 38%; }
+  .q-bottom_right .figure img { max-height: 46mm; }
+  .q-right .figure { width: 32%; }
+  .q-right .figure img { max-height: 44mm; }
+  .q-bottom_left { display: block; }
+  .q-bottom_left .figure { width: 72%; margin: 6px 0 2px 28px; }
+  .q-bottom_left .figure img { max-height: 62mm; }
+  .q-bottom_center { display: block; }
+  .q-bottom_center .figure { width: 60%; margin: 6px 0 2px 0; text-align: center; }
+  .q-bottom_center .figure img { max-height: 56mm; }
   </style>
 </head>
 <body>
@@ -168,15 +196,19 @@
   <div class="question">
     <div class="question-head">
       <span class="label">{{ item.label }}</span>
-      <span class="content">{{ item.content }}</span>
+      <div class="q-body q-{{ item.figure_layout|default('bottom_right') }}">
+        <span class="content">{{ item.content }}</span>
+        {% if item.figure and item.figure_layout != 'none' %}
+        <!-- 几何示意图 —— OCR 认不出来，靠原图裁出来的那份带上；位置按老师设定的版式 -->
+        <div class="figure"{% if item.figure_width %} style="width: {{ item.figure_width }}%;"{% endif %}>
+          <img src="{{ item.figure }}" alt="">
+        </div>
+        {% endif %}
+      </div>
       {% if item.score %}
       <span class="score">{{ item.score }} 分</span>
       {% endif %}
     </div>
-      {% if item.figure %}
-      <!-- 几何示意图 —— OCR 认不出来，靠原图裁出来的那份带上 -->
-      <div class="figure"><img src="{{ item.figure }}" alt=""></div>
-      {% endif %}
   </div>
   {% endfor %}
   {% else %}
