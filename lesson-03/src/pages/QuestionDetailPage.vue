@@ -30,6 +30,19 @@ const editing = ref(false)
 const figureBlobUrl = ref('')
 const figureFailed = ref(false)
 
+// === 题图排版（老师自定义）===
+// 版式存在题上（figure_layout / figure_width），导出试卷时按它排。
+const figureLayout = computed(() => question.value?.figure_layout || 'bottom_right')
+const figureLayoutClass = computed(() => 'q-' + figureLayout.value)
+const figureImgStyle = computed(() => {
+  const w = Number(question.value?.figure_width || 0)
+  return {
+    maxWidth: w > 0 ? w + '%' : '100%',
+    border: '1px solid #e0e0e0',
+    borderRadius: '4px',
+  }
+})
+
 async function loadFigure(path) {
   figureBlobUrl.value = ''
   figureFailed.value = false
@@ -181,20 +194,23 @@ function doDelete() {
 
         <NDivider />
 
-        <!-- 题干(公式用 KaTeX 渲染) -->
-        <div class="content" v-html="renderMathText(question.content_markdown || question.content_plain)" />
+        <!-- 题干 + 题图（版式跟导出一致：右下角/右侧/下方居中/下方靠左/不显示） -->
+        <div class="q-body" :class="figureLayoutClass">
+          <!-- 题干(公式用 KaTeX 渲染) -->
+          <div class="content" v-html="renderMathText(question.content_markdown || question.content_plain)" />
 
-        <!-- 题图：OCR 从原图里裁出来的图形，随题保存、随题显示 -->
-        <div v-if="question.figure_path" class="figure-box">
-          <img
-            v-if="figureBlobUrl"
-            :src="figureBlobUrl"
-            alt="题图"
-            style="max-width: 100%; border: 1px solid #e0e0e0; border-radius: 4px;"
-          />
-          <NText v-else depth="3" style="font-size: 12px;">
-            {{ figureFailed ? '题图加载失败' : '题图加载中…' }}
-          </NText>
+          <!-- 题图：OCR 从原图里裁出来的图形，随题保存、随题显示 -->
+          <div v-if="question.figure_path && figureLayout !== 'none'" class="figure-box">
+            <img
+              v-if="figureBlobUrl"
+              :src="figureBlobUrl"
+              alt="题图"
+              :style="figureImgStyle"
+            />
+            <NText v-else depth="3" style="font-size: 12px;">
+              {{ figureFailed ? '题图加载失败' : '题图加载中…' }}
+            </NText>
+          </div>
         </div>
 
         <NDivider />
@@ -215,6 +231,8 @@ function doDelete() {
       :with-formulas="question.content_markdown"
       :blocks="question.blocks"
       :figure-path="question.figure_path || ''"
+      :initial-figure-layout="question.figure_layout || 'bottom_right'"
+      :initial-figure-width="question.figure_width || 0"
       :initial-subject="question.subject || ''"
       :initial-question-type="question.question_type || ''"
       :initial-grade="question.grade || ''"
@@ -240,6 +258,42 @@ function doDelete() {
 .content {
   font-size: 15px;
   line-height: 1.9;
+}
+
+/* === 题干 + 题图的排版（跟 PDF 导出同一套版式）=== */
+.q-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.q-body .content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.q-body .figure-box {
+  flex: 0 0 auto;
+  max-width: 42%;
+}
+.q-bottom_right {
+  align-items: flex-end;
+}
+.q-bottom_right .figure-box {
+  max-width: 40%;
+}
+.q-right .figure-box {
+  max-width: 34%;
+}
+.q-bottom_left,
+.q-bottom_center {
+  display: block;
+}
+.q-bottom_left .figure-box,
+.q-bottom_center .figure-box {
+  max-width: 60%;
+  margin-top: 10px;
+}
+.q-bottom_center .figure-box {
+  text-align: center;
 }
 
 .meta {

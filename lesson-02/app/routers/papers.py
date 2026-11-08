@@ -366,6 +366,9 @@ def export_pdf(
             "score": item["score"],
             # 几何示意图 —— OCR 读不出来，靠原图裁出来的那份带上
             "figure": figure_file_url(item["question"].get("figure_path", "")),
+            # 题图排版（老师自定义）+ 宽度百分比
+            "figure_layout": item["question"].get("figure_layout") or "bottom_right",
+            "figure_width": int(item["question"].get("figure_width") or 0),
         })
 
     try:
@@ -424,6 +427,9 @@ def export_jpg(
             "score": item["score"],
             # 几何示意图 —— OCR 读不出来，靠原图裁出来的那份带上
             "figure": figure_file_url(item["question"].get("figure_path", "")),
+            # 题图排版（老师自定义）+ 宽度百分比
+            "figure_layout": item["question"].get("figure_layout") or "bottom_right",
+            "figure_width": int(item["question"].get("figure_width") or 0),
         })
 
     try:
@@ -527,7 +533,8 @@ def _paper_detail(paper: Paper, session: Session) -> dict:
                 "content_markdown": question.content_markdown,
                 "image_path": question.image_path,
                 "figure_path": question.figure_path,
-                "figure_path": question.figure_path,
+                "figure_layout": question.figure_layout,
+                "figure_width": question.figure_width,
             },
         })
 

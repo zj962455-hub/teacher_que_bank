@@ -14,7 +14,7 @@
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import {
-  NCard, NButton, NSpace, NTag, NSelect, NInput, NText,
+  NCard, NButton, NSpace, NTag, NSelect, NInput, NInputNumber, NText,
   NDivider, NGrid, NGridItem,
 } from 'naive-ui'
 import { message } from '../composables/discreteApi'
@@ -59,12 +59,15 @@ const props = defineProps({
   initialDifficulty: { type: String, default: '' },
   // 几何配图（OCR 认不出图，从原图裁出来的那份）—— 编辑时让老师看得见图
   figurePath: { type: String, default: '' },
+  // 题图排版（老师自定义）—— edit 模式下是库里存的值
+  initialFigureLayout: { type: String, default: 'bottom_right' },
+  initialFigureWidth: { type: Number, default: 0 },
 })
 
 // === 状态 ===
 // 用 discreteApi 的全局实例，而不是 useMessage()
 // useMessage() 必须配合 <NMessageProvider>，而本项目没用 Provider（见 main.js 注释）
-const emit = defineEmits(['close', 'saved', 'meta-change'])
+const emit = defineEmits(['close', 'saved', 'meta-change', 'figure-change'])
 
 // === 几何配图 ===
 // OCR 只能读文字，三角形、垂足这些图形元素它读不出来 ——
@@ -86,6 +89,35 @@ async function loadFigure(path) {
 }
 
 watch(() => props.figurePath, loadFigure, { immediate: true })
+
+// === 题图排版（老师自定义）===
+// 排版是**每道题自己的诉求**：有的题图大、有的图小，
+// 有的老师习惯图在右下（教材式），有的习惯在下方居中。
+// 所以版式存到题上，而不是写死在导出模板里。
+const FIGURE_LAYOUT_OPTIONS = [
+  { label: '右下角（默认，文字在左）', value: 'bottom_right' },
+  { label: '右侧（与文字顶部对齐）', value: 'right' },
+  { label: '下方靠左（旧版）', value: 'bottom_left' },
+  { label: '下方居中', value: 'bottom_center' },
+  { label: '不显示题图', value: 'none' },
+]
+const figureLayout = ref(props.initialFigureLayout || 'bottom_right')
+const figureWidth = ref(Number(props.initialFigureWidth) || 0)
+
+watch(() => props.initialFigureLayout, (v) => {
+  figureLayout.value = v || 'bottom_right'
+})
+watch(() => props.initialFigureWidth, (v) => {
+  figureWidth.value = Number(v) || 0
+})
+
+// 改了就抛给父组件 —— OCR 校对页要靠它带进「一键入库」的请求
+watch([figureLayout, figureWidth], () => {
+  emit('figure-change', {
+    figure_layout: figureLayout.value,
+    figure_width: figureWidth.value,
+  })
+})
 
 // 编辑框内容
 // ⚠️ 优先用 withFormulas 而不是 plainText
@@ -261,6 +293,9 @@ async function saveToDatabase() {
       difficulty: meta.value.difficulty,
       // 章节：传 null = 不归属任何分类（后端用 exclude_unset 区分“没传”和“清空”）
       category_id: categoryId.value ?? null,
+      // 题图排版（老师自定义）
+      figure_layout: figureLayout.value,
+      figure_width: figureWidth.value,
     })
     message.success('已保存到题库')
     emit('saved')
@@ -415,6 +450,27 @@ function resetContent() {
         alt="题目配图"
         style="max-width: 100%; max-height: 260px; border: 1px solid #d9d9d9; border-radius: 4px;"
       />
+      <!-- 题图排版：老师自己定（图在右下/右侧/下方居中/不显示）+ 宽度 -->
+      <NSpace align="center" size="small" style="margin-top: 6px; flex-wrap: wrap;">
+        <NText depth="3" style="font-size: 12px;">题图排版</NText>
+        <NSelect
+          v-model:value="figureLayout"
+          :options="FIGURE_LAYOUT_OPTIONS"
+          size="small"
+          style="width: 190px;"
+        />
+        <NText depth="3" style="font-size: 12px;">宽度</NText>
+        <NInputNumber
+          v-model:value="figureWidth"
+          :min="0"
+          :max="80"
+          :step="5"
+          size="small"
+          style="width: 96px;"
+          placeholder="自动"
+        />
+        <NText depth="3" style="font-size: 11px;">留空=按版式默认宽度</NText>
+      </NSpace>
     </div>
 
     <!-- === 编辑区 + 预览区（左右分栏） === -->
