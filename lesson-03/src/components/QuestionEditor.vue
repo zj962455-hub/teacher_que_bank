@@ -95,10 +95,8 @@ watch(() => props.figurePath, loadFigure, { immediate: true })
 // 有的老师习惯图在右下（教材式），有的习惯在下方居中。
 // 所以版式存到题上，而不是写死在导出模板里。
 const FIGURE_LAYOUT_OPTIONS = [
-  { label: '右下角（默认，文字在左）', value: 'bottom_right' },
-  { label: '右侧（与文字顶部对齐）', value: 'right' },
-  { label: '下方靠左（旧版）', value: 'bottom_left' },
-  { label: '下方居中', value: 'bottom_center' },
+  { label: '题目文字下方·右下角（默认）', value: 'bottom_right' },
+  { label: '题目文字下方·左下角', value: 'bottom_left' },
   { label: '不显示题图', value: 'none' },
 ]
 const figureLayout = ref(props.initialFigureLayout || 'bottom_right')
@@ -282,8 +280,10 @@ async function saveToDatabase() {
   }
   try {
     await updateQuestion(props.questionId, {
-      content_plain: buildPlainText.value,
-      content_markdown: props.withFormulas || content.value,
+      // ⚠️ 必须发老师改过的 content.value —— 以前发的是 props.withFormulas（原题内容），
+      //    等于把老师的修改用旧值盖回去，表现为「点了保存但什么都没变」。
+      //    content_plain 由后端按改后的正文重算（blocks 里永远是 OCR 原文）。
+      content_markdown: content.value,
       // ⚠️ 分类必须一起发 —— 以前这里只发正文和章节，
       //    老师在下拉框里改的「难度」根本没送到后端，
       //    库里一直留着 AI 判的难度，刷新一看又变回去了。
@@ -333,7 +333,7 @@ function copyJson() {
     // content 用纯文本版（公式是 x² 不是 x^{2}）—— 老师拿去直接用
     content: buildPlainText.value || content.value,
     // Markdown 版单独放一个字段,需要 LaTeX 语法的下游（比如导 PDF）时用
-    contentMarkdown: props.withFormulas || content.value,
+    contentMarkdown: content.value,
     original: {
       plain: props.plainText,
       withFormulas: props.withFormulas,

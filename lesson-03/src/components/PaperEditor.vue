@@ -611,24 +611,19 @@ onMounted(() => {
   border: 1px solid #e8e8e8;
   border-radius: 3px;
 }
-.preview-q.q-bottom_right {
-  align-items: flex-end;
-}
-.preview-q.q-right .preview-figure {
-  max-width: 32%;
-}
-.preview-q.q-bottom_left,
-.preview-q.q-bottom_center {
+/* 题图在题目文字下方：右下角 / 左下角 */
+.preview-q.q-bottom_right,
+.preview-q.q-bottom_left {
   display: block;
 }
-.preview-q.q-bottom_left .preview-figure,
-.preview-q.q-bottom_center .preview-figure {
-  max-width: 60%;
+.preview-q.q-bottom_right .preview-figure {
+  max-width: 42%;
   margin-top: 4px;
-}
-.preview-q.q-bottom_center .preview-figure {
   margin-left: auto;
-  margin-right: auto;
+}
+.preview-q.q-bottom_left .preview-figure {
+  max-width: 42%;
+  margin-top: 4px;
 }
 
 .preview-label {

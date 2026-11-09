@@ -194,7 +194,7 @@ function doDelete() {
 
         <NDivider />
 
-        <!-- 题干 + 题图（版式跟导出一致：右下角/右侧/下方居中/下方靠左/不显示） -->
+        <!-- 题干 + 题图（版式跟导出一致：文字下方右下角 / 文字下方左下角 / 不显示） -->
         <div class="q-body" :class="figureLayoutClass">
           <!-- 题干(公式用 KaTeX 渲染) -->
           <div class="content" v-html="renderMathText(question.content_markdown || question.content_plain)" />
@@ -274,26 +274,21 @@ function doDelete() {
   flex: 0 0 auto;
   max-width: 42%;
 }
-.q-bottom_right {
-  align-items: flex-end;
-}
-.q-bottom_right .figure-box {
-  max-width: 40%;
-}
-.q-right .figure-box {
-  max-width: 34%;
-}
-.q-bottom_left,
-.q-bottom_center {
+/* 题图在题目文字下方：右下角 / 左下角（跟 PDF 导出同一套版式）*/
+.q-bottom_right,
+.q-bottom_left {
   display: block;
 }
-.q-bottom_left .figure-box,
-.q-bottom_center .figure-box {
-  max-width: 60%;
+.q-bottom_right .figure-box {
+  max-width: 42%;
   margin-top: 10px;
+  margin-left: auto;
+  text-align: right;
 }
-.q-bottom_center .figure-box {
-  text-align: center;
+.q-bottom_left .figure-box {
+  max-width: 42%;
+  margin-top: 10px;
+  text-align: left;
 }
 
 .meta {

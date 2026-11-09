@@ -142,10 +142,8 @@
       padding: 60px 0;
     }
   /* ===== 题图排版（老师可自定义）=====
-     bottom_right  = 右下角（默认，教材式：文字在左、图在右下）
-     right         = 右侧，与文字顶部对齐
-     bottom_left   = 下方靠左（旧版排版）
-     bottom_center = 下方居中
+     bottom_right  = 题目文字下方·右下角（默认）
+     bottom_left   = 题目文字下方·左下角
      none          = 不显示题图 */
   .q-body {
     flex: 1 1 auto;
@@ -169,17 +167,12 @@
     object-fit: contain;
   }
   /* 每种版式的默认宽度（老师可单独覆盖 → 内联 width 优先级更高） */
-  .q-bottom_right { align-items: flex-end; }
-  .q-bottom_right .figure { width: 38%; }
-  .q-bottom_right .figure img { max-height: 46mm; }
-  .q-right .figure { width: 32%; }
-  .q-right .figure img { max-height: 44mm; }
+  .q-bottom_right { display: block; }
+  .q-bottom_right .figure { width: 42%; margin: 5px 0 0 auto; text-align: right; }
+  .q-bottom_right .figure img { max-height: 52mm; }
   .q-bottom_left { display: block; }
-  .q-bottom_left .figure { width: 72%; margin: 6px 0 2px 28px; }
-  .q-bottom_left .figure img { max-height: 62mm; }
-  .q-bottom_center { display: block; }
-  .q-bottom_center .figure { width: 60%; margin: 6px 0 2px 0; text-align: center; }
-  .q-bottom_center .figure img { max-height: 56mm; }
+  .q-bottom_left .figure { width: 42%; margin: 5px 0 0 0; text-align: left; }
+  .q-bottom_left .figure img { max-height: 52mm; }
   </style>
 </head>
 <body>
