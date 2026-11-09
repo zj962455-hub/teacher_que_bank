@@ -27,6 +27,7 @@ import { batchDeleteQuestions, batchUpdateQuestions } from '../api/batch'
 import { getCategoryTree, toTreeOptions, flattenTree, flatToOptions } from '../api/categories'
 import { listTags, createTag, deleteTag } from '../api/tags'
 import { renderMathText } from '../utils/mathRenderer'
+import { stripFigurePlaceholder } from '../utils/figurePlaceholder'   // ← lesson-38: 展示去掉【题图】占位
 import FigureThumb from '../components/FigureThumb.vue'
 import { message } from '../composables/discreteApi'
 import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
@@ -359,7 +360,7 @@ const columns = computed(() => [
     //    (照抄 QuestionBank.vue 的写法)
     render: (row) => h('div', {
       style: 'white-space: pre-wrap; max-height: 80px; overflow: hidden; font-size: 13px;',
-      innerHTML: renderMathText(row.content_markdown || row.content_plain),
+      innerHTML: renderMathText(stripFigurePlaceholder(row.content_markdown || row.content_plain)),
     }),
   },
   {

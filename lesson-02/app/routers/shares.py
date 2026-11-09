@@ -39,6 +39,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Paper, PaperShare, User
 from app.routers.papers import _paper_detail
+from app.services.classifier import strip_figure_placeholder
 from app.services.auth import get_current_user
 from app.services.jpg_export import JpgExportError, build_jpg_zip
 from app.services.pdf_export import PdfExportError, export_paper_pdf
@@ -292,9 +293,13 @@ def _export_items(detail: dict) -> list[dict]:
     """
     items = []
     for item in detail["questions"]:
+        q = item["question"]
         items.append({
             "label": item["label"],
-            "content": item["question"]["content_markdown"] or item["question"]["content_plain"],
+            # ⚠️ 去掉【题图】占位符 —— 分享出去的卷子不该带内部标记
+            "content": strip_figure_placeholder(
+                q["content_markdown"] or q["content_plain"]
+            ),
             "score": item["score"],
         })
     return items

@@ -17,6 +17,7 @@ import {
 } from 'naive-ui'
 import { listQuestions, deleteQuestion } from '../api/questions'
 import { renderMathText } from '../utils/mathRenderer'
+import { stripFigurePlaceholder } from '../utils/figurePlaceholder'   // ← lesson-38: 展示去掉【题图】占位
 // ⚠️ 用 discreteApi 而不是 useMessage()
 //    lesson-07 结论:useMessage() 必须在 <NMessageProvider> 内部,
 //    而本项目统一用离散实例(见 src/composables/discreteApi.js)
@@ -65,7 +66,7 @@ const columns = computed(() => [
     //    放在 h() 的对象字面量里会直接语法报错。
     render: (row) => h('div', {
       style: 'white-space: pre-wrap; max-height: 80px; overflow: hidden; font-size: 13px;',
-      innerHTML: renderMathText(row.content_markdown || row.content_plain),
+      innerHTML: renderMathText(stripFigurePlaceholder(row.content_markdown || row.content_plain)),
     }),
   },
   {

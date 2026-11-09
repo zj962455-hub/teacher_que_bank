@@ -13,6 +13,7 @@ import { getPaper, exportPaperPdf, exportPaperJpg } from '../api/papers'
 import { createShare, listShares, revokeShare, buildShareUrl } from '../api/shares'
 import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 import { renderMathText } from '../utils/mathRenderer'
+import { stripFigurePlaceholder } from '../utils/figurePlaceholder'   // ← lesson-38: 展示去掉【题图】占位
 
 const route = useRoute()
 const router = useRouter()
@@ -168,7 +169,7 @@ async function doExport() {
         <div v-for="q in paper.questions" :key="q.id" class="question">
           <div class="q-head">
             <span class="q-label">{{ q.label }}</span>
-            <span class="q-content" v-html="renderMathText(q.question.content_markdown || q.question.content_plain)" />
+            <span class="q-content" v-html="renderMathText(stripFigurePlaceholder(q.question.content_markdown || q.question.content_plain))" />
             <span v-if="q.score" class="q-score">{{ q.score }} 分</span>
           </div>
         </div>
