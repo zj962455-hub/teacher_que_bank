@@ -11,6 +11,7 @@ import { useRouter } from 'vue-router'
 import { getMyStats } from '../api/profile'
 import { getRecentQuestions } from '../api/batch'
 import { renderMathText } from '../utils/mathRenderer'
+import { stripFigurePlaceholder } from '../utils/figurePlaceholder'   // ← lesson-38: 展示去掉【题图】占位
 import TaskState from '../components/TaskState.vue'
 import { useAsyncTask } from '../composables/useAsyncTask'
 
@@ -89,7 +90,7 @@ const SHORTCUTS = [
             class="recent-item"
             @click="router.push({ name: 'question-detail', params: { id: q.id } })"
           >
-            <div class="recent-text" v-html="renderMathText(q.content_markdown || q.content_plain)" />
+            <div class="recent-text" v-html="renderMathText(stripFigurePlaceholder(q.content_markdown || q.content_plain))" />
             <div class="recent-meta">
               <NTag size="small" :bordered="false">{{ q.subject }}</NTag>
               <span>{{ new Date(q.updated_at).toLocaleString('zh-CN') }}</span>

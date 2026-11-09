@@ -28,7 +28,11 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Category, Paper, PaperQuestion, Question, Upload, User
 from app.services.auth import get_current_user
-from app.services.classifier import build_content_versions, classify_blocks
+from app.services.classifier import (
+    build_content_versions,
+    classify_blocks,
+    strip_figure_placeholder,
+)
 from app.services.math_parser import markdown_to_plain
 from app.services.errors import CODE_NOT_FOUND, ApiHTTPException
 from app.services.paths import upload_file_path, uploads_dir
@@ -285,8 +289,9 @@ def export_excel(
             "question_type": q.question_type,
             "grade": q.grade,
             "difficulty": q.difficulty,
-            "content_plain": q.content_plain,
-            "content_markdown": q.content_markdown,
+            # ⚠️ 去掉【题图】占位符 —— 导出给老师用的表不该带内部标记
+            "content_plain": strip_figure_placeholder(q.content_plain),
+            "content_markdown": strip_figure_placeholder(q.content_markdown),
             "created_at": q.created_at.strftime("%Y-%m-%d %H:%M") if q.created_at else "",
         }
         for q in items
@@ -410,8 +415,10 @@ def export_backup(
                 "question_type": q.question_type,
                 "grade": q.grade,
                 "difficulty": q.difficulty,
-                "content_plain": q.content_plain,
-                "content_markdown": q.content_markdown,
+                # ⚠️ 去掉【题图】占位符 —— 备份也是给老师看的
+                #    （figure 信息在 blocks_json 里，备份不丢东西）
+                "content_plain": strip_figure_placeholder(q.content_plain),
+                "content_markdown": strip_figure_placeholder(q.content_markdown),
                 "blocks_json": q.blocks_json,
                 "image_path": q.image_path,
                 "figure_path": q.figure_path,

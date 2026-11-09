@@ -18,6 +18,7 @@ import {
 import draggable from 'vuedraggable'
 import { message } from '../composables/discreteApi'
 import { renderMathText } from '../utils/mathRenderer'
+import { stripFigurePlaceholder } from '../utils/figurePlaceholder'   // ← lesson-38: 展示去掉【题图】占位
 import {
   listPapers, createPaper, getPaper, updatePaper, deletePaper,
   addPaperQuestion, updatePaperQuestion, removePaperQuestion,
@@ -384,7 +385,7 @@ onMounted(() => {
               <div class="candidate-body">
                 <div
                   class="candidate-text"
-                  v-html="renderMathText(q.content_markdown || q.content_plain)"
+                  v-html="renderMathText(stripFigurePlaceholder(q.content_markdown || q.content_plain))"
                 />
                 <NSpace size="small" style="margin-top: 2px">
                   <NTag size="tiny" :bordered="false">{{ q.subject }}</NTag>
@@ -432,7 +433,7 @@ onMounted(() => {
               />
               <div
                 class="paper-text"
-                v-html="renderMathText(item.question.content_markdown || item.question.content_plain)"
+                v-html="renderMathText(stripFigurePlaceholder(item.question.content_markdown || item.question.content_plain))"
               />
               <NInput
                 :value="item.score"
@@ -466,7 +467,7 @@ onMounted(() => {
               >
                 <span
                   class="preview-text"
-                  v-html="renderMathText(item.question.content_markdown || item.question.content_plain)"
+                  v-html="renderMathText(stripFigurePlaceholder(item.question.content_markdown || item.question.content_plain))"
                 />
                 <img
                   v-if="previewFigures[item.question.id]"

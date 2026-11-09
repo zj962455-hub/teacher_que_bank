@@ -23,6 +23,7 @@ import { ref, onMounted } from 'vue'
 import { NCard, NButton, NSpace, NSpin, NAlert, NDivider } from 'naive-ui'
 import { getSharedPaper, downloadSharedPdf, downloadSharedJpg } from '../api/shares'
 import { renderMathText } from '../utils/mathRenderer'
+import { stripFigurePlaceholder } from '../utils/figurePlaceholder'   // ← lesson-38: 展示去掉【题图】占位
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
@@ -103,7 +104,7 @@ async function doExportJpg() {
         <div v-for="(q, i) in paper.questions" :key="i" class="question">
           <div class="q-head">
             <span class="q-label">{{ q.label }}</span>
-            <span class="q-content" v-html="renderMathText(q.content_markdown || q.content_plain)" />
+            <span class="q-content" v-html="renderMathText(stripFigurePlaceholder(q.content_markdown || q.content_plain))" />
             <span v-if="q.score" class="q-score">{{ q.score }} 分</span>
           </div>
         </div>

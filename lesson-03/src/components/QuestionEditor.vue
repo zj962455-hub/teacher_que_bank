@@ -24,7 +24,7 @@ import {
   classify,
   SUBJECT_OPTIONS, TYPE_OPTIONS, GRADE_OPTIONS, DIFFICULTY_OPTIONS,
 } from '../utils/classifier'
-import { renderMathText } from '../utils/mathRenderer'   // ← lesson-07:KaTeX 预览
+import { renderMathText, latexToPlain } from '../utils/mathRenderer'   // ← lesson-07:KaTeX 预览
 import { fetchImageBlobUrl } from '../api/auth'             // ← 几何配图（要带 token 取）
 import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 
@@ -315,13 +315,27 @@ async function copyText(text, label) {
   }
 }
 
+// === Markdown → 纯文本（本地版） ===
+// ------------------------------------------------------------------
+// 老师复制到 Word 里要的是「x²」不是「x^{2}」。
+// 后端有 markdown_to_plain()，前端这里做等价的事：
+// 公式段走 latexToPlain()，其余文字原样保留。
+//
+// ⚠️ 为什么不用 buildPlainText？它按 **blocks**（OCR 原文）算，
+//    老师改过的字会丢、老师删掉的【题图】会从 blocks 里复活。
+function markdownToPlain(text) {
+  if (!text) return ''
+  return text.replace(/\$\$?([^$]+)\$\$?/g, (_, latex) => latexToPlain(latex))
+}
+
 function copyPlain() {
-  // 优先用带公式排版的版本（任务 2）
-  copyText(buildPlainText.value || content.value, '纯文本')
+  // 用老师改过的正文（公式转 Unicode）
+  copyText(markdownToPlain(content.value), '纯文本')
 }
 
 function copyFormula() {
-  copyText(props.withFormulas || content.value, '公式版 Markdown')
+  // 公式版 Markdown：发改后的正文，不是进编辑器时那版原题
+  copyText(content.value, '公式版 Markdown')
 }
 
 function copyJson() {
@@ -331,7 +345,9 @@ function copyJson() {
     grade: meta.value.grade,
     difficulty: meta.value.difficulty,
     // content 用纯文本版（公式是 x² 不是 x^{2}）—— 老师拿去直接用
-    content: buildPlainText.value || content.value,
+    // ⚠️ 用 markdownToPlain(content.value)，别用 buildPlainText（那是 blocks 原文，
+    //    老师改过的字和删掉的【题图】都会丢）
+    content: markdownToPlain(content.value),
     // Markdown 版单独放一个字段,需要 LaTeX 语法的下游（比如导 PDF）时用
     contentMarkdown: content.value,
     original: {

@@ -12,6 +12,7 @@ import { getQuestion, deleteQuestion } from '../api/questions'
 import { listTags, getQuestionTags, setQuestionTags } from '../api/tags'
 import { dialog, message } from '../composables/discreteApi'
 import { renderMathText } from '../utils/mathRenderer'
+import { stripFigurePlaceholder } from '../utils/figurePlaceholder'   // ← lesson-38: 展示去掉【题图】占位
 import { parseError } from '../utils/errors'
 import { fetchImageBlobUrl } from '../api/auth'
 import QuestionEditor from '../components/QuestionEditor.vue'
@@ -197,7 +198,7 @@ function doDelete() {
         <!-- 题干 + 题图（版式跟导出一致：文字下方右下角 / 文字下方左下角 / 不显示） -->
         <div class="q-body" :class="figureLayoutClass">
           <!-- 题干(公式用 KaTeX 渲染) -->
-          <div class="content" v-html="renderMathText(question.content_markdown || question.content_plain)" />
+          <div class="content" v-html="renderMathText(stripFigurePlaceholder(question.content_markdown || question.content_plain))" />
 
           <!-- 题图：OCR 从原图里裁出来的图形，随题保存、随题显示 -->
           <div v-if="question.figure_path && figureLayout !== 'none'" class="figure-box">

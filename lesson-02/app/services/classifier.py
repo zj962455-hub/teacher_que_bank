@@ -23,6 +23,7 @@ TODO: lesson-XX 把规则抽成一份（比如 JSON 文件），前后端都读�
 """
 
 import json
+import re
 from typing import Any
 
 # === 学科规则（特征词在前，泛词在后）===
@@ -153,6 +154,44 @@ def classify_blocks(blocks: list[dict]) -> dict[str, Any]:
     return classify(text, blocks)
 
 
+# === 题图占位符 ===
+FIGURE_PLACEHOLDER = "【题图】"
+
+
+def strip_figure_placeholder(text: str) -> str:
+    """去掉正文里的【题图】占位符
+
+    为什么要有这个函数
+    ------------------
+    【题图】是 OCR 的 figure 块在文字流里的占位 —— 图形没有对应文字，
+    不留个位置的话，纯文本/Markdown 里那块内容就凭空消失了。
+
+    但试卷上明明有图（figure_path 那张），文字里再写一遍【题图】就是噪音。
+    所以**导出（PDF/JPG/Excel）和页面展示都去掉**，只把占位符留在存储层 ——
+    老师可以在题目编辑器里手动删掉它（删了就永久没了）。
+
+    >>> strip_figure_placeholder("如图\n【题图】\n求证")
+    '如图\n求证'
+    """
+    if not text:
+        return ""
+
+    lines: list[str] = []
+    for line in text.split("\n"):
+        if FIGURE_PLACEHOLDER not in line:
+            lines.append(line)
+            continue
+        rest = line.replace(FIGURE_PLACEHOLDER, "")
+        if rest.strip():
+            # 同一行里还混着别的文字 → 只去掉占位符，保留这行
+            lines.append(rest)
+        # 整行只有占位符 → 整行丢掉
+
+    out = "\n".join(lines)
+    # 删掉占位行后可能留下连续空行 → 收一下
+    return re.sub(r"\n{3,}", "\n\n", out)
+
+
 def build_content_versions(blocks: list[dict]) -> dict[str, str]:
     """从 blocks 生成三个内容版本
 
@@ -177,8 +216,8 @@ def build_content_versions(blocks: list[dict]) -> dict[str, str]:
         elif btype == "figure":
             # 图块在纯文本/Markdown 里留个占位 —— 以前整块消失，
             # 老师复制出去才发现图没了（图片本身在 figure_path 里）。
-            plain_parts.append("【题图】")
-            md_parts.append("【题图】")
+            plain_parts.append(FIGURE_PLACEHOLDER)
+            md_parts.append(FIGURE_PLACEHOLDER)
 
     return {
         "plain": "\n".join(p for p in plain_parts if p),

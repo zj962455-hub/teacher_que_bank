@@ -23,6 +23,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Paper, PaperQuestion, Question, User, auto_label
 from app.services.auth import get_current_user
+from app.services.classifier import strip_figure_placeholder
 from app.services.jpg_export import JpgExportError, build_jpg_zip
 from app.services.pdf_export import PdfExportError, export_paper_pdf, figure_file_url
 
@@ -357,19 +358,7 @@ def export_pdf(
         raise HTTPException(status_code=400, detail="试卷里还没有题目")
 
     # 组装 PDF 需要的数据
-    items = []
-    for item in detail["questions"]:
-        items.append({
-            "label": item["label"],
-            # 用 markdown 版 → Chromium 里的 KaTeX 能渲染 $...$
-            "content": item["question"]["content_markdown"] or item["question"]["content_plain"],
-            "score": item["score"],
-            # 几何示意图 —— OCR 读不出来，靠原图裁出来的那份带上
-            "figure": figure_file_url(item["question"].get("figure_path", "")),
-            # 题图排版（老师自定义）+ 宽度百分比
-            "figure_layout": item["question"].get("figure_layout") or "bottom_right",
-            "figure_width": int(item["question"].get("figure_width") or 0),
-        })
+    items = _export_items(detail)
 
     try:
         pdf_bytes = export_paper_pdf(
@@ -419,18 +408,7 @@ def export_jpg(
         raise HTTPException(status_code=400, detail="试卷里还没有题目")
 
     # 组装数据（和 export_pdf 同一份口径）
-    items = []
-    for item in detail["questions"]:
-        items.append({
-            "label": item["label"],
-            "content": item["question"]["content_markdown"] or item["question"]["content_plain"],
-            "score": item["score"],
-            # 几何示意图 —— OCR 读不出来，靠原图裁出来的那份带上
-            "figure": figure_file_url(item["question"].get("figure_path", "")),
-            # 题图排版（老师自定义）+ 宽度百分比
-            "figure_layout": item["question"].get("figure_layout") or "bottom_right",
-            "figure_width": int(item["question"].get("figure_width") or 0),
-        })
+    items = _export_items(detail)
 
     try:
         pdf_bytes = export_paper_pdf(
@@ -488,6 +466,32 @@ def _get_own_paper(paper_id: int, session: Session, user: User) -> Paper:
     if not paper or paper.user_id != (user.id or 0):
         raise HTTPException(status_code=404, detail="试卷不存在")
     return paper
+
+
+def _export_items(detail: dict) -> list[dict]:
+    """导出用的题目数据（PDF / JPG 两条链路同一份口径）
+
+    正文用 markdown 版 → Chromium 里的 KaTeX 能渲染 $...$
+
+    ⚠️ 正文里的【题图】占位符在这里去掉 —— 试卷上有图（图单独带），
+    文字里再写一遍【题图】就是噪音（lesson-38）。
+    """
+    items = []
+    for item in detail["questions"]:
+        q = item["question"]
+        items.append({
+            "label": item["label"],
+            "content": strip_figure_placeholder(
+                q["content_markdown"] or q["content_plain"]
+            ),
+            "score": item["score"],
+            # 几何示意图 —— OCR 读不出来，靠原图裁出来的那份带上
+            "figure": figure_file_url(q.get("figure_path", "")),
+            # 题图排版（老师自定义）+ 宽度百分比
+            "figure_layout": q.get("figure_layout") or "bottom_right",
+            "figure_width": int(q.get("figure_width") or 0),
+        })
+    return items
 
 
 def _paper_detail(paper: Paper, session: Session) -> dict:
