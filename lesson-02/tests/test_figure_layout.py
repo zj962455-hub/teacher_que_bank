@@ -22,12 +22,15 @@ from app.services.pdf_export import render_paper_html  # noqa: E402
 
 def test_layout_normalize():
     assert _normalize_figure_layout("bottom_right") == "bottom_right"
-    assert _normalize_figure_layout("right") == "right"
+    assert _normalize_figure_layout("bottom_left") == "bottom_left"
     assert _normalize_figure_layout("none") == "none"
     # 非法值回落默认，别让脏数据进库
     assert _normalize_figure_layout("haha") == DEFAULT_FIGURE_LAYOUT
     assert _normalize_figure_layout(None) == DEFAULT_FIGURE_LAYOUT
     assert _normalize_figure_layout("") == DEFAULT_FIGURE_LAYOUT
+    # 旧版式（lesson-36 的五项）不再是可选值 —— 回落到默认
+    assert _normalize_figure_layout("right") == DEFAULT_FIGURE_LAYOUT
+    assert _normalize_figure_layout("bottom_center") == DEFAULT_FIGURE_LAYOUT
 
 
 def test_width_normalize():
@@ -61,8 +64,9 @@ def _render(layout, width=0):
 def test_pdf_default_layout_is_bottom_right():
     html = _render("bottom_right")
     assert "q-bottom_right" in html
-    # 右下角 = 文字在左、图在右（flex 容器 + 底部对齐）
-    assert "align-items: flex-end" in html
+    # 右下角 = 题图排在题目文字下方、靠右（block 容器 + 右对齐）
+    assert ".q-bottom_right { display: block; }" in html
+    assert "text-align: right" in html
 
 
 def test_pdf_layout_none_hides_figure():
@@ -81,6 +85,13 @@ def test_pdf_default_width_uses_layout_width():
     html = _render("bottom_right", 0)
     # 没指定宽度时不写内联 width，交给 CSS 里该版式的默认值
     assert 'class="figure" style=' not in html
+
+
+def test_pdf_bottom_left_is_below_text_on_the_left():
+    html = _render("bottom_left")
+    assert "q-bottom_left" in html
+    assert ".q-bottom_left { display: block; }" in html
+    assert "text-align: left" in html
 
 
 if __name__ == "__main__":

@@ -231,9 +231,9 @@ class Question(SQLModel, table=True):
     # 和 image_path（原图 / OCR 来源）不是一回事，别混。
     figure_path: str = Field(default="", max_length=500)
 
-    # === 题图排版（老师可自定义）===
-    # bottom_right(右下,默认) / right(右侧) / bottom_left(下方靠左)
-    # / bottom_center(下方居中) / none(不显示)
+    # === 题图排版（老师可自定义 · 只给三个选项）===
+    # bottom_right(文字下方·右下角,默认) / bottom_left(文字下方·左下角)
+    # / none(不显示题图)
     figure_layout: str = Field(default="bottom_right", max_length=20)
     # 题图宽度占题目宽度的百分比，0 = 用该版式的默认宽度
     figure_width: int = Field(default=0)

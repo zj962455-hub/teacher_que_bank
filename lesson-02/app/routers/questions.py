@@ -29,6 +29,7 @@ from app.database import get_session
 from app.models import Category, Paper, PaperQuestion, Question, Upload, User
 from app.services.auth import get_current_user
 from app.services.classifier import build_content_versions, classify_blocks
+from app.services.math_parser import markdown_to_plain
 from app.services.errors import CODE_NOT_FOUND, ApiHTTPException
 from app.services.paths import upload_file_path, uploads_dir
 from app.services.paths import upload_file_path, uploads_dir
@@ -110,7 +111,11 @@ class QuestionUpdate(BaseModel):
 # === 题图排版（老师自定义）===
 
 # 版式白名单 —— 非法值一律回落到默认，别让脏数据进库
-FIGURE_LAYOUTS = ("bottom_right", "right", "bottom_left", "bottom_center", "none")
+# 版式只给老师三个选项（老大 2026-11-09 定）：
+#   bottom_right = 题目文字下方·右下角（默认）
+#   bottom_left  = 题目文字下方·左下角
+#   none         = 不显示题图
+FIGURE_LAYOUTS = ("bottom_right", "bottom_left", "none")
 DEFAULT_FIGURE_LAYOUT = "bottom_right"
 
 
@@ -896,6 +901,11 @@ def update_question(
     ):
         if field in data and data[field] is not None:
             setattr(question, field, data[field])
+
+    # 老师改了正文（content_markdown）但没动 blocks -> 纯文本版按改后的内容重算。
+    # blocks 里永远是 OCR 原文，拿它算 plain 会把老师的修改又盖回去。
+    if data.get("content_markdown") is not None and data.get("blocks") is None:
+        question.content_plain = markdown_to_plain(data["content_markdown"])
 
     # 题图排版要规范化后再存（非法值回落默认）
     if "figure_layout" in data and data["figure_layout"] is not None:

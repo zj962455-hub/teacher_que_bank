@@ -415,6 +415,62 @@ def latex_to_plain(latex: str) -> str:
 
     return result
 
+def markdown_to_plain(markdown: str) -> str:
+    """把带 $...$ 公式标记的 Markdown 转成纯文本（公式转成 Unicode 写法）
+
+    为什么需要它
+    ------------
+    老师在题库里改完文字后，blocks 里还是 OCR 原文 —— 纯文本版必须按
+    **改后**的内容重算，否则复制出去的纯文本和页面上看到的不是一回事。
+
+    公式段用 latex_to_plain 转（frac{1}{2} -> 1/2，times -> ×），
+    其余文字原样保留（表格 HTML、【题图】占位都留着）。
+    """
+    if not markdown:
+        return ""
+
+    out: list[str] = []
+    i = 0
+    n = len(markdown)
+
+    while i < n:
+        ch = markdown[i]
+
+        # 转义的美元符号 -> 当普通字符
+        if ch == chr(92) and i + 1 < n and markdown[i + 1] == "$":
+            out.append("$")
+            i += 2
+            continue
+
+        if ch != "$":
+            out.append(ch)
+            i += 1
+            continue
+
+        # $ 是块级双美元 还是行内单美元
+        is_display = i + 1 < n and markdown[i + 1] == "$"
+        delimiter = "$$" if is_display else "$"
+        start = i + len(delimiter)
+        end = markdown.find(delimiter, start)
+
+        # 没配对 / 空公式 -> 当普通字符
+        if end == -1:
+            out.append(ch)
+            i += 1
+            continue
+
+        latex = markdown[start:end]
+        if not latex.strip():
+            out.append(ch)
+            i += 1
+            continue
+
+        out.append(latex_to_plain(latex))
+        i = end + len(delimiter)
+
+    return "".join(out)
+
+
 def _is_math_char(ch: str) -> bool:
     """判断字符是否属于数学片段"""
     return ch in MATH_CHARS
