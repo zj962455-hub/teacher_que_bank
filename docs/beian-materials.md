@@ -389,7 +389,80 @@ https://beian.mps.gov.cn/fileservice/file/downloadbytype?filetype=<website|safe|
 | 日志留存 | 服务器 `/etc/systemd/journald.conf`（MaxRetentionSec）、`/etc/logrotate.d/nginx`（daily rotate 10） |
 | 备份留存 | `/usr/local/bin/teacherbank-backup.sh`（`KEEP_DAYS=14`，cron `17 4 * * *`） |
 
+
+### 9.2 对用户账号、操作时间、操作类型、网络源地址和目标地址、网络源端口、客户端硬件特征等日志信息，以及用户发布信息记录的留存措施
+
+**答法（可直接粘贴）**
+
+本平台建立了「应用层操作审计 + Web 访问日志 + 数据库留痕」三层日志体系，
+对用户账号、操作时间、操作类型、网络源地址与目标地址、网络源端口、客户端软硬件特征等信息
+逐条记录并按期限留存，可按账号、按时间窗、按来源 IP 检索与导出。
+
+一、操作审计日志（audit_logs 表）
+
+1. 记录内容：
+   - 用户账号：用户 ID 与登录名（手机号）；
+   - 操作时间：精确到毫秒；
+   - 操作类型：HTTP 方法 + 接口路径 + 归一化操作名（如「题目管理」「账号注册」「密码重置」）；
+   - 网络源地址：客户端公网 IP；网络源端口：客户端源端口；
+   - 目标地址：目标域名（Host）+ 请求路径；
+   - 客户端软硬件特征：User-Agent（含浏览器、操作系统、设备类型）；
+   - 响应状态码与请求耗时。
+2. 记录范围：平台全部 /api/ 接口调用，**包括未通过认证的访问尝试**（登录接口、注册接口、
+   未授权访问均逐条记录）；未认证记录的用户账号为空，其余字段照常完整保留。
+3. 与 Web 访问日志互补：Web 层（nginx access.log）记录源地址与源端口、目标域名、状态码、
+   请求耗时；应用层额外补齐**登录账号**这一维度 —— Web 层只知道来源 IP，
+   无法区分同一出口 IP 之后的不同用户。
+4. 检索能力：审计表按「用户 + 时间」「时间」「源地址 + 时间」「操作类型 + 时间」四个维度建索引，
+   支持按账号、按时间窗、按来源 IP 快速检索与导出。
+
+二、留存期限
+
+1. 操作审计日志（audit_logs 表）：**长期留存，不做自动清理**；账号停用采用软删除，
+   数据与对应审计记录同步保留，保证可追溯。
+2. Web 访问日志：按日轮转，保留 10 份（logrotate daily rotate 10）。
+3. 系统日志（systemd journal，含应用异常堆栈与服务启停记录）：
+   MaxRetentionSec=187904800 秒（约 5.95 年）。
+4. 数据备份：每日 04:17 对数据库与上传文件做全量备份，备份文件保留 14 天。
+5. 登录会话记录（sessions 表）：会话有效期 7 天，到期自动失效；会话令牌仅以哈希形式存储，
+   同时留存签发时间、最后使用时间、来源 IP 与 User-Agent 供审计追溯。
+
+三、用户发布信息记录的留存
+
+1. 平台内用户发布的信息包括：题目（题干纯文本、Markdown、结构化内容块、图片路径）、
+   试卷、上传的图片文件、分类与标签、用户反馈。每一条记录均关联**发布人账号**
+   （user_id 外键指向 users）、**发布时间**与最后修改时间，可按人、按时间完整追溯。
+2. 发布内容存储于业务数据库并纳入每日全量备份（备份保留 14 天），数据库数据本身长期留存；
+   上传的图片文件随服务器文件系统保留并纳入备份。
+3. 处置与追溯能力：题目与试卷支持单条删除与批量删除；账号可单独停用；
+   用户反馈记录留存反馈内容、提交人、联系方式、来源页面与时间，并由管理员进行状态处置。
+4. 平台不设面向公众的公开发布通道：唯一的免登录页面是试卷分享页，采用 32 字节随机 token
+   （256 位熵）、强制过期、可随时吊销、仅授予单张试卷的只读查看；
+   线上现有分享链接当前有效数为 0。
+
+四、记录的可信性
+
+1. 审计记录由服务端在请求处理完成后写入，不依赖客户端上报。
+2. 后端服务仅监听 127.0.0.1，外部无法直连；来源地址与来源端口一律取自反向代理
+   覆盖后的真实值（nginx 以 remote_addr / remote_port 覆盖客户端自带的同名头），
+   客户端伪造的来源信息不予采信。
+
+**实测证据（审核时可现场演示）**
+
+| 项 | 位置 |
+|---|---|
+| 审计表结构 | audit_logs 表（迁移 014_add_audit_logs.sql） |
+| 审计写入逻辑 | backend/app/services/audit.py（audit_middleware / client_ip_and_port） |
+| 用户账号来源 | backend/app/services/auth.py（get_current_user 写入 request.state.user_id） |
+| 源端口转发 | deploy/teacher-bank/nginx-teacherbank.conf（proxy_set_header X-Client-Port） |
+| 访问日志字段 | deploy/teacher-bank/nginx-log-format.conf（log_format main） |
+| 会话期限 | backend/app/services/auth.py（SESSION_TTL_DAYS = 7） |
+| 发布信息留痕 | questions / papers / uploads / feedbacks 表（user_id + created_at + updated_at） |
+| 日志留存 | 服务器 /etc/systemd/journald.conf、/etc/logrotate.d/nginx |
+| 备份留存 | /usr/local/bin/teacherbank-backup.sh（KEEP_DAYS=14，cron 17 4 * * *） |
+
 ---
+
 ## 附：备份与恢复演练证据（2026-11 更新）
 
 | 项 | 证据 |
