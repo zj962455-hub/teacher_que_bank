@@ -111,6 +111,8 @@
 | `backend/tests/test_sms.py` | 短信流程 19 条用例 |
 | `deploy/teacher-bank/deploy-lesson39.sh` | 一键部署（含迁移 + SDK 安装） |
 | `deploy/teacher-bank/app.env.sms.example` | 短信环境变量模板（老大手动填） |
+| `deploy/teacher-bank/ram-policy.sms.json` | RAM 自定义策略（只授两个 dypns action） |
+| `deploy/teacher-bank/sms-smoke-test.py` | 独立冒烟测试：不连库直接调 SDK，分清权限/签名/模板/产品开通 |
 
 ---
 
@@ -126,6 +128,59 @@
 填完 `systemctl restart teacherbank-api` 即生效。
 
 控制台要做的：开通「短信认证」→ 选赠送签名 → 选赠送模板 → 建只授两个 dypns 权限的 RAM 子账号。
+
+### 8.1 建 RAM 用户（2026-11-18 老大确认按此方案）
+
+**为什么用 RAM 用户而不是主账号 AK**：主账号 AK 是账号的「万能钥匙」，能删 OSS、改 RAM、动账单。
+应用一旦持有它，泄露等于整个阿里云账号被接管。RAM 用户 + 最小权限，泄露的爆炸半径只剩「发短信」。
+
+控制台操作（RAM 控制台 → 用户 → 创建用户）：
+
+1. 登录名随便起，比如 `teacherbank-sms`
+2. **访问方式只勾「OpenAPI 调用访问」，不要勾控制台登录**
+3. 创建后进「AccessKey」页签 → 创建 AccessKey → **把 ID/Secret 存下来**（Secret 只显示一次）
+4. 「权限管理」→ 新增授权 → 自定义策略 → 粘贴下面的 JSON
+
+自定义策略（也在 `deploy/teacher-bank/ram-policy.sms.json`，可直接导入）：
+
+    {
+      "Version": "1",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["dypns:SendSmsVerifyCode", "dypns:CheckSmsVerifyCode"],
+          "Resource": "*"
+        }
+      ]
+    }
+
+> 号码认证服务是全局资源、不分地域，所以 `Resource` 只能是 `*`。
+> **不要**图省事挂 `AliyunFullAccess` 或 `AliyunDMSFullAccess`。
+
+### 8.2 填值 + 自测（不用先重启服务）
+
+AK/SK 只写服务器 `/etc/teacherbank/app.env`（chmod 600），不要发到群里、不要进仓库。
+
+填完先自测一次，把「权限 / 签名 / 模板 / 产品是否开通」四种失败一次分清：
+
+    # 1. 发一条
+    /opt/teacher-bank/.venv/bin/python deploy/teacher-bank/sms-smoke-test.py send 13800138000
+
+    # 2. 拿收到的验证码核验
+    /opt/teacher-bank/.venv/bin/python deploy/teacher-bank/sms-smoke-test.py check 13800138000 123456
+
+自测通过再重启服务：
+
+    systemctl restart teacherbank-api
+
+### 8.3 更稳的做法：ECS RAM 角色（可以后做）
+
+服务器上的静态 AK/SK 仍然是「长期有效的静态凭据」。如果这台机器是 ECS 或轻量应用服务器，
+可以给实例绑一个 RAM 角色，让 SDK 自动取 STS 临时凭据 —— **服务器上根本不存 AK/SK**。
+
+代价：`backend/app/services/sms.py` 现在是硬编码 `Config(access_key_id=..., access_key_secret=...)`，
+要走角色得改成用 `alibabacloud_credentials` 的默认凭据链（约 15 行）。
+可以做成双模：env 里有 AK 就用 AK，没有就自动走凭据链，这样两条路都通、将来切角色不用再改代码。
 
 ---
 
