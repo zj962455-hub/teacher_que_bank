@@ -49,6 +49,10 @@ CRED_SOURCE_ECS_ROLE = "ecs-ram-role"
 DIAGNOSIS = {
     "isv.RAM_PERMISSION_DENY": "RAM 用户没授这两个 action：dypns:SendSmsVerifyCode + dypns:CheckSmsVerifyCode",
     "isp.RAM_PERMISSION_DENY": "RAM 用户没授这两个 action：dypns:SendSmsVerifyCode + dypns:CheckSmsVerifyCode",
+    # 实例 RAM 角色没挂上策略时，阿里云回的就是这个
+    "Forbidden.NoPermission": "RAM 角色没拿到 dypns 权限：角色详情 → 权限管理 里确认策略已挂上（ram-policy.sms.json 的内容）",
+    "Forbidden": "RAM 角色没拿到 dypns 权限：角色详情 → 权限管理 里确认策略已挂上",
+    "NoPermission": "RAM 角色没拿到 dypns 权限：角色详情 → 权限管理 里确认策略已挂上",
     "isv.PRODUCT_UNSUBSCRIBE": "短信认证服务没开通（号码认证控制台 → 开通）",
     "isv.PRODUCT_UN_SUBSCRIPT": "短信认证服务没开通（号码认证控制台 → 开通）",
     "isv.SMS_SIGN_ILLEGAL": "签名不合法：检查 ALIYUN_SMS_SIGN_NAME 是否等于赠送签名的 SignName",

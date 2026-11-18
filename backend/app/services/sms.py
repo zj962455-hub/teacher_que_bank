@@ -196,6 +196,10 @@ _ERROR_MAP = {
     "isv.PRODUCT_UN_SUBSCRIPT": ("短信服务还没开通，请联系管理员", CODE_SMS_NOT_CONFIGURED),
     "isv.RAM_PERMISSION_DENY": ("短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
     "isp.RAM_PERMISSION_DENY": ("短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    # RAM 角色没授到 dypns 权限时，阿里云回的是 Forbidden.NoPermission（不是 isv.*）
+    "Forbidden.NoPermission": ("短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "Forbidden": ("短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "NoPermission": ("短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
     "isv.OUT_OF_SERVICE": ("短信服务欠费了，请联系管理员", CODE_SMS_SEND_FAILED),
     "isv.ACCOUNT_ABNORMAL": ("短信服务账号状态异常，请联系管理员", CODE_SMS_SEND_FAILED),
     "isp.QPS_LIMIT": ("请求太频繁了，请稍后再试", CODE_SMS_RATE_LIMITED),
