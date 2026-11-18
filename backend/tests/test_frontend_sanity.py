@@ -69,3 +69,71 @@ def test_nvue_components_are_imported():
         if missing:
             bad.append(f"{path.relative_to(REPO)}: 用了但没 import: {missing}")
     assert not bad, "模板里用了没 import 的组件（会白屏）：\n" + "\n".join(bad)
+
+def test_mps_icon_is_hosted_locally():
+    """公安备案图标必须本地托管 —— 官方外链已经死了。
+
+    踩过的坑（2026-11-18）：官方老路径 https://beian.mps.gov.cn/img/gh.png
+    返回的是官网 SPA 的 index.html（content-type: text/html，749 字节），
+    浏览器会把它当 HTML 解析 → 页脚图标位置变成空白/裂图。
+    现在用的是官网真图（金色公安徽章），已下载到 frontend/public/gh-beian.png。
+
+    这里保证：① 文件在；② 源码里不再引用那个死链。
+    """
+    icon = REPO / "frontend" / "public" / "gh-beian.png"
+    assert icon.is_file(), "公安备案图标丢了：frontend/public/gh-beian.png"
+
+    dead = "beian.mps.gov.cn/img/gh.png"
+    hits = []
+    for path in _source_files():
+        text = path.read_text(encoding="utf-8")
+        # 先剥掉注释 —— 说明性注释里提到这个死链是正常的
+        #（那段注释恰恰就是在记录「这链接已失效」，不该误伤）
+        text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+        text = re.sub(r"[/][*].*?[*]/", "", text, flags=re.S)
+        text = re.sub(r"(?m)^[ ]*//.*$", "", text)
+        if dead in text:
+            hits.append(str(path.relative_to(REPO)))
+    assert not hits, "又在引用已失效的官方外链图标（%s），改用本地 gh-beian.png" % dead
+
+
+def test_mps_link_uses_digit_only_code():
+    """公安备案链接的 code 参数只放数字，不能把「浙公网安备…号」全称塞进去。
+
+    依据：公安官网自己页面里硬编码的示例是
+      https://beian.mps.gov.cn/#/query/webSearch?code=11010102000001
+    显示文字才是「京公网安备11010102000001号」。
+    所以链接参数用数字、显示用全称。
+    """
+    footer = REPO / "frontend" / "src" / "components" / "SiteFooter.vue"
+    text = footer.read_text(encoding="utf-8")
+    assert "MPS_CODE" in text, "页脚没有用 MPS_CODE（code 参数应只放数字）"
+    assert "MPS.match(" in text, "MPS_CODE 应从全称里自动摘出数字，别手填两份"
+
+def test_no_mustache_inside_static_attribute():
+    """静态属性里不许出现 {{ }} 插值 —— 那是「原样输出成字面量」的写法。
+
+    踩过的坑（2026-11-18）：页脚的公安备案链接写成
+    href="https://beian.mps.gov.cn/#/query/webSearch?code={{ MPS }}"
+    Vue 的插值在属性里不生效，会原样输出 —— 等到真填上备案号才发现链接是废的。
+    这里提前拦住。
+
+    只扫 <template> 段，并先剥掉 HTML 注释 ——
+    注释里写反例是正常写法，不该误伤（第一版就误伤了自己写的注释）。
+    """
+    bad = []
+    attr_re = re.compile(r'(:|@|v-bind:)?([a-zA-Z][a-zA-Z0-9:_-]*)="([^"]*)"')
+    for path in _source_files():
+        if path.suffix != ".vue":
+            continue
+        text = path.read_text(encoding="utf-8")
+        text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+        m = re.search(r"<template[^>]*>(.*)</template>", text, flags=re.S)
+        scope = m.group(1) if m else text
+        for line in scope.splitlines():
+            for prefix, name, value in attr_re.findall(line):
+                if prefix:
+                    continue
+                if "{{" in value:
+                    bad.append("%s: %s=%r" % (path.relative_to(REPO), name, value))
+    assert not bad, "静态属性里 wrote {{ }} 插值（会原样输出成字面量）：" + chr(10) + chr(10).join(bad)
