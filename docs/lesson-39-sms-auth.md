@@ -286,6 +286,25 @@ ECS 控制台 → 实例与镜像 → 实例 → 找到 `i-0jldm8ubd3nmhp5b5e8tZ
 
     /opt/teacher-bank/.venv/bin/python /opt/teacher-bank/app/scripts/sms_smoke_test.py send <手机号>
 
+#### ✅ 2026-11-18 16:32 真机端到端验收（全部通过）
+
+| 步骤 | 结果 |
+|---|---|
+| 发码 `POST /api/auth/sms/send` | 200 `{"sent":true,"cooldown":60}` |
+| 核验 + 注册 `POST /api/auth/register` | 200，签发 token（7 天） |
+| 登录 `POST /api/auth/login`（`account` 字段） | 200，token 正常 |
+| token 访问 `GET /api/auth/me` | 200 |
+| 密码错 | 401「密码错了，再输一次」 |
+| 账号不存在 | 404「账号不存在；如果用的是手机号，说明还没注册过」 |
+| **库里不存验证码明文** | `users` / `sms_attempts` **都没有验证码列**；全库扫验证码 → 0 命中 |
+| 频控 | 429「刚发过验证码，60 秒后再试」 |
+
+⚠️ **登录接口的入参是 `account`（新前端）或 `username`（旧前端）—— 不是 `phone`**。
+用 `phone` 会被拒并报「请输入手机号」，很容易误判成接口坏了。
+
+验收用的手机号 `136****6247` 已设 `must_change_password=true`：初始密码是验收时临时生成的，
+不该留在生产库里，首次登录必须改掉。
+
     sudo vi /etc/teacherbank/app.env
     # 追加两行：
     ALIYUN_SMS_SIGN_NAME=<赠送签名的 SignName>
