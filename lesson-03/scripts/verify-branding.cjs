@@ -90,8 +90,8 @@ async function main() {
     // === 4. 登录后各路由标题 ===
     console.log('\n[4] 路由标题跟随')
     await page.evaluate(() => {
-      const el = [...document.querySelectorAll('input')].find((i) => i.placeholder?.includes('用户名'))
-      if (!el) throw new Error('找不到用户名输入框')
+      const el = [...document.querySelectorAll('input')].find((i) => i.placeholder?.includes('手机号'))
+      if (!el) throw new Error('找不到手机号输入框')
       const proto = window.HTMLInputElement.prototype
       Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, 'test2')
       el.dispatchEvent(new Event('input', { bubbles: true }))
