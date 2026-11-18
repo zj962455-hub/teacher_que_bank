@@ -204,7 +204,11 @@ _ERROR_MAP = {
     "isv.ACCOUNT_ABNORMAL": ("短信服务账号状态异常，请联系管理员", CODE_SMS_SEND_FAILED),
     "isp.QPS_LIMIT": ("请求太频繁了，请稍后再试", CODE_SMS_RATE_LIMITED),
     "isv.MOBILE_NUMBER_ILLEGAL": ("手机号格式不对，检查一下", CODE_VALIDATION),
-    "isv.INVALID_PARAMETERS": ("短信参数不对，请联系管理员", CODE_SMS_SEND_FAILED),
+    "isv.INVALID_PARAMETERS": ("短信签名或模板无效，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    # 签名/模板没填时阿里云回的是断言错误，不是 isv.*
+    "lc.ASSERT_ERROR": ("短信签名或模板没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    # 号码级频控（阿里云侧兜底，比我们自己的频控更严）
+    "biz.FREQUENCY": ("发送太频繁，请过一会儿再试", CODE_SMS_RATE_LIMITED),
 }
 
 
