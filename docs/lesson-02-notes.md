@@ -62,7 +62,7 @@ lesson-02/
 ### 步骤 1: 建目录结构
 
 ```bash
-cd ~/Desktop/dev/teacher_question_bank/lesson-02
+cd ~/Desktop/dev/teacher_question_bank/backend
 mkdir -p app/routers
 touch app/__init__.py app/routers/__init__.py
 ```
@@ -205,7 +205,7 @@ def root():
 ### 步骤 5: 跑起来
 
 ```bash
-cd ~/Desktop/dev/teacher_question_bank/lesson-02
+cd ~/Desktop/dev/teacher_question_bank/backend
 # 复用 lesson-01 的 venv(已经装了 fastapi),或者建新的
 source ../lesson-01/venv/bin/activate
 uvicorn app.main:app --reload
@@ -258,7 +258,7 @@ curl http://localhost:8000/api/questions/9999
 ## 📦 提交到 GitHub
 
 ```bash
-cd ~/Desktop/dev/teacher_question_bank/lesson-02
+cd ~/Desktop/dev/teacher_question_bank/backend
 git init
 # 写 .gitignore(参考 lesson-01/lesson-01/.gitignore)
 git add app/

@@ -35,10 +35,10 @@
 |---|---|---|
 | 小图放大 | `deploy/paddleocr/app/ocr.py`（`_preprocess`） | 短边 < `OCR_MIN_SIDE`（默认 350）时整体放大 `OCR_UPSCALE` 倍（默认 2）；长边 ≥ `OCR_MAX_LONG`（默认 2400）不放大；bbox 按倍数缩回原图坐标，前端高亮框不错位 |
 | 检测框不缩回 | 同上（`det_limit_side_len=1920`） | 默认 960 会把放大后的图再缩回去，等于白放大 |
-| 符号纠错 | `lesson-02/app/services/ocr_fixups.py`（`fix_math_symbols`） | ∠（Z/7/L 开头）、⊥（I/l/L/1）、60°（6O°）自动还原；只在「像数学文本」时生效，英文单词不受影响 |
+| 符号纠错 | `backend/app/services/ocr_fixups.py`（`fix_math_symbols`） | ∠（Z/7/L 开头）、⊥（I/l/L/1）、60°（6O°）自动还原；只在「像数学文本」时生效，英文单词不受影响 |
 | 竖式分数重建 | 同文件（`rebuild_fractions`） | 分子/分母两块靠 bbox 几何拼回 `\frac{1}{2}`；条件不满足宁可不拼 |
-| 接入点 | `lesson-02/app/services/math_parser.py`（`enrich_blocks`） | 顺序：先纠错 → 再重建分数 → 再切 text/formula；**整块文本的 early return 也要带上修好的 text**（否则 `BQIAD` 修不回来） |
-| 单测 | `lesson-02/tests/test_ocr_fixups.py`、`test_ocr_fixups_plain.py` | 15 条用例（符号 9 类 + 分数合并/不误合 + 整块文本 + 集成） |
+| 接入点 | `backend/app/services/math_parser.py`（`enrich_blocks`） | 顺序：先纠错 → 再重建分数 → 再切 text/formula；**整块文本的 early return 也要带上修好的 text**（否则 `BQIAD` 修不回来） |
+| 单测 | `backend/tests/test_ocr_fixups.py`、`test_ocr_fixups_plain.py` | 15 条用例（符号 9 类 + 分数合并/不误合 + 整块文本 + 集成） |
 
 ### 复测结果（同一批 5 张样本，线上 OCR → 后端管线）
 
@@ -85,7 +85,7 @@ OCR 只会输出文字，三角形、垂足、辅助线它一个也读不出来�
 所以必须**只把图那一块**摘出来。
 
 ### 怎么找到「图」那块
-`lesson-02/app/services/figure_crop.py`（纯 Pillow，无新依赖）：
+`backend/app/services/figure_crop.py`（纯 Pillow，无新依赖）：
 
 1. OCR 给了每个文本块的 bbox —— 那就是文字区
 2. 文字区从图上抹掉（**只抹整行文字，不抹顶点字母的小方块** ——
@@ -295,12 +295,12 @@ PADDLEOCR_BASE_URL 指到 http://127.0.0.1:8099 就能直接对比。
 ### 浏览器端完整验收（真实账号 test2，线上站点）
 
 无头验收脚本（新增，可复跑）：
-- `lesson-03/scripts/verify-ocr-queue.cjs` —— 多图排队 + 角符号 + 图形预览
-- `lesson-03/scripts/verify-ocr-figure.cjs` —— 逐张切历史看图形裁图 + 引擎标签 + 一键入库
+- `frontend/scripts/verify-ocr-queue.cjs` —— 多图排队 + 角符号 + 图形预览
+- `frontend/scripts/verify-ocr-figure.cjs` —— 逐张切历史看图形裁图 + 引擎标签 + 一键入库
 
 跑法：
 ```
-cd lesson-03
+cd frontend
 VERIFY_IMAGES="/tmp/a.png,/tmp/b.png,/tmp/c.png,/tmp/d.png" node scripts/verify-ocr-figure.cjs
 ```
 
@@ -354,9 +354,9 @@ VERIFY_IMAGES="/tmp/a.png,/tmp/b.png,/tmp/c.png,/tmp/d.png" node scripts/verify-
 ## 二、这一轮做了什么
 
 ### P0-1 · 列表页/详情页显示题图
-- `lesson-03/src/components/FigureThumb.vue`（新）—— 列表页 64×44 缩略图
-- `lesson-03/src/pages/QuestionsPage.vue` —— 表格加「图」列
-- `lesson-03/src/pages/QuestionDetailPage.vue` —— 详情页显示 `figure_path`
+- `frontend/src/components/FigureThumb.vue`（新）—— 列表页 64×44 缩略图
+- `frontend/src/pages/QuestionsPage.vue` —— 表格加「图」列
+- `frontend/src/pages/QuestionDetailPage.vue` —— 详情页显示 `figure_path`
 - 图片接口要鉴权 → 统一走 `fetchImageBlobUrl()` 取 blob（`<img src>` 带不了 Authorization 头）
 
 ### P0-2 · 公式块混中文 → 不再吐红字
@@ -384,7 +384,7 @@ VERIFY_IMAGES="/tmp/a.png,/tmp/b.png,/tmp/c.png,/tmp/d.png" node scripts/verify-
 - 插回原文时如果落在 `$...$` 里 → 插到公式结束符**之后**（公式里塞下划线 KaTeX 会报错）
 
 ### P1-6 · 符号疑点：只提示 + 一键改（老大定的策略）
-- `lesson-03/src/utils/symbolHints.js`（新）：检测 `PE/OA`（疑似平行）、`ZAOB`（疑似角）
+- `frontend/src/utils/symbolHints.js`（新）：检测 `PE/OA`（疑似平行）、`ZAOB`（疑似角）
 - 校对页显示「疑似平行符号 · 点击改为 PE ∥ OA」的提示标签
 - **不静默自动替换** —— 老师点了才改
 
@@ -397,7 +397,7 @@ VERIFY_IMAGES="/tmp/a.png,/tmp/b.png,/tmp/c.png,/tmp/d.png" node scripts/verify-
 
 ## 三、验收（真实账号 test2，线上 https://tqb.lanhu-lab.top）
 
-无头脚本：`lesson-03/scripts/verify-lesson35.cjs`（新增，可复跑）
+无头脚本：`frontend/scripts/verify-lesson35.cjs`（新增，可复跑）
 
 一次上传那张同时踩中三个坑的题图（`20261108_004950_d8b6b398.png`）：
 
@@ -428,18 +428,18 @@ E,∠AOB=30°
 
 ```
 deploy/local-ocr/local_ocr_service.py        填空横线检测 + 回填
-lesson-02/app/services/math_parser.py        公式块清理（拆中文/压空格/保角度）
-lesson-02/app/routers/questions.py           from-ocr 接受前端改过的 blocks
-lesson-02/tests/test_math_parser.py          +6 条回归用例
-lesson-03/src/utils/mathRenderer.js          KaTeX 报错 → 纯文本兜底
-lesson-03/src/utils/symbolHints.js           符号疑点检测（新）
-lesson-03/src/components/OcrBlockList.vue    疑点提示 + show-figure
-lesson-03/src/components/OcrResult.vue       题图卡片 + 改动随入库生效
-lesson-03/src/components/FigureThumb.vue     列表页缩略图（新）
-lesson-03/src/pages/CapturePage.vue          多图结果清单
-lesson-03/src/pages/QuestionDetailPage.vue  详情页题图
-lesson-03/src/pages/QuestionsPage.vue        列表页「图」列
-lesson-03/scripts/verify-lesson35.cjs       端到端验收脚本（新）
+backend/app/services/math_parser.py        公式块清理（拆中文/压空格/保角度）
+backend/app/routers/questions.py           from-ocr 接受前端改过的 blocks
+backend/tests/test_math_parser.py          +6 条回归用例
+frontend/src/utils/mathRenderer.js          KaTeX 报错 → 纯文本兜底
+frontend/src/utils/symbolHints.js           符号疑点检测（新）
+frontend/src/components/OcrBlockList.vue    疑点提示 + show-figure
+frontend/src/components/OcrResult.vue       题图卡片 + 改动随入库生效
+frontend/src/components/FigureThumb.vue     列表页缩略图（新）
+frontend/src/pages/CapturePage.vue          多图结果清单
+frontend/src/pages/QuestionDetailPage.vue  详情页题图
+frontend/src/pages/QuestionsPage.vue        列表页「图」列
+frontend/scripts/verify-lesson35.cjs       端到端验收脚本（新）
 ```
 
 ## 五、还没解决的（留给下一轮）

@@ -36,7 +36,7 @@
 - 暗色模式原生支持（CSS variables）—— 未来给学生用做"夜间模式"零成本
 
 ### 验证记录（2026-08-27）
-- `lesson-03/src/components/NaiveUIDemo.vue`：5 个 Card（暗色开关 / 基础控件 / DataTable 搜索筛选分页 / Form 校验 / 图片上传接 lesson-05 后端）
+- `frontend/src/components/NaiveUIDemo.vue`：5 个 Card（暗色开关 / 基础控件 / DataTable 搜索筛选分页 / Form 校验 / 图片上传接 lesson-05 后端）
 - `vite build` 通过（2719 modules · 571ms）
 - puppeteer 截图亮色 + 暗色均正常
 - 0 控制台错误

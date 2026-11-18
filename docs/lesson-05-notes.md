@@ -107,14 +107,14 @@ teacher_que_bank/
 FastAPI 解析 multipart 需要这个依赖:
 
 ```bash
-cd ~/Desktop/dev/teacher_question_bank/lesson-02
+cd ~/Desktop/dev/teacher_question_bank/backend
 source ../lesson-01/venv/bin/activate
 pip install python-multipart
 ```
 
 会改 `lesson-01/venv/` 里的依赖(在 venv 里,不动全局 Python)。
 
-### 步骤 2: 后端新增 `lesson-02/app/routers/upload.py`
+### 步骤 2: 后端新增 `backend/app/routers/upload.py`
 
 ```python
 """图片上传路由组 - lesson-05 重点:接 multipart/form-data"""
@@ -184,7 +184,7 @@ def list_uploads():
 - `await file.read()` —— 异步读字节(不阻塞 event loop)
 - 时间戳前缀 —— 防重名覆盖(同一个原文件名多次上传不会冲突)
 
-### 步骤 3: 后端改 `lesson-02/app/main.py` —— 注册 upload + 挂静态目录
+### 步骤 3: 后端改 `backend/app/main.py` —— 注册 upload + 挂静态目录
 
 ```python
 """FastAPI 应用入口 - 负责组装,不写业务"""
@@ -233,7 +233,7 @@ def root():
 - 这样后端存的图片,前端能直接通过 `http://localhost:8000/uploads/{filename}` 访问
 - `StaticFiles` 是 FastAPI 内置静态文件服务,跟 Nginx 一样简单
 
-### 步骤 4: 前端新增 `lesson-03/src/components/UploadImage.vue`
+### 步骤 4: 前端新增 `frontend/src/components/UploadImage.vue`
 
 ```vue
 <script setup>
@@ -380,7 +380,7 @@ button.secondary { background: #eee; color: #333; }
 - `e.response?.data?.detail` —— FastAPI 错误格式 `{detail: "..."}`
 - 上传后用 `http://localhost:8000${uploadedUrl}` 拼绝对路径显示图片
 
-### 步骤 5: 前端改 `lesson-03/src/App.vue` 集成新组件
+### 步骤 5: 前端改 `frontend/src/App.vue` 集成新组件
 
 ```vue
 <script setup>
@@ -499,12 +499,12 @@ function onDrop(e) {
 cd ~/Desktop/dev/teacher_question_bank
 
 # 后端改动
-git add lesson-02/app/main.py \
-        lesson-02/app/routers/upload.py
+git add backend/app/main.py \
+        backend/app/routers/upload.py
 
 # 前端改动
-git add lesson-03/src/App.vue \
-        lesson-03/src/components/UploadImage.vue
+git add frontend/src/App.vue \
+        frontend/src/components/UploadImage.vue
 
 git commit -m "feat(lesson-05): 图片上传 + FormData + FastAPI UploadFile + 静态挂载"
 

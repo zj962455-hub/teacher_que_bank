@@ -48,7 +48,7 @@
 
 ## 验收
 
-- 单测 `lesson-02/tests/test_figure_layout.py`（6 条）：规范化 + 模板输出
+- 单测 `backend/tests/test_figure_layout.py`（6 条）：规范化 + 模板输出
 - 线上真实导出（test2，卷「题图排版验收卷」）：四种版式各导一次 JPG，逐张看图确认
   - bottom_center → 图在下方居中 ✓
   - right → 图在右侧顶部对齐 ✓

@@ -59,7 +59,7 @@ PADDLEOCR_API_KEY=
 from dotenv import load_dotenv
 import os
 
-load_dotenv()  # 不带路径,默认读 cwd 的 .env(即 lesson-02/.env)
+load_dotenv()  # 不带路径,默认读 cwd 的 .env(即 backend/.env)
 
 base_url = os.getenv("PADDLEOCR_BASE_URL")
 api_key = os.getenv("PADDLEOCR_API_KEY")
@@ -188,10 +188,10 @@ ssh root@8.160.177.222
 sudo grep OCR_API_KEYS /etc/paddleocr/api.env
 ```
 
-把 `local_dev_key_here`（逗号前面那个）写到本地 `lesson-02/.env`:
+把 `local_dev_key_here`（逗号前面那个）写到本地 `backend/.env`:
 
 ```bash
-# lesson-02/.env(本地,不进 git)
+# backend/.env(本地,不进 git)
 PADDLEOCR_BASE_URL=https://lanhu-lab.top
 PADDLEOCR_API_KEY=<local_dev_key_here>
 ```
@@ -212,7 +212,7 @@ pip install python-dotenv requests
 
 ```bash
 # 在 lesson-02/ 下创建 .env（本地,不提交）
-cd /Users/rrobot/Desktop/dev/teacher_que_bank/lesson-02
+cd /Users/rrobot/Desktop/dev/teacher_que_bank/backend
 cat > .env << 'EOF'
 PADDLEOCR_BASE_URL=https://lanhu-lab.top
 PADDLEOCR_API_KEY=<你的 key>
@@ -231,7 +231,7 @@ git check-ignore .env && echo "✓ .env 被忽略"
 ### 步骤 4: 后端 `app/services/paddleocr.py`（API 封装层）
 
 ```python
-# lesson-02/app/services/paddleocr.py
+# backend/app/services/paddleocr.py
 """PaddleOCR API 封装层 - lesson-06"""
 import os
 import requests
@@ -265,7 +265,7 @@ def recognize(image_path: str) -> dict:
 ### 步骤 5: 后端 `app/routers/ocr.py`
 
 ```python
-# lesson-02/app/routers/ocr.py
+# backend/app/routers/ocr.py
 """OCR 路由组 - lesson-06 重点:异步任务 + 状态轮询"""
 import os
 import uuid
@@ -336,7 +336,7 @@ async def get_status(task_id: str):
 ### 步骤 6: 后端 `app/main.py` 注册路由 + 配 dotenv
 
 ```python
-# lesson-02/app/main.py
+# backend/app/main.py
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -387,7 +387,7 @@ def root():
 ### 步骤 7: 前端 `OcrResult.vue`（本课主角）
 
 ```vue
-<!-- lesson-03/src/components/OcrResult.vue -->
+<!-- frontend/src/components/OcrResult.vue -->
 <script setup>
 import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import axios from 'axios'
@@ -559,7 +559,7 @@ async function copyMarkdown() {
 ### 步骤 8: 前端 `App.vue` 集成
 
 ```vue
-<!-- lesson-03/src/App.vue -->
+<!-- frontend/src/App.vue -->
 <script setup>
 import LessonList from './components/LessonList.vue'
 import UploadImage from './components/UploadImage.vue'

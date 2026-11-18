@@ -233,7 +233,7 @@ Phase 5: 打磨上线               1-2 周   ⏸ 待做（课 31 b 阶段视觉
 
 ### A. 必须做
 
-- [ ] **公安备案号回填 + 重新部署** —— `lesson-03/src/components/SiteFooter.vue` 里 `MPS` 常量是公示位（当前为空串），拿到号后填成 `浙公网安备XXXXXXXXXXXXXX号` → `npm run build` → `bash deploy/teacher-bank/rebuild.sh` → 页脚把 ICP 号与公安号同行公示（渲染条件已就位）。
+- [ ] **公安备案号回填 + 重新部署** —— `frontend/src/components/SiteFooter.vue` 里 `MPS` 常量是公示位（当前为空串），拿到号后填成 `浙公网安备XXXXXXXXXXXXXX号` → `npm run build` → `bash deploy/teacher-bank/rebuild.sh` → 页脚把 ICP 号与公安号同行公示（渲染条件已就位）。
 - [x] **站名口径已统一** —— 页脚 / 顶栏 / 浏览器标签 / 分享封面统一「蓝狐网」（对齐阿里云 ICP 备案名），ICP 号 `浙ICP备2025185898号-2` 已公示（de44625，线上已生效）。
 - [x] **部署可追溯** —— rebuild.sh 新增「写版本标记」步骤，线上 `/opt/teacher-bank/VERSION` 记录 commit + 构建时间，不再靠 md5 猜线上版本。
 - [ ] **灰度真实用户补齐**（上线前最后一道）—— 见下方「灰度实况」。

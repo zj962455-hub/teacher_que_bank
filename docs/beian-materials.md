@@ -66,11 +66,11 @@
 
 | 措施 | 实现方式 | 验证方式 |
 |---|---|---|
-| 身份认证 | 用户名 + 密码登录，口令用 **bcrypt 加盐哈希**存储 | `lesson-02/app/services/auth.py` |
-| 会话管理 | 服务端 Session 存数据库，客户端 token **只存 SHA-256 哈希**（库被拖走也拿不到可用凭证） | `lesson-02/app/models.py` `Session_` |
+| 身份认证 | 用户名 + 密码登录，口令用 **bcrypt 加盐哈希**存储 | `backend/app/services/auth.py` |
+| 会话管理 | 服务端 Session 存数据库，客户端 token **只存 SHA-256 哈希**（库被拖走也拿不到可用凭证） | `backend/app/models.py` `Session_` |
 | 强制下线 | 管理员改密码 / 注销会话后，对应 token 立即失效 | 个人中心 → 设备会话管理 |
-| 账号停用 | `is_active=False` 软删除，保留业务数据但立即停用登录 | `lesson-02/app/models.py` `User` |
-| 账号发放 | 管理员预创建（`create_users.py`）；**另开手机号 + 短信验证码自助注册**（短信由阿里云下发，验证码 5 分钟有效、限频发送；注册通道可由管理员一键关闭） | `lesson-02/app/scripts/create_users.py` · `app/routers/auth.py` `/api/auth/register` |
+| 账号停用 | `is_active=False` 软删除，保留业务数据但立即停用登录 | `backend/app/models.py` `User` |
+| 账号发放 | 管理员预创建（`create_users.py`）；**另开手机号 + 短信验证码自助注册**（短信由阿里云下发，验证码 5 分钟有效、限频发送；注册通道可由管理员一键关闭） | `backend/app/scripts/create_users.py` · `app/routers/auth.py` `/api/auth/register` |
 | 共享试用账号 | 多人共用同一账号时 `allow_password_change=false` —— 改密码会踢掉所有共用者的会话，所以**锁死改密**（后端 403，前端只是提示） | `app/models.py` `User.allow_password_change` |
 
 ### 2.2 数据隔离与访问授权

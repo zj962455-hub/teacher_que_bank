@@ -83,7 +83,7 @@ npm create vue@latest lesson-03
 ### 步骤 2: 装依赖 + 跑起来验证
 
 ```bash
-cd lesson-03
+cd frontend
 npm install
 npm run dev
 ```
@@ -174,7 +174,7 @@ li.done .title { text-decoration: line-through; color: #999; }
 ### 步骤 5: 跑起来
 
 ```bash
-cd ~/Desktop/dev/teacher_question_bank/lesson-03
+cd ~/Desktop/dev/teacher_question_bank/frontend
 npm run dev
 ```
 
