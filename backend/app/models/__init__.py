@@ -23,6 +23,7 @@ from .audit import AuditLog
 from .feedback import Feedback
 from .paper import CN_NUMBERS, Paper, PaperQuestion, PaperShare, auto_label
 from .question import Category, Question, QuestionTag, Tag, Upload
+from .report import Report
 
 __all__ = [
     # 账号域
@@ -41,6 +42,8 @@ __all__ = [
     "Tag",
     "QuestionTag",
     "Upload",
+    # 举报域
+    "Report",
     # 试卷域
     "Paper",
     "PaperQuestion",

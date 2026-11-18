@@ -22,6 +22,7 @@
 import { ref, onMounted } from 'vue'
 import { NCard, NButton, NSpace, NSpin, NAlert, NDivider } from 'naive-ui'
 import { getSharedPaper, downloadSharedPdf, downloadSharedJpg } from '../api/shares'
+import ReportDialog from '../components/ReportDialog.vue'  // ← lesson-43 公开举报入口
 import { renderMathText } from '../utils/mathRenderer'
 import { stripFigurePlaceholder } from '../utils/figurePlaceholder'   // ← lesson-38: 展示去掉【题图】占位
 import { useRoute } from 'vue-router'
@@ -33,6 +34,8 @@ const loading = ref(true)
 const errorMsg = ref('')
 const exporting = ref(false)
 const exportingJpg = ref(false)
+// 公开举报（lesson-43）—— 访客看到有害内容，手边就有举报入口
+const showReport = ref(false)
 
 async function load() {
   loading.value = true
@@ -97,6 +100,10 @@ async function doExportJpg() {
           <NButton :loading="exportingJpg" @click="doExportJpg">
             下载 JPG
           </NButton>
+          <!-- 公开举报入口（lesson-43）：官方第（六）项要「举报渠道畅通」 -->
+          <NButton quaternary type="warning" @click="showReport = true">
+            举报违法有害信息
+          </NButton>
         </NSpace>
 
         <NDivider />
@@ -114,6 +121,13 @@ async function doExportJpg() {
         </NAlert>
       </NCard>
     </NSpin>
+
+    <!-- 举报弹窗（公开、可匿名） -->
+    <ReportDialog
+      v-model:show="showReport"
+      target-type="share"
+      :target-desc="paper?.title || ''"
+    />
   </div>
 </template>
 

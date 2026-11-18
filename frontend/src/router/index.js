@@ -117,6 +117,15 @@ const routes = [
     meta: { title: '邀请码管理', adminOnly: true },
   },
   {
+    // 举报受理（lesson-43）—— 仅管理员
+    // ⚠️ 前端只是「不给非管理员显示入口」；真正的门在后端
+    //    （require_admin → 403）。非管理员手打 URL 进来只能看到提示 + 空列表。
+    path: '/reports',
+    name: 'reports',
+    component: () => import('../pages/ReportsPage.vue'),
+    meta: { title: '举报受理', adminOnly: true },
+  },
+  {
     path: '/profile',
     name: 'profile',
     component: () => import('../pages/ProfilePage.vue'),

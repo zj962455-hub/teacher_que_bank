@@ -114,6 +114,8 @@ const NAV_ITEMS = computed(() => {
   ]
   if (currentUser.value?.is_admin) {
     items.push({ name: 'invites', label: '邀请码' })
+    // 举报受理（lesson-43）—— 管理员入口，跟邀请码一样只在导航里露
+    items.push({ name: 'reports', label: '举报受理' })
   }
   return items
 })
