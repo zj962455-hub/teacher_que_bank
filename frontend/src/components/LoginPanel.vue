@@ -273,7 +273,7 @@ async function handleSendResetCode() {
   hint.value = ''
   clearResetSmsError()
   const p = resetPhone.value.trim()
-  if (!/^1[3-9]\\d{9}$/.test(p)) {
+  if (!/^1[3-9]\d{9}$/.test(p)) {
     hint.value = '手机号格式不对，检查一下'
     return
   }
@@ -286,7 +286,7 @@ async function handleSendResetCode() {
 async function handleResetPassword() {
   hint.value = ''
   clearResetError()
-  if (!/^1[3-9]\\d{9}$/.test(resetPhone.value.trim())) {
+  if (!/^1[3-9]\d{9}$/.test(resetPhone.value.trim())) {
     hint.value = '手机号格式不对，检查一下'
     return
   }
