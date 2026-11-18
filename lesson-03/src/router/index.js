@@ -127,10 +127,10 @@ const router = createRouter({
 //    老师开多个标签页分不清自己在哪；把试卷链接发到班级群，
 //    微信卡片标题也是 "Vite App"（微信抓的是 document.title）。
 //
-//    格式：<页面名> · 蓝狐题库
+//    格式：<页面名> · 蓝狐网
 //    分享页（/share/:token）单独处理 —— 那页站在外面，
-//    标题写「XX 的试卷 · 蓝狐题库」比「试卷分享」有信息量。
-const SITE_NAME = '蓝狐题库'
+//    标题写「XX 的试卷 · 蓝狐网」比「试卷分享」有信息量。
+const SITE_NAME = '蓝狐网'
 router.afterEach((to) => {
   const page = to.meta?.title
   document.title = page ? `${page} · ${SITE_NAME}` : SITE_NAME

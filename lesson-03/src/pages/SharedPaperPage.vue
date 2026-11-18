@@ -43,9 +43,9 @@ async function load() {
     // 分享页标题带卷名 —— 老师把链接发到班级群，
     // 对方浏览器标签页 / 微信卡片标题能看出是哪张卷
     const name = res.data?.title
-    document.title = name ? `${name} · 蓝狐题库` : '试卷分享 · 蓝狐题库'
+    document.title = name ? `${name} · 蓝狐网` : '试卷分享 · 蓝狐网'
   } catch (e) {
-    document.title = '试卷分享 · 蓝狐题库'
+    document.title = '试卷分享 · 蓝狐网'
     errorMsg.value =
       e.response?.status === 404
         ? '链接不存在、已过期或已被老师取消。'

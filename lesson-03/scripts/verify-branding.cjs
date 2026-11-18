@@ -5,7 +5,7 @@
  * --------
  * 1. 浏览器标签页标题**不再是 "Vite App"**（之前一直是）
  * 2. 标题**跟着路由走**（首页 / 题库 / 录题 / 分类 / 组卷 各不相同）
- * 3. 顶栏 / 登录页 / 页脚三处的站名一致 = 「蓝狐题库」
+ * 3. 顶栏 / 登录页 / 页脚三处的站名一致 = 「蓝狐网」
  * 4. 页脚同时展示 **网站名 + ICP 备案号**（公安备案要求公示位）
  * 5. favicon / og 封面等静态资源取得到（不是 404）
  * 6. 分享页（/share/:token）标题带卷名
@@ -57,10 +57,10 @@ async function main() {
 
     const loginTitle = await page.evaluate(() => document.title)
     check('标签页标题不是 "Vite App"', !loginTitle.includes('Vite App'), loginTitle)
-    check('标题含站名「蓝狐题库」', loginTitle.includes('蓝狐题库'), loginTitle)
+    check('标题含站名「蓝狐网」', loginTitle.includes('蓝狐网'), loginTitle)
 
     const loginBrand = await page.evaluate(() => document.body.innerText)
-    check('登录页显示站名', loginBrand.includes('蓝狐题库'))
+    check('登录页显示站名', loginBrand.includes('蓝狐网'))
 
     // === 2. 静态资源 ===
     console.log('\n[2] 图标与封面')
@@ -83,7 +83,7 @@ async function main() {
       }
       return out
     })
-    check('og:title 含站名', (metas['og:title'] || '').includes('蓝狐题库'), metas['og:title'])
+    check('og:title 含站名', (metas['og:title'] || '').includes('蓝狐网'), metas['og:title'])
     check('og:image 指向封面图', !!metas['og:image'], metas['og:image'])
     check('description 不含 Vite', !(metas.description || '').includes('Vite'))
 
@@ -128,8 +128,8 @@ async function main() {
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' })
     await wait(1500)
     const body = await page.evaluate(() => document.body.innerText)
-    check('顶栏显示「🦊 蓝狐题库」', body.includes('蓝狐题库'))
-    check('页脚展示网站名', body.includes('蓝狐题库'))
+    check('顶栏显示「🦊 蓝狐网」', body.includes('蓝狐网'))
+    check('页脚展示网站名', body.includes('蓝狐网'))
     check('页脚展示 ICP 备案号', body.includes('浙ICP备2025185898号-2'))
     check('页面不再出现 "Vite App"', !body.includes('Vite App'))
   } catch (e) {

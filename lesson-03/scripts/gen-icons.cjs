@@ -19,7 +19,7 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const ROOT = path.join(__dirname, '..')
 const PUBLIC = path.join(ROOT, 'public')
 
-const SITE_NAME = '蓝狐题库'
+const SITE_NAME = '蓝狐网'
 const SITE_DESC = '教培数学老师的私人题库 · 拍照 OCR 录题 · 一键组卷导出'
 
 /** 把一个 SVG 或 HTML 渲染成 PNG */

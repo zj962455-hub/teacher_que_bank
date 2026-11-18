@@ -213,7 +213,7 @@ async function handleRegister() {
 
 <template>
   <div class="login-panel">
-    <NCard title="🦊 蓝狐题库" style="max-width: 420px" :bordered="false">
+    <NCard title="🦊 蓝狐网" style="max-width: 420px" :bordered="false">
       <NTabs v-model:value="tab" type="line" animated @update:value="switchTab">
         <!-- === 登录 === -->
         <NTabPane name="login" tab="登录">
