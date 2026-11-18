@@ -64,6 +64,22 @@ ENV_SCHEME = "ALIYUN_SMS_SCHEME_NAME"
 
 DEFAULT_ENDPOINT = "dypnsapi.aliyuncs.com"
 
+# ============ 验证码用途 ============
+# 同一个手机号，验证码有两个用途：注册（建新号）、改密（已有号重置密码）。
+# 阿里云那边验证码只认号码、**不认用途** —— 所以用途隔离只能在我们自己这边做：
+# 发码时记下用途，核验时对一下，对不上就拒。
+#
+# 为什么必须隔离
+# ------------
+# 老师自己申请了一个「注册」验证码。那个码要是也能拿去重置密码，
+# 就多了一条「不用输入旧密码就能改密」的路径 —— 虽然都得先拿到那个号，
+# 但没必要留这个口子。
+PURPOSE_REGISTER = "register"
+PURPOSE_RESET = "reset"
+SMS_PURPOSES = (PURPOSE_REGISTER, PURPOSE_RESET)
+
+_PURPOSE_CN = {PURPOSE_REGISTER: "注册", PURPOSE_RESET: "重置密码"}
+
 # 默认模板参数：##code## = 让阿里云生成验证码（我们看不到明文）
 # min 是模板里「有效期」那个变量的值（分钟）
 DEFAULT_TEMPLATE_PARAM = {"code": "##code##", "min": "5"}
@@ -321,15 +337,33 @@ def _translate_error(exc: Exception) -> ApiHTTPException:
     )
 
 
-def _log_attempt(session: Session, phone: str, ip: str, action: str, ok: bool) -> None:
+def _log_attempt(
+    session: Session,
+    phone: str,
+    ip: str,
+    action: str,
+    ok: bool,
+    purpose: str = PURPOSE_REGISTER,
+) -> None:
     """记一条流水（频控 + 审计 + 投诉溯源）。"""
     session.add(
-        SmsAttempt(phone=phone[:20], ip=(ip or "")[:45], action=action, ok=ok)
+        SmsAttempt(
+            phone=phone[:20],
+            ip=(ip or "")[:45],
+            action=action,
+            ok=ok,
+            purpose=(purpose or PURPOSE_REGISTER)[:16],
+        )
     )
     session.commit()
 
 
-def send_code(session: Session, phone: str, ip: str = "") -> None:
+def send_code(
+    session: Session,
+    phone: str,
+    ip: str = "",
+    purpose: str = PURPOSE_REGISTER,
+) -> None:
     """发一条验证码短信。失败直接抛 ApiHTTPException（统一契约）。
 
     频控在发之前查流水表 —— 拦在阿里云之前，一分钱都不花。
@@ -438,12 +472,12 @@ def send_code(session: Session, phone: str, ip: str = "") -> None:
     try:
         response = _client().send_sms_verify_code(request)
     except Exception as exc:
-        _log_attempt(session, phone, ip, "send", False)
+        _log_attempt(session, phone, ip, "send", False, purpose)
         raise _translate_error(exc) from exc
 
     body = getattr(response, "body", None)
     ok = bool(getattr(body, "success", False))
-    _log_attempt(session, phone, ip, "send", ok)
+    _log_attempt(session, phone, ip, "send", ok, purpose)
 
     if not ok:
         raise ApiHTTPException(
@@ -453,7 +487,13 @@ def send_code(session: Session, phone: str, ip: str = "") -> None:
         )
 
 
-def verify_code(session: Session, phone: str, code: str, ip: str = "") -> None:
+def verify_code(
+    session: Session,
+    phone: str,
+    code: str,
+    ip: str = "",
+    purpose: str = PURPOSE_REGISTER,
+) -> None:
     """核验验证码。通过就静默返回，不通过抛 ApiHTTPException。
 
     核验在阿里云那边做（我们没有明文码可比对）。
@@ -480,6 +520,28 @@ def verify_code(session: Session, phone: str, code: str, ip: str = "") -> None:
             detail=f"验证码是 {CODE_LENGTH} 位数字",
             code=CODE_SMS_CODE_INVALID,
         )
+
+    # 用途对不上就别去阿里云那问了 —— 省的也是一次网络往返，
+    # 更重要的是别让「注册用的码」被拿去改密码。
+    last_send = session.exec(
+        select(SmsAttempt)
+        .where(
+            SmsAttempt.phone == phone,
+            SmsAttempt.action == "send",
+        )
+        .order_by(SmsAttempt.created_at.desc())
+    ).first()
+    if last_send is not None:
+        sent_purpose = last_send.purpose or PURPOSE_REGISTER
+        if sent_purpose != purpose:
+            raise ApiHTTPException(
+                status_code=400,
+                detail=(
+                    f"这是{_PURPOSE_CN.get(sent_purpose, sent_purpose)}用的验证码，"
+                    f"不能用来{_PURPOSE_CN.get(purpose, purpose)}，请重新获取"
+                ),
+                code=CODE_SMS_CODE_INVALID,
+            )
 
     now = datetime.now(timezone.utc)
 
@@ -513,12 +575,12 @@ def verify_code(session: Session, phone: str, code: str, ip: str = "") -> None:
     try:
         response = _client().check_sms_verify_code(request)
     except Exception as exc:
-        _log_attempt(session, phone, ip, "verify", False)
+        _log_attempt(session, phone, ip, "verify", False, purpose)
         raise _translate_error(exc) from exc
 
     model = getattr(getattr(response, "body", None), "model", None)
     passed = getattr(model, "verify_result", "") == "PASS"
-    _log_attempt(session, phone, ip, "verify", passed)
+    _log_attempt(session, phone, ip, "verify", passed, purpose)
 
     if not passed:
         raise ApiHTTPException(

@@ -24,7 +24,7 @@ import { ref, computed, onUnmounted } from 'vue'
 import {
   NCard, NTabs, NTabPane, NForm, NFormItem, NInput, NButton, NSpace, NText, NAlert, NCheckbox,
 } from 'naive-ui'
-import { login, register, sendSmsCode } from '../api/auth'
+import { login, register, resetPassword, sendSmsCode } from '../api/auth'
 import { message } from '../composables/discreteApi'
 import { useAsyncTask } from '../composables/useAsyncTask'
 
@@ -41,6 +41,12 @@ const phone = ref('')
 const code = ref('')
 const displayName = ref('')
 const agreed = ref(false)
+
+// === 忘记密码（lesson-40）===
+// ⚠️ 和注册页签**分开存** —— 切页签时别把上一次的验证码带过来。
+const resetPhone = ref('')
+const resetCode = ref('')
+const resetPwd = ref('')
 
 // 客户端校验的提示（不是后端返回的错误）
 const hint = ref('')
@@ -136,10 +142,60 @@ const {
   },
 )
 
+// === 忘记密码：发验证码（用途 reset）===
+// ⚠️ 倒计时和注册页签共用一个 —— 后端频控是按手机号算的，
+//    两个用途共用同一份预算（别让切用途绕过频控）。
+const {
+  loading: resetSmsLoading,
+  error: resetSmsError,
+  run: runSendResetCode,
+  clearError: clearResetSmsError,
+} = useAsyncTask(
+  async () => {
+    const data = await sendSmsCode(resetPhone.value.trim(), 'reset')
+    startCooldown(data.cooldown || 60)
+    message.success('验证码已发送，5 分钟内有效')
+    return data
+  },
+)
+
+// === 忘记密码：重置 ===
+const {
+  loading: resetLoading,
+  error: resetError,
+  run: runResetPassword,
+  clearError: clearResetError,
+} = useAsyncTask(
+  async () => {
+    const data = await resetPassword({
+      phone: resetPhone.value.trim(),
+      code: resetCode.value.trim(),
+      password: resetPwd.value,
+    })
+    resetPwd.value = ''
+    return data
+  },
+  {
+    onSuccess: (data) => {
+      message.success('密码已重置，已自动登录')
+      emit('logged-in', data.user)
+    },
+    onError: (err) => {
+      // 这个号还没注册 → 就地把他送到注册页签
+      if (err.code === 'auth.account_not_found') {
+        phone.value = resetPhone.value.trim()
+        tab.value = 'register'
+        hint.value = '这个手机号还没注册过，先注册一个吧'
+      }
+    },
+  },
+)
+
 // 当前页签的错误（切页签时别把另一个页签的报错显示出来）
 const activeError = computed(() => {
   if (tab.value === 'login') return loginError.value
   if (tab.value === 'sms') return smsError.value
+  if (tab.value === 'reset') return resetError.value || resetSmsError.value
   return regError.value
 })
 
@@ -149,6 +205,8 @@ function switchTab(name) {
   clearLoginError()
   clearSmsError()
   clearRegError()
+  clearResetError()
+  clearResetSmsError()
 }
 
 async function handleLogin() {
@@ -205,6 +263,43 @@ async function handleRegister() {
   }
   try {
     await runRegister()
+  } catch {
+    // 同上：错误显示在页面上
+  }
+}
+
+// === 忘记密码 ===
+async function handleSendResetCode() {
+  hint.value = ''
+  clearResetSmsError()
+  const p = resetPhone.value.trim()
+  if (!/^1[3-9]\\d{9}$/.test(p)) {
+    hint.value = '手机号格式不对，检查一下'
+    return
+  }
+  try {
+    await runSendResetCode()
+  } catch {
+    // 同上：错误显示在页面上
+  }
+}
+async function handleResetPassword() {
+  hint.value = ''
+  clearResetError()
+  if (!/^1[3-9]\\d{9}$/.test(resetPhone.value.trim())) {
+    hint.value = '手机号格式不对，检查一下'
+    return
+  }
+  if (!resetCode.value.trim()) {
+    hint.value = '请输入短信验证码'
+    return
+  }
+  if (!resetPwd.value) {
+    hint.value = '请设置新密码'
+    return
+  }
+  try {
+    await runResetPassword()
   } catch {
     // 同上：错误显示在页面上
   }
@@ -341,6 +436,75 @@ async function handleRegister() {
               </NButton>
               <NText depth="3" style="font-size: 12px; text-align: center; display: block">
                 注册即用手机号登录 —— 老师不用记用户名
+              </NText>
+            </NSpace>
+          </NForm>
+        </NTabPane>
+        <!-- === 忘记密码（手机号 + 验证码重置） === -->
+        <NTabPane name="reset" tab="忘记密码">
+          <NAlert v-if="hint || activeError" type="error" :bordered="false" style="margin-bottom: 16px">
+            {{ hint || activeError?.message }}
+          </NAlert>
+
+          <NForm @submit.prevent="handleResetPassword">
+            <NFormItem label="注册手机号">
+              <NInput
+                v-model:value="resetPhone"
+                placeholder="请输入注册时的手机号"
+                :maxlength="11"
+                :disabled="resetLoading"
+                @keyup.enter="handleResetPassword"
+              />
+            </NFormItem>
+
+            <NFormItem label="短信验证码">
+              <NSpace vertical :size="8">
+                <NSpace :size="8" style="width: 100%">
+                  <NInput
+                    v-model:value="resetCode"
+                    placeholder="6 位验证码"
+                    :maxlength="6"
+                    :disabled="resetLoading"
+                    style="flex: 1"
+                    @keyup.enter="handleResetPassword"
+                  />
+                  <NButton
+                    :disabled="cooldown > 0 || resetSmsLoading"
+                    :loading="resetSmsLoading"
+                    style="width: 116px"
+                    @click="handleSendResetCode"
+                  >
+                    {{ cooldown > 0 ? `${cooldown} 秒后重发` : '获取验证码' }}
+                  </NButton>
+                </NSpace>
+                <NText depth="3" style="font-size: 12px">
+                  验证码发到这个手机号 —— 收不到就找管理员
+                </NText>
+              </NSpace>
+            </NFormItem>
+
+            <NFormItem label="新密码">
+              <NInput
+                v-model:value="resetPwd"
+                type="password"
+                show-password-on="click"
+                placeholder="大写 + 小写 + 数字 + 至少 8 位"
+                :disabled="resetLoading"
+                @keyup.enter="handleResetPassword"
+              />
+            </NFormItem>
+
+            <NSpace vertical :size="12">
+              <NButton
+                type="primary"
+                block
+                :loading="resetLoading"
+                @click="handleResetPassword"
+              >
+                重置密码并进入
+              </NButton>
+              <NText depth="3" style="font-size: 12px; text-align: center; display: block">
+                重置后会自动登录，其他设备的登录状态会全部失效
               </NText>
             </NSpace>
           </NForm>

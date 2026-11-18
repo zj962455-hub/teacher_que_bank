@@ -62,7 +62,10 @@ from app.services.errors import (
     ApiHTTPException,
 )
 from app.services.sms import (
+    PURPOSE_REGISTER,
+    PURPOSE_RESET,
     RESEND_INTERVAL_SECONDS,
+    SMS_PURPOSES,
     mask_phone,
     normalize_phone,
     send_code,
@@ -102,9 +105,14 @@ class LoginRequest(BaseModel):
 
 
 class SmsSendRequest(BaseModel):
-    """发验证码请求（手机号）"""
+    """发验证码请求（手机号 + 用途）
+
+    purpose: register=注册（默认）/ reset=重置密码。
+    不传按注册算 —— 老前端不受影响。
+    """
 
     phone: str = Field(min_length=1, max_length=20)
+    purpose: str = Field(default=PURPOSE_REGISTER, max_length=16)
 
 
 class SmsSendResponse(BaseModel):
@@ -116,6 +124,18 @@ class SmsSendResponse(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     old_password: str = Field(max_length=128)
+    new_password: str = Field(max_length=128)
+
+
+class PasswordResetRequest(BaseModel):
+    """手机号 + 验证码重置密码（lesson-40 · 老师忘记密码时用）
+
+    ⚠️ 密码强度**不在** pydantic 里写（同注册）——
+       弱密码要返一句中文（「至少一个大写字母」），不是一坨校验错误数组。
+    """
+
+    phone: str = Field(min_length=1, max_length=20)
+    code: str = Field(min_length=1, max_length=12)
     new_password: str = Field(max_length=128)
 
 
@@ -353,7 +373,11 @@ def send_sms_code(
     频控在服务层（services/sms.py）：同号 60 秒 1 条、每天 10 条、
     同 IP 每小时 20 条。拦在阿里云之前 —— 一次都别多花。
 
-    已注册的手机号也允许发码（以后找回密码要用）。
+    已注册的手机号也允许发码（找回密码要用）。
+
+    purpose 决定这次发的码干什么用：
+    - register（默认）：注册
+    - reset：重置密码 —— 这种码**只对已注册的号**发
     """
     # 通道关了就不发码 —— 免得白花钱（每条 0.06 元）
     if not _registration_open():
@@ -363,8 +387,30 @@ def send_sms_code(
             code=CODE_AUTH_REGISTRATION_CLOSED,
         )
 
+    purpose = (payload.purpose or PURPOSE_REGISTER).strip().lower()
+    if purpose not in SMS_PURPOSES:
+        raise ApiHTTPException(
+            status_code=400,
+            detail="验证码用途不对",
+            code=CODE_VALIDATION,
+        )
+
+    if purpose == PURPOSE_RESET:
+        # 改密只对已注册的号有意义 —— 没注册的号想「改密」，
+        # 那其实是想注册，让前端引导去注册页签。
+        phone = normalize_phone(payload.phone)
+        found = session.exec(select(User).where(User.phone == phone)).first()
+        if found is None:
+            found = session.exec(select(User).where(User.username == phone)).first()
+        if found is None:
+            raise ApiHTTPException(
+                status_code=404,
+                detail="这个手机号还没注册过，没有密码可以重置",
+                code=CODE_AUTH_ACCOUNT_NOT_FOUND,
+            )
+
     client_ip = request.client.host if request.client else ""
-    send_code(session, payload.phone, ip=client_ip)
+    send_code(session, payload.phone, ip=client_ip, purpose=purpose)
     return SmsSendResponse(sent=True, cooldown=RESEND_INTERVAL_SECONDS)
 
 
@@ -449,6 +495,97 @@ def register(
     session.refresh(user)
 
     # 5. 签发会话（跟登录一样，前端注册完直接进首页）
+    user_agent = request.headers.get("user-agent", "")
+    token, _record = create_session(
+        user, session, ip=client_ip, user_agent=user_agent
+    )
+
+    user.last_login_at = datetime.now(timezone.utc)
+    session.add(user)
+    session.commit()
+
+    return LoginResponse(
+        token=token,
+        expires_in_days=SESSION_TTL_DAYS,
+        user=UserOut(
+            id=user.id or 0,
+            username=user.username,
+            display_name=user.display_name,
+            must_change_password=user.must_change_password,
+            last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
+            is_admin=user.is_admin,
+            allow_password_change=user.allow_password_change,
+        ),
+    )
+
+
+# === 忘记密码：手机号 + 验证码重置（lesson-40）===
+
+
+@router.post("/password/reset", response_model=LoginResponse)
+def reset_password(
+    payload: PasswordResetRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """手机号 + 验证码重置密码（lesson-40 · 老师忘记密码时用）
+
+    流程：查号 → 验新密码强度 → 阿里云核验验证码 → 改密码 →
+    踢掉所有旧会话 → 签发新会话。
+
+    ⚠️ 为什么改完踢掉**所有**会话（不像「修改密码」只踢其他设备）
+    ------------------------------------------------------
+    忘密码的场景下，**不能排除**是别人拿着手机把密码改了。
+    旧会话必须全清 —— 不然那个人还能继续用这个账号。
+    """
+    phone = normalize_phone(payload.phone)
+    if len(phone) != 11 or not phone.startswith("1"):
+        raise ApiHTTPException(
+            status_code=400,
+            detail="手机号格式不对，检查一下",
+            code=CODE_VALIDATION,
+        )
+
+    user = session.exec(select(User).where(User.phone == phone)).first()
+    if user is None:
+        user = session.exec(select(User).where(User.username == phone)).first()
+    if user is None:
+        raise ApiHTTPException(
+            status_code=404,
+            detail="这个手机号还没注册过，没有密码可以重置",
+            code=CODE_AUTH_ACCOUNT_NOT_FOUND,
+        )
+
+    # 共享试用账号不给自助改密 —— 改一个所有人掉线（跟 change-password 一样）
+    if not user.allow_password_change:
+        raise ApiHTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="该账号是共享试用账号，需要改请联系管理员",
+            code=CODE_PASSWORD_CHANGE_LOCKED,
+        )
+
+    # 密码强度 —— 和注册同一套规矩
+    problems = check_password_strength(payload.new_password)
+    if problems:
+        raise ApiHTTPException(
+            status_code=400,
+            detail=f"新密码不合规：{'；'.join(problems)}",
+            code=CODE_VALIDATION,
+        )
+
+    # 验证码核验 —— 用途必须是「重置密码」，注册用的码在这里会被拒
+    client_ip = request.client.host if request.client else ""
+    verify_code(session, phone, payload.code, ip=client_ip, purpose=PURPOSE_RESET)
+
+    user.password_hash = hash_password(payload.new_password)
+    user.must_change_password = False
+    session.add(user)
+    session.commit()
+
+    # 旧会话全清（忘密码 = 可能被别人改了，别留后门）
+    revoke_all_sessions(session, user.id or 0)
+
+    # 签发新会话 —— 改完直接进首页，不用再登一次
     user_agent = request.headers.get("user-agent", "")
     token, _record = create_session(
         user, session, ip=client_ip, user_agent=user_agent

@@ -142,8 +142,25 @@ export async function login(account, password) {
  *
  * @returns {Promise<{sent: boolean, cooldown: number}>} cooldown = 倒计时秒数
  */
-export async function sendSmsCode(phone) {
-  const res = await http.post('/auth/sms/send', { phone })
+export async function sendSmsCode(phone, purpose = 'register') {
+  const res = await http.post('/auth/sms/send', { phone, purpose })
+  return res.data
+}
+
+/**
+ * 手机号 + 验证码重置密码（lesson-40 · 忘记密码）
+ *
+ * ⚠️ 后端改完密码会踢掉该用户**所有**旧会话，并直接签发新会话 ——
+ *    所以成功返回的 token 可以直接用（跟 register 一样）。
+ */
+export async function resetPassword({ phone, code, password }) {
+  const res = await http.post('/auth/password/reset', {
+    phone,
+    code,
+    new_password: password,
+  })
+  setToken(res.data.token)
+  setCachedUser(res.data.user)
   return res.data
 }
 
@@ -228,6 +245,7 @@ export default {
   setUnauthorizedHandler,
   login,
   register,
+  resetPassword,
   sendSmsCode,
   logout,
   fetchMe,

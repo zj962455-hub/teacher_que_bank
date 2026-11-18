@@ -145,6 +145,10 @@ class SmsAttempt(SQLModel, table=True):
     # send=发码 / verify=核验
     action: str = Field(default="send", index=True, max_length=10)
 
+    # 验证码用途：register=注册 / reset=重置密码
+    # 阿里云那边验证码只认号码不认用途，所以用途隔离只能在我们这边做（见 services/sms.py）
+    purpose: str = Field(default="register", index=True, max_length=16)
+
     # 结果（发码成功 / 核验通过）
     ok: bool = Field(default=False)
 
