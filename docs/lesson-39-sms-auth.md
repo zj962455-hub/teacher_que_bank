@@ -261,6 +261,30 @@ ECS 控制台 → 实例与镜像 → 实例 → 找到 `i-0jldm8ubd3nmhp5b5e8tZ
 >
 > 2026-11-18 实测：我们的 API 已经返回后者，所以**服务是开着的**，只是值还没拿到。
 
+#### ✅ 2026-11-18 已跑通：实测可用配置
+
+服务器 `/etc/teacherbank/app.env` 里实际生效的值（**已验证真发成功**）：
+
+    ALIYUN_SMS_SIGN_NAME=恒创联众
+    ALIYUN_SMS_TEMPLATE_CODE=100001
+    # 静态 AK 两行留空 —— 走 ECS 实例 RAM 角色的 STS 临时凭据
+
+三个坑（都踩过）：
+
+1. **模板编码不带 `SMS_` 前缀**。DYPNS 的模板编码就是 `100001` 这种纯数字；
+   加了前缀（`SMS_100001`）反而报「签名或者模版无效」。
+2. **签名名 = 签名列表里显示的名称**。本账号 DYPNS 签名配置里的签名就叫「恒创联众」——
+   官方文档说的「暂不支持自定义签名」在这台账号上**不成立**（可能是按实名主体命名，
+   也可能是现在支持了；实测能用）。落款因此是「恒创联众」，不是「阿里云」也不是「蓝狐网」。
+3. **同号码 60 秒内只能发一条**（`interval=60` + `duplicate_policy=1`）。
+   阿里云侧的重复拦截是**静默的**：`success=False`，不带明确错误码，
+   我们映射出来就是「短信没发出去，请稍后再试」。测试时要用不同号码，
+   否则会误判成配置问题。
+
+验证命令（服务器上）：
+
+    /opt/teacher-bank/.venv/bin/python /opt/teacher-bank/app/scripts/sms_smoke_test.py send <手机号>
+
     sudo vi /etc/teacherbank/app.env
     # 追加两行：
     ALIYUN_SMS_SIGN_NAME=<赠送签名的 SignName>

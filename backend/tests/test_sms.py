@@ -565,3 +565,49 @@ def test_ecs_role_timeouts_are_milliseconds(monkeypatch, clean_cred_cache):
     cfg = captured["cfg"]
     assert cfg.timeout >= 1000, "超时单位是毫秒，read timeout 不能小于 1000ms"
     assert cfg.connect_timeout >= 1000, "超时单位是毫秒，connect timeout 不能小于 1000ms"
+
+
+def _fake_aliyun_error(code):
+    """造一个带 code/message 的阿里云异常（和 SDK 抛的一样）。"""
+    exc = Exception("boom")
+    exc.code = code
+    exc.message = "aliyun raw message"
+    return exc
+
+
+def test_validate_fail_maps_to_code_invalid():
+    """验证码输错时阿里云是抛异常 —— 必须映射成 400 sms.code_invalid。
+
+    不映射的话会掉进兜底分支，变成 503 + 阿里云原文，用户完全看不懂。
+    """
+    from app.services.errors import CODE_SMS_CODE_INVALID
+
+    mapped = sms._translate_error(_fake_aliyun_error("isv.ValidateFail"))
+    assert mapped.status_code == 400
+    assert mapped.code == CODE_SMS_CODE_INVALID
+
+
+def test_config_errors_are_503_not_400():
+    """配置类错误（服务没开通/权限没配好）是服务端的事，不该返回 400。"""
+    from app.services.errors import CODE_SMS_NOT_CONFIGURED
+
+    for code in (
+        "isv.PRODUCT_UNSUBSCRIBE",
+        "isv.RAM_PERMISSION_DENY",
+        "Forbidden.NoPermission",
+        "isv.INVALID_PARAMETERS",
+        "lc.ASSERT_ERROR",
+    ):
+        mapped = sms._translate_error(_fake_aliyun_error(code))
+        assert mapped.status_code == 503, f"{code} 应该映射成 503"
+        assert mapped.code == CODE_SMS_NOT_CONFIGURED
+
+
+def test_rate_limit_errors_are_429():
+    """限流要映射成 429，前端才知道「等会儿再试」。"""
+    from app.services.errors import CODE_SMS_RATE_LIMITED
+
+    for code in ("biz.FREQUENCY", "isp.QPS_LIMIT", "isv.SMS_FREQUENCY_LIMIT"):
+        mapped = sms._translate_error(_fake_aliyun_error(code))
+        assert mapped.status_code == 429, f"{code} 应该映射成 429"
+        assert mapped.code == CODE_SMS_RATE_LIMITED

@@ -190,25 +190,43 @@ CODE_LENGTH = 6
 CODE_VALID_SECONDS = 300
 
 
-# 阿里云错误码 → (给老师的文案, 机器码)
+# 阿里云错误码 → (HTTP 状态, 人话, 机器码)
+#
+# 状态码分三类，别混：
+# - 400：用户自己能解决的（手机号格式、验证码不对）—— 重试没用，但用户改一下就行
+# - 429：限流，等一会儿再试
+# - 503：服务端配置问题（服务没开通、权限没配好、签名模板无效）—— 用户重试也没用，得管理员动手
 _ERROR_MAP = {
-    "isv.PRODUCT_UNSUBSCRIBE": ("短信服务还没开通，请联系管理员", CODE_SMS_NOT_CONFIGURED),
-    "isv.PRODUCT_UN_SUBSCRIPT": ("短信服务还没开通，请联系管理员", CODE_SMS_NOT_CONFIGURED),
-    "isv.RAM_PERMISSION_DENY": ("短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
-    "isp.RAM_PERMISSION_DENY": ("短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    # —— 配置类：503 ——
+    "isv.PRODUCT_UNSUBSCRIBE": (503, "短信服务还没开通，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "isv.PRODUCT_UN_SUBSCRIPT": (503, "短信服务还没开通，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "isv.RAM_PERMISSION_DENY": (503, "短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "isp.RAM_PERMISSION_DENY": (503, "短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
     # RAM 角色没授到 dypns 权限时，阿里云回的是 Forbidden.NoPermission（不是 isv.*）
-    "Forbidden.NoPermission": ("短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
-    "Forbidden": ("短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
-    "NoPermission": ("短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
-    "isv.OUT_OF_SERVICE": ("短信服务欠费了，请联系管理员", CODE_SMS_SEND_FAILED),
-    "isv.ACCOUNT_ABNORMAL": ("短信服务账号状态异常，请联系管理员", CODE_SMS_SEND_FAILED),
-    "isp.QPS_LIMIT": ("请求太频繁了，请稍后再试", CODE_SMS_RATE_LIMITED),
-    "isv.MOBILE_NUMBER_ILLEGAL": ("手机号格式不对，检查一下", CODE_VALIDATION),
-    "isv.INVALID_PARAMETERS": ("短信签名或模板无效，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "Forbidden.NoPermission": (503, "短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "Forbidden": (503, "短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "NoPermission": (503, "短信服务权限没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "isv.INVALID_PARAMETERS": (503, "短信签名或模板无效，请联系管理员", CODE_SMS_NOT_CONFIGURED),
     # 签名/模板没填时阿里云回的是断言错误，不是 isv.*
-    "lc.ASSERT_ERROR": ("短信签名或模板没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
-    # 号码级频控（阿里云侧兜底，比我们自己的频控更严）
-    "biz.FREQUENCY": ("发送太频繁，请过一会儿再试", CODE_SMS_RATE_LIMITED),
+    "lc.ASSERT_ERROR": (503, "短信签名或模板没配好，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "isv.SMS_SIGN_ILLEGAL": (503, "短信签名不合法，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "isv.TEMPLATE_ILLEGAL": (503, "短信模板不合法，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "isv.TEMPLATE_PARAMS_ILLEGAL": (503, "短信模板参数不对，请联系管理员", CODE_SMS_NOT_CONFIGURED),
+    "isv.OUT_OF_SERVICE": (503, "短信服务欠费了，请联系管理员", CODE_SMS_SEND_FAILED),
+    "isv.ACCOUNT_ABNORMAL": (503, "短信服务账号状态异常，请联系管理员", CODE_SMS_SEND_FAILED),
+    # —— 限流类：429 ——
+    "biz.FREQUENCY": (429, "发送太频繁，请过一会儿再试", CODE_SMS_RATE_LIMITED),
+    "isp.QPS_LIMIT": (429, "请求太频繁了，请稍后再试", CODE_SMS_RATE_LIMITED),
+    "isv.SMS_FREQUENCY_LIMIT": (429, "同号发送太频繁，请过一会儿再试", CODE_SMS_RATE_LIMITED),
+    "isv.BUSINESS_LIMIT_CONTROL": (429, "发送太频繁，请稍后再试", CODE_SMS_RATE_LIMITED),
+    "Throttling": (429, "请求太频繁，请稍后再试", CODE_SMS_RATE_LIMITED),
+    # —— 校验类：400，用户自己能解决 ——
+    "isv.MOBILE_NUMBER_ILLEGAL": (400, "手机号格式不对，检查一下", CODE_VALIDATION),
+    "ILLEGAL_MOBILE": (400, "手机号格式不对，检查一下", CODE_VALIDATION),
+    # ⚠️ 验证码不对时阿里云是**抛异常**（不是返回 verify_result=UNKNOWN）——2026-11-18 实测。
+    #    不映射的话会掉进兜底分支，变成 503 + 阿里云原文，用户看到的不是「验证码错了」。
+    "isv.ValidateFail": (400, "验证码不对或已过期，重新输一下", CODE_SMS_CODE_INVALID),
+    "isv.VALIDATE_FAIL": (400, "验证码不对或已过期，重新输一下", CODE_SMS_CODE_INVALID),
 }
 
 
@@ -292,8 +310,8 @@ def _translate_error(exc: Exception) -> ApiHTTPException:
     message = getattr(exc, "message", "") or str(exc)
 
     if code in _ERROR_MAP:
-        detail, machine = _ERROR_MAP[code]
-        return ApiHTTPException(status_code=400, detail=detail, code=machine)
+        status, detail, machine = _ERROR_MAP[code]
+        return ApiHTTPException(status_code=status, detail=detail, code=machine)
 
     # 没见过的错误码：带上阿里云原文，排查时能搜到
     return ApiHTTPException(
