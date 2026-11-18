@@ -29,7 +29,7 @@ echo "=============================================="
 
 # === 1. 后端代码 ===
 echo "[1/6] 同步后端代码..."
-rsync -az --delete --exclude 'venv' --exclude 'node_modules' --exclude '.git' --exclude 'dist' --exclude 'backups' --exclude '__pycache__' --exclude '.env' --exclude 'uploads' "$REPO_DIR/lesson-02/" "$ECS_USER@$ECS_HOST:$APP_ROOT/app/"
+rsync -az --delete --exclude 'venv' --exclude 'node_modules' --exclude '.git' --exclude 'dist' --exclude 'backups' --exclude '__pycache__' --exclude '.env' --exclude 'uploads' "$REPO_DIR/backend/" "$ECS_USER@$ECS_HOST:$APP_ROOT/app/"
 
 # === 2. 服务器装 SDK ===
 # ⚠️ rebuild.sh 只 rsync 代码，**不装依赖** —— 新加的包必须在这里补装，
@@ -41,7 +41,7 @@ ssh "$ECS_USER@$ECS_HOST" "sudo -u teacherbank $APP_ROOT/.venv/bin/python -c 'im
 
 # === 3. 迁移 ===
 echo "[3/6] 执行 migration 012..."
-scp -q "$REPO_DIR/lesson-02/app/migrations/012_add_phone_sms.sql" "$ECS_USER@$ECS_HOST:/tmp/012_add_phone_sms.sql"
+scp -q "$REPO_DIR/backend/app/migrations/012_add_phone_sms.sql" "$ECS_USER@$ECS_HOST:/tmp/012_add_phone_sms.sql"
 # ⚠️ scp 落地是 root 独占的 600 —— postgres 用户读不了（Permission denied），
 #    所以这里要放开读权限。/tmp 有 sticky 位，不影响别人改自己的文件。
 ssh "$ECS_USER@$ECS_HOST" 'chmod 644 /tmp/012_add_phone_sms.sql'
@@ -56,10 +56,10 @@ ssh "$ECS_USER@$ECS_HOST" 'chown teacherbank:teacherbank /etc/teacherbank/app.en
 
 # === 5. 前端 ===
 echo "[5/6] 构建并部署前端..."
-cd "$REPO_DIR/lesson-03"
+cd "$REPO_DIR/frontend"
 rm -rf dist
 npm run build 2>&1 | grep -E "✓ built|error" | head -3
-rsync -az --delete "$REPO_DIR/lesson-03/dist/" "$ECS_USER@$ECS_HOST:$APP_ROOT/web/"
+rsync -az --delete "$REPO_DIR/frontend/dist/" "$ECS_USER@$ECS_HOST:$APP_ROOT/web/"
 
 # === 6. 权限 + 重启 + 验证 ===
 echo "[6/6] 修权限 + 重启 + 验证..."

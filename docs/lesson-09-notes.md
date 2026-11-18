@@ -127,11 +127,11 @@ PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright playwrigh
 ### 步骤 2: 复制 KaTeX 静态资源
 
 ```bash
-mkdir -p lesson-02/static/katex/fonts
-cp lesson-03/node_modules/katex/dist/katex.min.css lesson-02/static/katex/
-cp lesson-03/node_modules/katex/dist/katex.min.js lesson-02/static/katex/
-cp lesson-03/node_modules/katex/dist/contrib/auto-render.min.js lesson-02/static/katex/
-cp lesson-03/node_modules/katex/dist/fonts/*.woff2 lesson-02/static/katex/fonts/
+mkdir -p backend/static/katex/fonts
+cp lesson-03/node_modules/katex/dist/katex.min.css backend/static/katex/
+cp lesson-03/node_modules/katex/dist/katex.min.js backend/static/katex/
+cp lesson-03/node_modules/katex/dist/contrib/auto-render.min.js backend/static/katex/
+cp lesson-03/node_modules/katex/dist/fonts/*.woff2 backend/static/katex/fonts/
 ```
 **只拷 woff2 就够** —— CSS 里 `url(fonts/xxx.woff2)` 排在 woff/ttf 前面，浏览器取第一个就命中。
 
@@ -300,6 +300,6 @@ def auto_label(index):
 
 - 进度:`../docs/learning-path.md` · 决策:`../docs/decisions.md`
 - 上一课:`lesson-08-notes.md`(SQLModel 存题目)
-- 后端:`lesson-02/app/{models.py,database.py,routers/papers.py,services/pdf_export.py}`
-- 模板:`lesson-02/app/templates/paper_pdf.html`
-- 前端:`lesson-03/src/{api/papers.js,components/PaperEditor.vue}`
+- 后端:`backend/app/{models.py,database.py,routers/papers.py,services/pdf_export.py}`
+- 模板:`backend/app/templates/paper_pdf.html`
+- 前端:`frontend/src/{api/papers.js,components/PaperEditor.vue}`

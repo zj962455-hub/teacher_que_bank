@@ -84,7 +84,7 @@ teacher_que_bank/
 │   ├── rebuild.sh                    ← 增量更新(日常用这个)
 │   ├── teacherbank-api.service       ← systemd unit
 │   └── nginx-teacherbank.conf       ← nginx 同源反代
-└── lesson-03/src/api/config.js       ← API 地址环境化
+└── frontend/src/api/config.js       ← API 地址环境化
 ```
 
 ---

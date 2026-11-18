@@ -21,7 +21,7 @@ content_markdown: props.withFormulas || content.value,   // ← 元凶
 库里却纹丝不动。`content_plain` 同理：`buildPlainText` 是按 **blocks**（OCR 原文）重算的，
 blocks 永远不变，改动同样被盖回去。
 
-线上无头复现（`lesson-03/scripts/verify-question-edit.cjs`）：
+线上无头复现（`frontend/scripts/verify-question-edit.cjs`）：
 
 - PUT 请求体 `content_markdown` **不含**新加的标记
 - 响应 200，库里也没有 → 确认是「发了旧值」，不是接口报错、不是登录态问题

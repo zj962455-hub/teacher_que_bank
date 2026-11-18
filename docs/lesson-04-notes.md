@@ -93,7 +93,7 @@ teacher_que_bank/
 
 ## 🚀 老大要做的步骤(4 个文件)
 
-### 步骤 1: 后端新增 `lesson-02/app/routers/courses.py`
+### 步骤 1: 后端新增 `backend/app/routers/courses.py`
 
 ```python
 """用户学习进度路由组 - lesson-04 重点:返回结构化数据给 Vue 用"""
@@ -124,7 +124,7 @@ def list_courses():
 - 返回的是**对象数组**(不是 lesson-02 的字符串数组)——Vue 要结构化数据
 - lesson-02 的 `/api/lessons/` 仍然返回字符串数组(课程元信息),不动
 
-### 步骤 2: 后端改 `lesson-02/app/main.py` —— 加 CORS + 注册 courses
+### 步骤 2: 后端改 `backend/app/main.py` —— 加 CORS + 注册 courses
 
 ```python
 """FastAPI 应用入口 - 负责组装,不写业务"""
@@ -169,7 +169,7 @@ def root():
 ### 步骤 3: 前端装 axios
 
 ```bash
-cd ~/Desktop/dev/teacher_question_bank/lesson-03
+cd ~/Desktop/dev/teacher_question_bank/frontend
 npm install axios
 ```
 
@@ -178,7 +178,7 @@ npm install axios
 - `package-lock.json` 自动更新
 - `node_modules/axios/` 自动装好
 
-### 步骤 4: 前端改 `lesson-03/src/components/LessonList.vue`
+### 步骤 4: 前端改 `frontend/src/components/LessonList.vue`
 
 **完整改写**(lesson-03 假数据 → lesson-04 真实 API):
 
@@ -310,12 +310,12 @@ async function deleteLesson(id) {
 
 ```bash
 # 终端 1: FastAPI 后端
-cd ~/Desktop/dev/teacher_question_bank/lesson-02
+cd ~/Desktop/dev/teacher_question_bank/backend
 source ../lesson-01/venv/bin/activate
 uvicorn app.main:app --reload
 
 # 终端 2: Vue 前端
-cd ~/Desktop/dev/teacher_question_bank/lesson-03
+cd ~/Desktop/dev/teacher_question_bank/frontend
 npm run dev
 ```
 
@@ -372,13 +372,13 @@ lesson-04 改动跨 lesson-02/03(后端改 lesson-02,前端改 lesson-03),但**�
 cd ~/Desktop/dev/teacher_question_bank
 
 # 后端改动
-git add lesson-02/app/routers/courses.py \
-        lesson-02/app/main.py
+git add backend/app/routers/courses.py \
+        backend/app/main.py
 
 # 前端改动(package-lock.json 自动更新)
 git add lesson-03/package.json \
         lesson-03/package-lock.json \
-        lesson-03/src/components/LessonList.vue
+        frontend/src/components/LessonList.vue
 
 git commit -m "feat(lesson-04): 前后端打通 + axios + CORS"
 

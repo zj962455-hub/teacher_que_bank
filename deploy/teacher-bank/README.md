@@ -42,7 +42,7 @@
 
 ```
 /opt/teacher-bank/
-├── app/                 后端代码（lesson-02/）
+├── app/                 后端代码（backend/）
 │   ├── app/             Python 包
 │   ├── static/katex/    KaTeX 静态资源（596KB）
 │   ├── templates/       Jinja2 模板
@@ -277,7 +277,7 @@ commit `f07fbca`（部署到 ECS）曾把一个数据库口令硬编码进 `01-i
 
 - 教学文档：`docs/lesson-10-notes.md`
 - OCR 部署：`deploy/paddleocr/01-install.sh` · `reinstall-paddleocr.sh`
-- 前端构建：`lesson-03/`（`npm run build`，产物在 `dist/`）
+- 前端构建：`frontend/`（`npm run build`，产物在 `dist/`）
 
 ---
 
@@ -316,7 +316,7 @@ psql -h 127.0.0.1 -U teacherbank -d teacher_question_bank \
 
 ```
 /opt/teacher-bank/app/          ← WorkingDirectory
-├── app/                        ← 真正的 python 包(lesson-02/app → app/app)
+├── app/                        ← 真正的 python 包(backend/app → app/app)
 │   ├── models.py
 │   ├── migrations/001_add_users.sql
 │   └── scripts/create_users.py

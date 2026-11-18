@@ -101,14 +101,14 @@
 
 | 文件 | 作用 |
 |---|---|
-| `lesson-02/app/migrations/012_add_phone_sms.sql` | users.phone 列 + sms_attempts 表 |
-| `lesson-02/app/models.py` | User.phone 字段 + SmsAttempt 模型 |
-| `lesson-02/app/services/sms.py` | 发送/核验/频控/错误映射 |
-| `lesson-02/app/services/errors.py` | 新机器码 |
-| `lesson-02/app/routers/auth.py` | /sms/send + 短信注册 + 手机号登录 |
-| `lesson-03/src/api/auth.js` | sendSmsCode + register/login 新契约 |
-| `lesson-03/src/components/LoginPanel.vue` | 手机号登录 + 验证码注册（倒计时） |
-| `lesson-02/tests/test_sms.py` | 短信流程 19 条用例 |
+| `backend/app/migrations/012_add_phone_sms.sql` | users.phone 列 + sms_attempts 表 |
+| `backend/app/models.py` | User.phone 字段 + SmsAttempt 模型 |
+| `backend/app/services/sms.py` | 发送/核验/频控/错误映射 |
+| `backend/app/services/errors.py` | 新机器码 |
+| `backend/app/routers/auth.py` | /sms/send + 短信注册 + 手机号登录 |
+| `frontend/src/api/auth.js` | sendSmsCode + register/login 新契约 |
+| `frontend/src/components/LoginPanel.vue` | 手机号登录 + 验证码注册（倒计时） |
+| `backend/tests/test_sms.py` | 短信流程 19 条用例 |
 | `deploy/teacher-bank/deploy-lesson39.sh` | 一键部署（含迁移 + SDK 安装） |
 | `deploy/teacher-bank/app.env.sms.example` | 短信环境变量模板（老大手动填） |
 

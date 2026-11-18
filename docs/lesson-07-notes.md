@@ -141,7 +141,7 @@ teacher_que_bank/
 ### 步骤 1: 装 KaTeX
 
 ```bash
-cd lesson-03
+cd frontend
 npm install katex
 ```
 ⚠️ **必须同时引入 CSS**,否则公式挤成一团:
@@ -332,5 +332,5 @@ lesson-09 导出 PDF 时,这个决定会直接省掉一半工作量。
 
 - 进度:`../docs/learning-path.md` · 决策:`../docs/decisions.md`(公式 = KaTeX,已锁)
 - 上一课:`lesson-06-notes.md`(OCR + 持久化 + 编辑器)
-- 后端模块:`lesson-02/app/services/{paddleocr,ocr_store,math_parser}.py`
-- 前端模块:`lesson-03/src/{utils/mathRenderer.js,components/OcrBlockList.vue,components/QuestionEditor.vue}`
+- 后端模块:`backend/app/services/{paddleocr,ocr_store,math_parser}.py`
+- 前端模块:`frontend/src/{utils/mathRenderer.js,components/OcrBlockList.vue,components/QuestionEditor.vue}`

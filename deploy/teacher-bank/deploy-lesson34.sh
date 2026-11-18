@@ -31,11 +31,11 @@ echo "[1/5] 同步后端代码..."
 rsync -az --delete \
   --exclude 'venv' --exclude 'node_modules' --exclude '.git' --exclude 'dist' \
   --exclude 'backups' --exclude '__pycache__' --exclude '.env' --exclude 'uploads' \
-  "$REPO_DIR/lesson-02/" "$ECS_USER@$ECS_HOST:$APP_ROOT/app/"
+  "$REPO_DIR/backend/" "$ECS_USER@$ECS_HOST:$APP_ROOT/app/"
 
 # === 2. 迁移 ===
 echo "[2/5] 执行 migration 008..."
-scp -q "$REPO_DIR/lesson-02/app/migrations/008_add_invites_feedbacks.sql" \
+scp -q "$REPO_DIR/backend/app/migrations/008_add_invites_feedbacks.sql" \
   "$ECS_USER@$ECS_HOST:/tmp/008_add_invites_feedbacks.sql"
 ssh "$ECS_USER@$ECS_HOST" 'sudo -u postgres psql -d teacher_question_bank \
   -v ON_ERROR_STOP=1 -f /tmp/008_add_invites_feedbacks.sql' | tail -5
@@ -50,10 +50,10 @@ ssh "$ECS_USER@$ECS_HOST" "sudo -u postgres psql -d teacher_question_bank -v ON_
 
 # === 4. 前端 ===
 echo "[4/5] 构建并部署前端..."
-cd "$REPO_DIR/lesson-03"
+cd "$REPO_DIR/frontend"
 rm -rf dist
 npm run build 2>&1 | grep -E "✓ built|error" | head -3
-rsync -az --delete "$REPO_DIR/lesson-03/dist/" "$ECS_USER@$ECS_HOST:$APP_ROOT/web/"
+rsync -az --delete "$REPO_DIR/frontend/dist/" "$ECS_USER@$ECS_HOST:$APP_ROOT/web/"
 
 # === 5. 权限 + 重启 + 验证 ===
 echo "[5/5] 修权限 + 重启 + 验证..."

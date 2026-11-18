@@ -63,7 +63,7 @@ copyJson()    → content: buildPlainText.value             // ❌ 同上
 
 ## 前端
 
-新增 `lesson-03/src/utils/figurePlaceholder.js`：`stripFigurePlaceholder(text)`
+新增 `frontend/src/utils/figurePlaceholder.js`：`stripFigurePlaceholder(text)`
 （与后端同名函数同口径）。
 
 接入展示点（7 处）：
@@ -82,7 +82,7 @@ copyJson()    → content: buildPlainText.value             // ❌ 同上
 
 ### 后端
 
-- 新增 `lesson-02/tests/test_figure_placeholder.py`（13 条）
+- 新增 `backend/tests/test_figure_placeholder.py`（13 条）
 - 全量：**289 passed**
 
 锁住的行为：

@@ -4,7 +4,7 @@
 # 用法（在本机跑，会自动 rsync 到 ECS）:
 #   bash rebuild.sh
 #
-# 做四件事:
+# 做五件事:
 #   1. rsync 代码到 ECS
 #   2. 重启 systemd 服务
 #   3. 修静态文件权限（nginx 要能读）
@@ -29,7 +29,7 @@ echo "=============================================="
 
 # === 1. 前端构建（本地，避开 ECS 内存压力）===
 echo "[1/5] 前端构建..."
-cd "$REPO_DIR/lesson-03"
+cd "$REPO_DIR/frontend"
 rm -rf dist
 npm run build 2>&1 | grep -E "✓ built|error" | head -3
 
@@ -40,17 +40,17 @@ echo "[2/5] 同步代码到 ECS..."
 rsync -az --delete \
   --exclude 'venv' --exclude 'node_modules' --exclude '.git' --exclude 'dist' \
   --exclude 'backups' --exclude '__pycache__' --exclude '.env' --exclude 'uploads' \
-  "$REPO_DIR/lesson-02/" "$ECS_USER@$ECS_HOST:$APP_ROOT/app/"
+  "$REPO_DIR/backend/" "$ECS_USER@$ECS_HOST:$APP_ROOT/app/"
 
 rsync -az --delete \
   --exclude 'node_modules' --exclude '.git' --exclude 'dist' \
   --exclude '__pycache__' --exclude '.env*' \
-  "$REPO_DIR/lesson-03/" "$ECS_USER@$ECS_HOST:$APP_ROOT/frontend/"
+  "$REPO_DIR/frontend/" "$ECS_USER@$ECS_HOST:$APP_ROOT/frontend/"
 
 # ⚠️ 前端 web 根目录必须归 nginx，且目录 755 / 文件 644
 #    —— rsync -a 会把本机的 UID 和 0700 权限原样带上来，
 #    nginx 读不到 index.html 就是**整站 403**（2026-11-07 踩过）。
-rsync -az --delete "$REPO_DIR/lesson-03/dist/" "$ECS_USER@$ECS_HOST:$APP_ROOT/web/"
+rsync -az --delete "$REPO_DIR/frontend/dist/" "$ECS_USER@$ECS_HOST:$APP_ROOT/web/"
 
 # === 2.2 收拾属主和权限（macOS 的 rsync 没有 --chown，只能同步完再改）===
 echo "[2.2/5] 修属主和权限..."
@@ -70,6 +70,18 @@ scp -q /tmp/tb-version.txt "$ECS_USER@$ECS_HOST:/tmp/tb-version.txt"
 ssh "$ECS_USER@$ECS_HOST" "install -o teacherbank -g teacherbank -m 644 /tmp/tb-version.txt $APP_ROOT/VERSION && rm -f /tmp/tb-version.txt"
 rm -f /tmp/tb-version.txt
 echo "  OK VERSION: $VERSION_SHA"
+
+# === 2.6 依赖对齐（幂等）===
+# 以前 rebuild.sh 只 rsync 不装依赖 —— 后端新代码引入了新包，服务器上会直接
+# ImportError 炸掉，而报错点在日志深处，很难一眼看出是「缺包」而不是「代码错」。
+# 现在用 backend/requirements.txt（版本已钉死）保证服务器环境与仓库一致。
+# ⚠️ 服务器上已是同版本时 pip 不会重复装；网络不通时本步不阻断部署。
+echo "[2.6/5] 对齐服务器依赖..."
+ssh "$ECS_USER@$ECS_HOST" "if [ -f $APP_ROOT/app/requirements.txt ]; then
+  $APP_ROOT/.venv/bin/pip install -q -r $APP_ROOT/app/requirements.txt && echo '  OK 依赖已对齐 requirements.txt';
+else
+  echo '  ⚠️ 服务器上无 requirements.txt，跳过（首次部署请用 deploy-lesson39.sh）';
+fi" || echo "  ⚠️ 依赖对齐失败（不阻断部署，请查服务器日志）"
 
 # === 3. 权限 ===
 echo "[3/5] 修权限（nginx 要能读静态文件）..."

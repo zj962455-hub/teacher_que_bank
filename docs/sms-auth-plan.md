@@ -69,12 +69,12 @@
 
 | 文件 | 改动 |
 |---|---|
-| `lesson-02/app/migrations/012_add_phone_sms.sql`（新） | `users` 加 `phone`；新建 `sms_send_log`（频控 + 审计） |
-| `lesson-02/app/services/sms.py`（新） | 封装 SDK；读 `ALIYUN_SMS_AK/SK/SIGN_NAME/TEMPLATE_CODE/SCHEME_NAME`；`send_code` / `check_code`；异常映射成项目统一错误码 |
-| `lesson-02/app/routers/auth.py` | 新增 `POST /api/auth/sms/send`（免登录）；注册请求体改为手机号/验证码（**核验合进注册接口**，见下方「与初版方案的两处偏离」） |
-| `lesson-02/app/services/errors.py` | 加 `CODE_SMS_SEND_FAILED` / `CODE_SMS_CODE_INVALID` / `CODE_SMS_RATE_LIMITED` |
-| `lesson-03/src/api/auth.js` | `sendSmsCode` / `checkSmsCode` |
-| `lesson-03/src/components/LoginPanel.vue` | 注册页加手机号 + 验证码 + 倒计时按钮 + 「同意接收短信」勾选 |
+| `backend/app/migrations/012_add_phone_sms.sql`（新） | `users` 加 `phone`；新建 `sms_send_log`（频控 + 审计） |
+| `backend/app/services/sms.py`（新） | 封装 SDK；读 `ALIYUN_SMS_AK/SK/SIGN_NAME/TEMPLATE_CODE/SCHEME_NAME`；`send_code` / `check_code`；异常映射成项目统一错误码 |
+| `backend/app/routers/auth.py` | 新增 `POST /api/auth/sms/send`（免登录）；注册请求体改为手机号/验证码（**核验合进注册接口**，见下方「与初版方案的两处偏离」） |
+| `backend/app/services/errors.py` | 加 `CODE_SMS_SEND_FAILED` / `CODE_SMS_CODE_INVALID` / `CODE_SMS_RATE_LIMITED` |
+| `frontend/src/api/auth.js` | `sendSmsCode` / `checkSmsCode` |
+| `frontend/src/components/LoginPanel.vue` | 注册页加手机号 + 验证码 + 倒计时按钮 + 「同意接收短信」勾选 |
 | `deploy/teacher-bank/01-install.sh` | pip install 加 `alibabacloud-dypnsapi20170525` |
 | `/etc/teacherbank/app.env` | 加 `ALIYUN_SMS_*`（chmod 600，不入 git） |
 
