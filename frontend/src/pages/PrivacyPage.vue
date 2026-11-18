@@ -12,23 +12,38 @@
  * 「但仍需：用户协议 + 隐私政策 + cookie 提示（个保法第 17 条）」——
  * **记了两年没做**。2026-11-18 公安备案（安全评估）核到这条，补上。
  *
- * ⚠️ 下面「运营主体」与「联系方式」两处是**待填占位**——
- *    备案提交前必须由老大填成真实信息（主办单位名称、应急联系电话）。
+ * ⚠️ 「运营主体」与「联系方式」两项定义在 site.config.js。
+ *    真实值还没到位时它们是**空字符串**，页面会**整行不显示** ——
+ *    绝不能把开发期占位渲染给访客（公安审核会当成材料没填）。
  */
-import { NCard, NAlert, NText } from 'naive-ui'
+import { NCard, NText } from 'naive-ui'
 
-import { OPERATOR, CONTACT, SITE_NAME, SITE_DOMAIN, ICP } from '../site.config'
+import { OPERATOR, CONTACT, SITE_NAME, SITE_DOMAIN, ICP, MPS } from '../site.config'
+
+// 运营主体与联系方式：**填了才显示，没填就不出现这一行**
+//
+// 为什么不能把占位文字直接展示给访客
+// --------------------------------------
+// 那是开发期的占位残留在公网上 —— 审核员一点就看见，
+// 看起来像「材料没填」，备案审核时这是负分。
+// 所以：真实值没到位之前，这一行干脆不出现。
+function identityLines() {
+  const out = []
+  if (OPERATOR) out.push('运营主体：' + OPERATOR)
+  if (CONTACT) out.push('联系方式：' + CONTACT)
+  return out
+}
 
 const SECTIONS = [
   {
     title: '一、我们是谁',
     body: [
-      `运营主体：${OPERATOR}`,
+      ...identityLines(),
       '网站名称：' + SITE_NAME,
       '主域名：' + SITE_DOMAIN,
       'ICP 备案号：' + ICP,
-      '公安备案号：取得后在页脚公示',
-      `联系方式：${CONTACT}`,
+      ...(MPS ? ['公安备案号：' + MPS] : []),
+
       '服务器与数据存储：阿里云 ECS（境内），数据库不对公网开放',
     ],
   },
@@ -105,11 +120,6 @@ const SECTIONS = [
 <template>
   <div class="privacy">
     <NCard title="🔒 隐私政策与用户协议" :bordered="false" style="max-width: 860px">
-      <NAlert type="warning" :bordered="false" style="margin-bottom: 16px">
-        <b>待补充：</b>运营主体名称与联系方式尚未填写（备案提交前会补齐）。
-        本页其余内容与线上系统实际行为一致。
-      </NAlert>
-
       <div v-for="s in SECTIONS" :key="s.title" class="sec">
         <NText strong>{{ s.title }}</NText>
         <ul>

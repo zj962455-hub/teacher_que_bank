@@ -250,9 +250,19 @@ bash deploy/teacher-bank/fill-mps-number.sh 浙公网安备XXXXXXXXXXXXXX号
 ```
 
 - 备案号格式不对（省份简称写错、位数不是 14 位）会被**直接拒绝且不写脏文件**；
-- 只想本地先试、不部署：加 `--dry-run`；
-- 想同步填站点其他备案字段（主办单位名称、应急联系方式）→ 改
-  `frontend/src/site.config.js` 里的 `OPERATOR` / `CONTACT`，再跑一次上面的命令。
+- 只想本地先试、不部署：加 `--dry-run`
+  （2026-11-19 修正：老版本 dry-run 会**先把号写进 site.config.js 再退出** ——
+  等于把样例号留在仓库里，差点真上线一个假备案号。现在 dry-run 只校验 + 预演，
+  **一个字都不写**）；
+- 主办单位名称与应急联系方式也可以一条命令一起写：
+
+```bash
+bash deploy/teacher-bank/fill-mps-number.sh --operator "营业执照全称" --contact "应急联系电话"
+```
+
+  脚本会拒绝写入「某某」「待填」这类样例值（真信息没到位就**留空**，页面自动不显示那行）；
+- 三个字段都写完后，脚本会用**写入后的真实值**做线上无头验收，
+  期望值和页面实际渲染始终一致（不会拿旧值去对、白报失败）。
 
 > **备案里程碑要改的字段全部集中在 `frontend/src/site.config.js`**
 > （站名 / 主域名 / ICP 号 / 公安备案号 / 主办单位名称 / 应急联系方式）。
@@ -268,6 +278,7 @@ bash deploy/teacher-bank/fill-mps-number.sh 浙公网安备XXXXXXXXXXXXXX号
 4. 验收：`node frontend/scripts/verify-beian-footer.cjs`（不带 EXPECT_MPS 时
    期望「不渲染」；带 `EXPECT_MPS=浙公网安备…号` 时期望「渲染 + 链接 code 是数字
    + 图标 naturalWidth > 0」）
+   另跑 `node frontend/scripts/verify-privacy-public.cjs` 验隐私政策页的公开展示
 5. 浏览器打开 `https://tqb.lanhu-lab.top/` 肉眼确认
 
 > ⚠️ **官方流程提醒（2026-11-18 核对《网站备案办事指南》第五步）**：
@@ -275,6 +286,38 @@ bash deploy/teacher-bank/fill-mps-number.sh 浙公网安备XXXXXXXXXXXXXX号
 > 【我的】→【我的网站】→【详情】→【下一步】，
 > 点【下载备案编号图标】【复制备案编号HTML代码】，再把 HTML 代码贴到网站页脚。
 > 所以拿到审核通过通知后，**先在平台下载备案号**，再跑上面的回填命令。
+
+### 4. 真实信息没到位时，页面**不显示那一行**（2026-11-19 修）
+
+**踩到的坑**：隐私政策页原先把「运营主体：（待填 —— 主办单位名称，须与营业执照一致）」
+「联系方式：（待填 —— …）」直接渲染在公网上，页面上方还有一条
+「运营主体名称与联系方式尚未填写」的告警条。访客和公安审核员一点就看见 ——
+看起来像**备案材料根本没填**，审核时是负分。
+
+**现在的行为**（`frontend/src/pages/PrivacyPage.vue`）：
+
+| 字段 | 有值 | 无值 |
+|---|---|---|
+| 运营主体 / 联系方式 | 正常显示 | **整行不渲染**（不是显示占位） |
+| 公安备案号 | 显示真实号码 | **整行不渲染**（不再写「取得后在页脚公示」这种误导性说明） |
+
+**为什么「不显示」比「显示待填」好**：占位是开发期残留物，一旦上线就是假信息；
+公安审核看的是「页面公示信息与备案材料是否一致」，没填就直接不公示，
+等拿到真值再显示 —— 这条路径上不会产生任何与材料不一致的假信息。
+
+**防复发**（已进 CI）：
+
+- `backend/tests/test_frontend_sanity.py::test_no_placeholder_text_in_frontend`
+  —— 扫前端源码里**会渲染成字符串的**内容（已剔除注释），
+  出现「待填 / 某某 / 占位 / 取得后在页脚公示」直接挂测试；
+- `test_site_config_placeholder_values_are_empty`
+  —— `site.config.js` 的 `OPERATOR` / `CONTACT` 只能是空串或真值；
+- `frontend/scripts/verify-privacy-public.cjs`
+  —— **无头浏览器验访客真实看到的文字**（源码层挡不住所有漏法，
+  页面层才是最终验收口径）。
+
+> 2026-11-19 实测：线上 `https://tqb.lanhu-lab.top/privacy` 页脚验收 8/8、
+> 隐私政策验收 9/9 通过，运行时无错误，正文里已无任何占位字样。
 
 ---
 

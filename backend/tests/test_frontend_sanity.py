@@ -141,3 +141,62 @@ def test_no_mustache_inside_static_attribute():
                 if "{{" in value:
                     bad.append("%s: %s=%r" % (path.relative_to(REPO), name, value))
     assert not bad, "静态属性里 wrote {{ }} 插值（会原样输出成字面量）：" + chr(10) + chr(10).join(bad)
+
+def _strip_comments(text):
+    """去掉 JS/Vue 注释，只留真正会显示给用户的字符串。
+
+    为什么必须去注释
+    ----------------
+    源码里写「为什么不能留待填占位」这种**说明性注释**是正常的，
+    甚至是好的。但渲染到页面上的占位是事故。
+    所以这个检查只看**字符串字面量**，不看注释。
+    """
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    out = []
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("//") or stripped.startswith("*") or stripped.startswith("/*"):
+            continue
+        # 行尾注释：前面必须是空白，且不是 URL 里的 "://"
+        idx = line.find("//")
+        if idx > 0 and line[idx - 1].isspace():
+            line = line[:idx]
+        out.append(line)
+    return "\n".join(out)
+
+
+def test_no_placeholder_text_in_frontend():
+    """前端源码里不许再出现会渲染给访客的占位文字。
+
+    2026-11-19 实测踩到：隐私政策页把「运营主体：（……）」这种占位
+    直接渲染在了公网上 —— 访客和公安审核员一点就看见，
+    看起来像「备案材料没填」，备案审核时这是负分。
+    真实值没到位之前，正确做法是**不显示那一行**，而不是显示占位。
+
+    这里从源码层面挡住：任何人再把占位写回页面字符串，测试立刻挂。
+    """
+    markers = ("待填", "待补充", "某某", "占位", "取得后在页脚公示")
+    hits = []
+    for path in _source_files():
+        text = _strip_comments(path.read_text(encoding="utf-8"))
+        for marker in markers:
+            if marker in text:
+                hits.append("%s :: %s" % (path.relative_to(REPO), marker))
+    assert not hits, "前端源码里出现了会渲染到公网上的占位：\n" + "\n".join(hits)
+
+
+def test_site_config_placeholder_values_are_empty():
+    """site.config.js 里的主体/联系方式在拿到真实值前必须为空串。
+
+    空串 = 页面整行不渲染（正确）。
+    非空但不是真实值 = 假信息上公网（事故）。
+    """
+    text = (FRONTEND_SRC / "site.config.js").read_text(encoding="utf-8")
+    for name in ("OPERATOR", "CONTACT"):
+        m = re.search(r"^export const " + name + r" = '([^']*)'$", text, flags=re.M)
+        assert m, "site.config.js 里找不到 export const " + name
+        value = m.group(1).strip()
+        if value:
+            assert value not in ("某某教育科技有限公司", "待填"), (
+                name + " 仍是样例值：" + value
+            )
