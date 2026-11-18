@@ -17,18 +17,16 @@
  */
 import { NCard, NAlert, NText } from 'naive-ui'
 
-// === 待填：备案提交前必须改成真实信息 ===
-const OPERATOR = '（待填 —— 主办单位名称，须与营业执照一致）'
-const CONTACT = '（待填 —— 备案要求填写的应急联系电话 / 邮箱）'
+import { OPERATOR, CONTACT, SITE_NAME, SITE_DOMAIN, ICP } from '../site.config'
 
 const SECTIONS = [
   {
     title: '一、我们是谁',
     body: [
       `运营主体：${OPERATOR}`,
-      '网站名称：蓝狐网',
-      '主域名：tqb.lanhu-lab.top',
-      'ICP 备案号：浙ICP备2025185898号-2',
+      '网站名称：' + SITE_NAME,
+      '主域名：' + SITE_DOMAIN,
+      'ICP 备案号：' + ICP,
       '公安备案号：取得后在页脚公示',
       `联系方式：${CONTACT}`,
       '服务器与数据存储：阿里云 ECS（境内），数据库不对公网开放',

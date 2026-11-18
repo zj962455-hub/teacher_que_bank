@@ -218,7 +218,7 @@
 **① 链接的 `code` 参数只放数字，不能放中文全称**
 
 ```
-✅ https://beian.mps.gov.cn/#/query/webSearch?code=33010602012345
+✅ https://beian.mps.gov.cn/#/query/webSearch?code=11010102000001
 ❌ https://beian.mps.gov.cn/#/query/webSearch?code=浙公网安备XXXXXXXXXXXXXX号
 ```
 

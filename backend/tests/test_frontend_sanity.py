@@ -105,10 +105,14 @@ def test_mps_link_uses_digit_only_code():
     显示文字才是「京公网安备11010102000001号」。
     所以链接参数用数字、显示用全称。
     """
+    # lesson-43：备案字段收口到 site.config.js —— 页脚从这里 import
+    config = REPO / "frontend" / "src" / "site.config.js"
+    assert config.is_file(), "缺少 frontend/src/site.config.js（备案字段的唯一来源）"
+    ctext = config.read_text(encoding="utf-8")
     footer = REPO / "frontend" / "src" / "components" / "SiteFooter.vue"
     text = footer.read_text(encoding="utf-8")
     assert "MPS_CODE" in text, "页脚没有用 MPS_CODE（code 参数应只放数字）"
-    assert "MPS.match(" in text, "MPS_CODE 应从全称里自动摘出数字，别手填两份"
+    assert "MPS.match(" in ctext, "MPS_CODE 应从全称里自动摘出数字，别手填两份"
 
 def test_no_mustache_inside_static_attribute():
     """静态属性里不许出现 {{ }} 插值 —— 那是「原样输出成字面量」的写法。
