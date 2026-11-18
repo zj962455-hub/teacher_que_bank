@@ -68,7 +68,7 @@
 | 会话管理 | 服务端 Session 存数据库，客户端 token **只存 SHA-256 哈希**（库被拖走也拿不到可用凭证） | `lesson-02/app/models.py` `Session_` |
 | 强制下线 | 管理员改密码 / 注销会话后，对应 token 立即失效 | 个人中心 → 设备会话管理 |
 | 账号停用 | `is_active=False` 软删除，保留业务数据但立即停用登录 | `lesson-02/app/models.py` `User` |
-| 账号发放 | 管理员预创建（`create_users.py`）；灰度试用阶段**另开邀请码自助注册**（限次 / 限时 / 可停用） | `lesson-02/app/scripts/create_users.py` · `app/routers/auth.py` `/api/auth/register` |
+| 账号发放 | 管理员预创建（`create_users.py`）；**另开手机号 + 短信验证码自助注册**（短信由阿里云下发，验证码 5 分钟有效、限频发送；注册通道可由管理员一键关闭） | `lesson-02/app/scripts/create_users.py` · `app/routers/auth.py` `/api/auth/register` |
 | 共享试用账号 | 多人共用同一账号时 `allow_password_change=false` —— 改密码会踢掉所有共用者的会话，所以**锁死改密**（后端 403，前端只是提示） | `app/models.py` `User.allow_password_change` |
 
 ### 2.2 数据隔离与访问授权
@@ -139,7 +139,7 @@
 
 | 制度 | 落实情况 |
 |---|---|
-| 账号管理制度 | 账号由管理员统一创建发放；灰度试用阶段开放**邀请码自助注册**（码限次、可设过期、可一键停用、名额用带条件的 UPDATE 原子占用）；用户可自行修改密码（个人中心） |
+| 账号管理制度 | 账号由管理员统一创建发放；开放**手机号 + 短信验证码自助注册**（验证码由阿里云生成并保管、本站不存明文码；发码与核验均限频，手机号唯一）；用户可自行修改密码（个人中心） |
 | 权限最小化 | 用户只能访问自己的题目/试卷/上传文件；无管理员后台批量查看他人数据的功能 |
 | 变更管理 | 每次功能变更独立 Git commit 并推送，部署走统一脚本 `deploy/teacher-bank/rebuild.sh`（rsync → 权限 → 重启 → 验证） |
 | 日志审计 | 服务端日志留存 6 个月，可追溯登录、查询、导出行为 |
