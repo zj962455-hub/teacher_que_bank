@@ -139,14 +139,23 @@ def test_login_wrong_password(client):
     _make_user("test1")
     resp = _login(client, "test1", "Wrong1234")
     assert resp.status_code == 401
-    assert "用户名或密码错误" in resp.json()["detail"]
+    # ⚠️ lesson-39：密码错与账号不存在**刻意分开** ——
+    #    老师该做的事不同（重输密码 vs 去注册）。
+    assert resp.json()["code"] == "auth.invalid_credentials"
+    assert "密码" in resp.json()["detail"]
 
 
 def test_login_unknown_user(client):
+    """账号不存在 → 404 + auth.account_not_found。
+
+    ⚠️ lesson-39：与旧行为（401 + 统一文案）**故意不同** ——
+    #    手机号是账号了，登录页要能引导老师「还没注册？去注册」。
+    """
     resp = _login(client, "nobody")
-    assert resp.status_code == 401
-    # 文案要跟密码错一样 —— 不泄露用户是否存在
-    assert "用户名或密码错误" in resp.json()["detail"]
+    assert resp.status_code == 404
+    body = resp.json()
+    assert body["code"] == "auth.account_not_found"
+    assert "注册" in body["detail"]
 
 
 def test_login_inactive_user(client):

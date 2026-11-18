@@ -49,6 +49,19 @@ class User(SQLModel, table=True):
     # 显示名（老师互相认识的名字，可以是真实姓名或昵称）
     display_name: str = Field(default="", max_length=50)
 
+    # 手机号（lesson-39 · 短信注册后，这就是登录账号）
+    #
+    # 为什么单独一列而不复用 username
+    # -------------------------------
+    # username 是历史遗留的登录名（"test1"、共享试用账号、早期老师的昵称），
+    # 改它等于改账号身份，审计和历史记录全都对不上。
+    # 手机号是新账号体系的真账号 —— 短信验证码证明「这个号是你的」，
+    # 所以它必须是**独立的一列**，而不是 username 的别名。
+    #
+    # 存量账号这一列是 NULL（他们继续用 username 登录，不受影响）。
+    # 唯一性由迁移里的部分唯一索引保证（WHERE phone IS NOT NULL）。
+    phone: Optional[str] = Field(default=None, index=True, max_length=20)
+
     # === 凭证 ===
     # bcrypt 哈希，永不存明文 —— bcrypt 自带 salt
     password_hash: str = Field(max_length=255)
@@ -81,6 +94,41 @@ class User(SQLModel, table=True):
     # === 元信息 ===
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_login_at: Optional[datetime] = Field(default=None)
+
+
+class SmsAttempt(SQLModel, table=True):
+    """短信验证码的发送/核验流水 — lesson-39
+
+    为什么要有这张表
+    ----------------
+    1. **频控**：全项目没有任何限流中间件（services/invites.py 只是靠熵）。
+       短信是**按条计费**的（0.06 元/条），不限制 = 被人刷一次就是几十上百块。
+    2. **审计**：谁在什么时候给哪个号发了码、IP 是多少 —— 出了骚扰投诉要能查。
+
+    ⚠️ 不存验证码明文
+    ----------------
+    验证码由**阿里云生成并保管**（TemplateParam 传 ##code##），
+    核验走 CheckSmsVerifyCode 现场问阿里云。
+    所以库里没有能用的验证码 —— 数据库被拖走也换不来一个号。
+    """
+
+    __tablename__ = "sms_attempts"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # 目标手机号
+    phone: str = Field(index=True, max_length=20)
+
+    # 请求方 IP（限流 + 溯源）
+    ip: str = Field(default="", max_length=45)
+
+    # send=发码 / verify=核验
+    action: str = Field(default="send", index=True, max_length=10)
+
+    # 结果（发码成功 / 核验通过）
+    ok: bool = Field(default=False)
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Upload(SQLModel, table=True):

@@ -25,6 +25,8 @@
 
 from __future__ import annotations
 
+import os
+
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -47,13 +49,26 @@ from app.services.auth import (
     verify_password,
 )
 from app.services.errors import (
+    CODE_AUTH_ACCOUNT_NOT_FOUND,
+    CODE_AUTH_INVALID_CREDENTIALS,
+    CODE_AUTH_PHONE_TAKEN,
+    CODE_AUTH_REGISTRATION_CLOSED,
     CODE_CONFLICT,
+    CODE_FORBIDDEN,
     CODE_INVITE_INVALID,
     CODE_NOT_FOUND,
     CODE_PASSWORD_CHANGE_LOCKED,
     CODE_VALIDATION,
     ApiHTTPException,
 )
+from app.services.sms import (
+    RESEND_INTERVAL_SECONDS,
+    mask_phone,
+    normalize_phone,
+    send_code,
+    verify_code,
+)
+
 from app.services.invites import (
     DEFAULT_EXPIRE_DAYS,
     DEFAULT_MAX_USES,
@@ -75,8 +90,28 @@ router = APIRouter(
 # === 请求体 / 响应体 ===
 
 class LoginRequest(BaseModel):
-    username: str = Field(max_length=50)
+    """登录请求（lesson-39 · 账号 = 手机号，也兼容旧用户名）
+
+    ⚠️ 两个字段都保留：新前端传 account（手机号），
+    旧前端和脚本还在传 username —— 存量账号不能被这次改造锁在门外。
+    """
+
+    account: str = Field(default="", max_length=50)
+    username: str = Field(default="", max_length=50)
     password: str = Field(max_length=128)
+
+
+class SmsSendRequest(BaseModel):
+    """发验证码请求（手机号）"""
+
+    phone: str = Field(min_length=1, max_length=20)
+
+
+class SmsSendResponse(BaseModel):
+    """发码结果（cooldown = 前端倒计时秒数）"""
+
+    sent: bool = True
+    cooldown: int = 60
 
 
 class ChangePasswordRequest(BaseModel):
@@ -85,17 +120,17 @@ class ChangePasswordRequest(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    """邀请码自助注册（课 34 · 灰度试用入口）
+    """手机号 + 验证码自助注册（lesson-39 · 替代邀请码注册）
 
     ⚠️ 密码强度**不在** pydantic 里写（不写 ge/le 约束）——
        弱密码要返一句中文（「至少一个大写字母」），不是一坨校验错误数组。
        长度上限在这里挡，超长密码直接拒绝（别拿 10MB 密码来占 CPU）。
     """
 
-    username: str = Field(min_length=2, max_length=50)
+    phone: str = Field(min_length=1, max_length=20)
+    code: str = Field(min_length=1, max_length=12)
     password: str = Field(min_length=1, max_length=128)
     display_name: str = Field(default="", max_length=50)
-    invite_code: str = Field(min_length=1, max_length=32)
 
 
 class InviteCreateRequest(BaseModel):
@@ -183,39 +218,78 @@ class LoginResponse(BaseModel):
 
 # === 登录 ===
 
+def _find_user_by_account(session: Session, ident: str) -> Optional[User]:
+    """按账号找用户：先当手机号查，再当用户名查。
+
+    为什么两条路都走
+    --------------
+    新体系里账号就是手机号（短信验证码证明「这个号是你的」）；
+    但存量账号（test1 / 共享试用账号 / 早期老师）只有 username，没有 phone。
+    两条都查，改造才不会把已经在用的老师挡在门外。
+
+    顺序也有讲究：11 位数字先按 phone 查（那是新账号的真身份），
+    查不到再按 username 查（老账号用户名恰好是数字的情况）。
+    """
+    ident = (ident or "").strip()
+    if not ident:
+        return None
+
+    digits = normalize_phone(ident)
+    if len(digits) == 11 and digits.startswith("1"):
+        user = session.exec(select(User).where(User.phone == digits)).first()
+        if user is not None:
+            return user
+
+    return session.exec(select(User).where(User.username == ident)).first()
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(
     payload: LoginRequest,
     request: Request,
     session: Session = Depends(get_session),
 ):
-    """用户名密码登录
+    """账号密码登录（lesson-39 · 手机号就是账号）
 
-    失败一律返回 401 + 统一文案 —— 不区分「用户不存在」和「密码错」，
-    避免被拿来枚举账号。
+    失败分两种，因为老师要做的事完全不同：
+
+    - 账号不存在 → 「这个号还没注册」→ 前端引导去用验证码注册
+    - 密码不对   → 「密码错了」→ 重输一次就行
+
+    ⚠️ 这确实能被用来枚举已注册的手机号 —— 但现在注册是开放的
+    （有手机号就能收验证码注册），枚举不出什么额外信息，可接受。
     """
-    user = session.exec(
-        select(User).where(User.username == payload.username)
-    ).first()
+    ident = (payload.account or payload.username or "").strip()
+    if not ident:
+        raise ApiHTTPException(
+            status_code=400,
+            detail="请输入手机号",
+            code=CODE_VALIDATION,
+        )
 
-    # 用户不存在 → 也走一次哈希校验，抹平时间差（防用户名枚举）
+    user = _find_user_by_account(session, ident)
+
+    # 用户不存在 → 也走一次哈希校验，抹平时间差
     if user is None:
         _dummy_verify(payload.password)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误",
+        raise ApiHTTPException(
+            status_code=404,
+            detail="账号不存在；如果用的是手机号，说明还没注册过",
+            code=CODE_AUTH_ACCOUNT_NOT_FOUND,
         )
 
     if not verify_password(payload.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误",
+        raise ApiHTTPException(
+            status_code=401,
+            detail="密码错了，再输一次",
+            code=CODE_AUTH_INVALID_CREDENTIALS,
         )
 
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+        raise ApiHTTPException(
+            status_code=403,
             detail="账号已被停用，请联系管理员",
+            code=CODE_FORBIDDEN,
         )
 
     # 签发会话
@@ -226,8 +300,6 @@ def login(
     )
 
     # 记录登录时间
-    from datetime import datetime, timezone
-
     user.last_login_at = datetime.now(timezone.utc)
     session.add(user)
     session.commit()
@@ -235,7 +307,7 @@ def login(
 
     return LoginResponse(
         token=token,
-        expires_in_days=7,
+        expires_in_days=SESSION_TTL_DAYS,
         user=UserOut(
             id=user.id or 0,
             username=user.username,
@@ -248,7 +320,53 @@ def login(
     )
 
 
-# === 注册（邀请码自助） ===
+def _registration_open() -> bool:
+    """注册通道开关。
+
+    为什么要有这个开关
+    ----------------
+    邀请码时代的注册是**有闸的**：谁拿到码谁进得来。
+    换短信注册后闸被拆了 —— 任何能收短信的手机号都能注册。
+    站点是公开域名的老师工具，这个口子不该是「想开就开」，
+    所以留一个环境变量：REGISTRATION_ENABLED=false 一键关掉，
+    出事时改一行 + 重启就行，不用改代码发版。
+    """
+    return os.getenv("REGISTRATION_ENABLED", "true").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+# === 短信验证码注册（lesson-39 · 替代邀请码注册） ===
+
+
+@router.post("/sms/send", response_model=SmsSendResponse)
+def send_sms_code(
+    payload: SmsSendRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """发一条验证码短信（免登录）
+
+    频控在服务层（services/sms.py）：同号 60 秒 1 条、每天 10 条、
+    同 IP 每小时 20 条。拦在阿里云之前 —— 一次都别多花。
+
+    已注册的手机号也允许发码（以后找回密码要用）。
+    """
+    # 通道关了就不发码 —— 免得白花钱（每条 0.06 元）
+    if not _registration_open():
+        raise ApiHTTPException(
+            status_code=403,
+            detail="注册通道暂时关闭，请联系管理员",
+            code=CODE_AUTH_REGISTRATION_CLOSED,
+        )
+
+    client_ip = request.client.host if request.client else ""
+    send_code(session, payload.phone, ip=client_ip)
+    return SmsSendResponse(sent=True, cooldown=RESEND_INTERVAL_SECONDS)
+
 
 @router.post("/register", response_model=LoginResponse)
 def register(
@@ -256,37 +374,44 @@ def register(
     request: Request,
     session: Session = Depends(get_session),
 ):
-    """邀请码自助注册（课 34 · 灰度试用入口）
+    """手机号 + 验证码自助注册（lesson-39）
 
-    注册成功**直接签发会话**返回 token —— 老师填完表就进首页，
-    不用再登一次（多一步就少一半人注册完就走了）。
+    流程：查重 → 验密码强度 → 阿里云核验验证码 → 建号 → 直接签发会话。
+
+    为什么 username 直接填手机号
+    ----------------------
+    username 是 NOT NULL + UNIQUE —— 填手机号，唯一性天然成立，
+    不用改表结构。而且老师登录时输入的就是它，两边对得上。
+
+    注册成功**直接进首页**，不用再登一次（多一步就少一半人注册完就走了）。
     """
-    # 1. 邀请码：不存在 / 停用 / 过期 / 用尽 —— 四种情况各有各的机器码
-    invite = find_invite(session, payload.invite_code)
-    if invite is None:
+    if not _registration_open():
         raise ApiHTTPException(
-            status_code=400,
-            detail="邀请码不存在，请检查是否输错",
-            code=CODE_INVITE_INVALID,
+            status_code=403,
+            detail="注册通道暂时关闭，请联系管理员",
+            code=CODE_AUTH_REGISTRATION_CLOSED,
         )
-    assert_invite_usable(invite)
 
-    # 2. 用户名唯一
-    username = payload.username.strip()
-    if not username:
+    phone = normalize_phone(payload.phone)
+    if len(phone) != 11 or not phone.startswith("1"):
         raise ApiHTTPException(
             status_code=400,
-            detail="请填写用户名",
+            detail="手机号格式不对，检查一下",
             code=CODE_VALIDATION,
         )
-    if session.exec(select(User).where(User.username == username)).first() is not None:
+
+    # 1. 这个号注册过没有（phone 列 + username 列都查：新账号 username 就是手机号）
+    taken = session.exec(select(User).where(User.phone == phone)).first()
+    if taken is None:
+        taken = session.exec(select(User).where(User.username == phone)).first()
+    if taken is not None:
         raise ApiHTTPException(
             status_code=409,
-            detail="该用户名已被注册，换一个试试",
-            code=CODE_CONFLICT,
+            detail="这个手机号已经注册过了，直接登录就行",
+            code=CODE_AUTH_PHONE_TAKEN,
         )
 
-    # 3. 密码强度（弱密码 → request.validation_failed）
+    # 2. 密码强度（弱密码 → request.validation_failed）
     problems = check_password_strength(payload.password)
     if problems:
         raise ApiHTTPException(
@@ -295,39 +420,35 @@ def register(
             code=CODE_VALIDATION,
         )
 
-    # 4. 建用户 —— 老师自己定的密码，不用强制改密
+    # 3. 验证码核验（在阿里云那边比对 —— 我们不存明文码）
+    client_ip = request.client.host if request.client else ""
+    verify_code(session, phone, payload.code, ip=client_ip)
+
+    # 4. 建用户 —— username 直接填手机号（唯一约束天然成立）
     user = User(
-        username=username,
-        display_name=(payload.display_name or "").strip() or username,
+        username=phone,
+        phone=phone,
+        display_name=(payload.display_name or "").strip() or mask_phone(phone),
         password_hash=hash_password(payload.password),
         must_change_password=False,
         is_active=True,
         is_admin=False,
     )
 
-    # 5. 建用户 + 占用邀请码名额：**同一个事务**
-    #    名额占用失败 → 用户也不落库（老师不会「码用掉了却没注册上」）
     try:
         session.add(user)
-        session.flush()
-        consume_invite(session, invite)
         session.commit()
-    except ApiHTTPException:
-        session.rollback()
-        raise
     except IntegrityError:
-        # 并发注册同名用户 → 唯一索引拦下来了
         session.rollback()
         raise ApiHTTPException(
             status_code=409,
-            detail="该用户名已被注册，换一个试试",
-            code=CODE_CONFLICT,
+            detail="这个手机号已经注册过了，直接登录就行",
+            code=CODE_AUTH_PHONE_TAKEN,
         )
 
     session.refresh(user)
 
-    # 6. 签发会话（跟登录一样，前端注册完直接进首页）
-    client_ip = request.client.host if request.client else ""
+    # 5. 签发会话（跟登录一样，前端注册完直接进首页）
     user_agent = request.headers.get("user-agent", "")
     token, _record = create_session(
         user, session, ip=client_ip, user_agent=user_agent
@@ -344,7 +465,7 @@ def register(
             id=user.id or 0,
             username=user.username,
             display_name=user.display_name,
-            must_change_password=False,
+            must_change_password=user.must_change_password,
             last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
             is_admin=user.is_admin,
             allow_password_change=user.allow_password_change,

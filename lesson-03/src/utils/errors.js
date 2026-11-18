@@ -36,6 +36,15 @@ export const CODE_TEXT = {
   'server.internal': '服务器出错了',
   'server.unavailable': '服务暂时不可用',
   'request.failed': '请求失败',
+  // 短信（lesson-39）
+  'sms.not_configured': '短信服务还没开通，请联系管理员',
+  'sms.rate_limited': '发得太频繁了，请稍后再试',
+  'sms.send_failed': '验证码发送失败，请稍后再试',
+  'sms.code_invalid': '验证码不对或已过期',
+  // 账号（lesson-39 · 手机号作为账号）
+  'auth.account_not_found': '账号不存在；如果用的是手机号，说明还没注册过',
+  'auth.invalid_credentials': '密码错了，再输一次',
+  'auth.phone_taken': '这个手机号已经注册过了，直接登录就行',
 }
 
 // 网络层错误（请求根本没到后端 / 后端没回包）

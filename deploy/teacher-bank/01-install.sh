@@ -82,7 +82,7 @@ sudo -u "$APP_USER" "$APP_ROOT/.venv/bin/pip" install -q --upgrade pip wheel
 sudo -u "$APP_USER" "$APP_ROOT/.venv/bin/pip" install -q \
   fastapi 'uvicorn[standard]' pydantic python-dotenv requests python-multipart \
   sqlmodel 'psycopg[binary]' playwright jinja2 \
-  pypdfium2 Pillow
+  pypdfium2 Pillow alibabacloud-dypnsapi20170525
 echo "  ✓ Python 依赖就绪"
 
 # ============ 4. Playwright Chromium ============

@@ -75,6 +75,29 @@ CODE_INVITE_INACTIVE = "invite.inactive"    # 邀请码被停用
 CODE_INVITE_EXPIRED = "invite.expired"      # 邀请码已过期
 CODE_INVITE_EXHAUSTED = "invite.exhausted"  # 邀请码名额已用完
 
+# 短信（lesson-39 · 阿里云短信认证服务）
+#
+# ⚠️ 四个码必须分开 —— 老师要做的事完全不同：
+#   没开通   → 找管理员（不是他能解决的）
+#   发太快   → 等一会儿
+#   发失败   → 换个网络/过会儿再试
+#   码不对   → 重新输一遍
+CODE_SMS_NOT_CONFIGURED = "sms.not_configured"  # 服务端没配 AK（找管理员）
+CODE_SMS_RATE_LIMITED = "sms.rate_limited"      # 发得太频繁（等一会儿）
+CODE_SMS_SEND_FAILED = "sms.send_failed"        # 阿里云侧发送失败
+CODE_SMS_CODE_INVALID = "sms.code_invalid"      # 验证码不对或过期
+
+# 账号（lesson-39 · 手机号作为账号）
+#
+# ⚠️ 「账号不存在」与「密码错」刻意分开：
+#    老师填了手机号登不进去，得知道该去注册还是该重输密码。
+#    代价是能被用来枚举已注册的手机号 —— 这是内部受邀工具，
+#    站点本身不对外公开注册（手机号要能收短信才注册得了），可接受。
+CODE_AUTH_ACCOUNT_NOT_FOUND = "auth.account_not_found"
+CODE_AUTH_INVALID_CREDENTIALS = "auth.invalid_credentials"
+CODE_AUTH_PHONE_TAKEN = "auth.phone_taken"  # 该手机号已注册
+CODE_AUTH_REGISTRATION_CLOSED = "auth.registration_closed"  # 注册通道被管理员关了
+
 # 服务端
 CODE_INTERNAL = "server.internal"
 CODE_UNAVAILABLE = "server.unavailable"

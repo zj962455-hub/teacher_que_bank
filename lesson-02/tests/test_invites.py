@@ -1,4 +1,9 @@
-"""邀请码自助注册测试 — 课 34（灰度试用入口）
+"""邀请码管理测试 — 课 34 的邀请码 + lesson-39 的退役说明
+
+⚠️ lesson-39 起，**注册入口已改成手机号 + 短信验证码**（见 tests/test_sms.py），
+邀请码不再参与注册流程。这份文件现在只保留两件事的覆盖：
+- 邀请码管理接口（仅管理员）仍然正常工作
+- 旧注册契约确实被废弃了（老 payload 不该再被接受）
 
 覆盖：
 - 注册成功并自动登录（直接拿到 token，/me 能用）
@@ -117,145 +122,32 @@ def _h(token: str):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _register(client, **kwargs):
-    payload = {
-        "username": "newteacher",
-        "password": STRONG_PASSWORD,
-        "display_name": "新老师",
-        "invite_code": "TQB-TEST-CODE-0001",
-    }
-    payload.update(kwargs)
-    return client.post("/api/auth/register", json=payload)
-
 
 # ============================================================
-# 注册
+# 注册入口（lesson-39：短信注册已替代邀请码注册）
 # ============================================================
 
-def test_register_success_and_auto_login(client):
-    """注册成功 → 直接拿到 token，/me 能用（不用再登一次）"""
-    _make_invite()
 
-    resp = _register(client)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["token"], "注册成功就应该签发会话"
-    assert data["user"]["username"] == "newteacher"
-    assert data["user"]["display_name"] == "新老师"
-    # 自己定的密码 → 不用强制改密
-    assert data["user"]["must_change_password"] is False
-    assert data["user"]["is_admin"] is False
+def test_register_endpoint_now_requires_phone_and_code(client):
+    """旧的「用户名 + 邀请码」注册契约已经废弃。
 
-    # token 真的能用
-    me = client.get("/api/auth/me", headers=_h(data["token"]))
-    assert me.status_code == 200
-    assert me.json()["username"] == "newteacher"
-
-
-def test_register_user_is_active_and_not_admin(client):
-    _make_invite()
-    _register(client)
-    with Session(engine) as session:
-        from sqlmodel import select
-
-        user = session.exec(select(User).where(User.username == "newteacher")).first()
-        assert user is not None
-        assert user.is_active is True
-        assert user.is_admin is False
-        assert user.password_hash != STRONG_PASSWORD, "密码不能明文存"
-
-
-def test_register_consumes_invite_count(client):
-    """注册成功 → 名额用掉一个"""
-    invite_id = _make_invite(max_uses=2)
-    _register(client)
-    with Session(engine) as session:
-        invite = session.get(Invite, invite_id)
-        assert invite.used_count == 1
-
-
-def test_register_invite_not_found(client):
-    """邀请码不存在 → invite.invalid"""
-    resp = _register(client, invite_code="TQB-NOT-EXIST-0001")
-    assert resp.status_code == 400
+    现在注册要手机号 + 短信验证码（完整流程见 tests/test_sms.py）。
+    这条测试钉住契约：旧 payload 不该再被接受 ——
+    否则前端某个老页面还在走老路时不会报错，只会注册出奇怪的账号。
+    """
+    resp = client.post(
+        "/api/auth/register",
+        json={
+            "username": "newteacher",
+            "password": STRONG_PASSWORD,
+            "invite_code": "TQB-TEST-CODE-0001",
+        },
+    )
+    assert resp.status_code == 422
     body = resp.json()
-    assert body["code"] == "invite.invalid"
+    # 统一错误契约：detail 永远是字符串（前端直接显示）
     assert isinstance(body["detail"], str)
-    assert body["request_id"]
-
-
-def test_register_invite_inactive(client):
-    """邀请码被停用 → invite.inactive"""
-    _make_invite(is_active=False)
-    resp = _register(client)
-    assert resp.status_code == 400
-    assert resp.json()["code"] == "invite.inactive"
-
-
-def test_register_invite_expired(client):
-    """邀请码过期 → invite.expired"""
-    _make_invite(expires_at=datetime.now(timezone.utc) - timedelta(days=1))
-    resp = _register(client)
-    assert resp.status_code == 400
-    assert resp.json()["code"] == "invite.expired"
-
-
-def test_register_invite_exhausted(client):
-    """邀请码名额用完 → invite.exhausted"""
-    _make_invite(max_uses=1, used_count=1)
-    resp = _register(client)
-    assert resp.status_code == 400
-    assert resp.json()["code"] == "invite.exhausted"
-
-
-def test_register_duplicate_username(client):
-    """用户名重复 → resource.conflict（不是 400 校验失败）"""
-    _make_user("test1")
-    _make_invite()
-    resp = _register(client, username="test1")
-    assert resp.status_code == 409
-    assert resp.json()["code"] == "resource.conflict"
-
-
-def test_register_weak_password(client):
-    """弱密码 → request.validation_failed"""
-    _make_invite()
-    resp = _register(client, password="abc")
-    assert resp.status_code == 400
-    body = resp.json()
     assert body["code"] == "request.validation_failed"
-    assert "不合规" in body["detail"]
-
-
-def test_register_invalid_invite_does_not_create_user(client):
-    """邀请码不对 → 不能建出用户（名额也不能被占）"""
-    invite_id = _make_invite()
-    resp = _register(client, invite_code="TQB-WRONG-CODE-1")
-    assert resp.status_code == 400
-
-    with Session(engine) as session:
-        from sqlmodel import select
-
-        assert session.exec(select(User).where(User.username == "newteacher")).first() is None
-        invite = session.get(Invite, invite_id)
-        assert invite.used_count == 0, "注册失败不能占名额"
-
-
-def test_register_code_is_case_insensitive(client):
-    """老师从微信复制来的码可能大小写混着 —— 照样能用"""
-    _make_invite(code="TQB-ABCD-EFGH-IJKL")
-    resp = _register(client, invite_code="  tqb-abcd-efgh-ijkl  ")
-    assert resp.status_code == 200
-
-
-def test_register_twice_with_single_use_invite(client):
-    """一次性的码：第一个人用掉，第二个人就注册不了"""
-    _make_invite(max_uses=1)
-    assert _register(client, username="teacher1").status_code == 200
-    resp = _register(client, username="teacher2")
-    assert resp.status_code == 400
-    assert resp.json()["code"] == "invite.exhausted"
-
 
 # ============================================================
 # 邀请码管理接口（仅管理员）
@@ -318,10 +210,8 @@ def test_admin_can_create_list_and_disable_invites(client):
     assert resp.json()["is_active"] is False
     assert resp.json()["state"] == "disabled"
 
-    # 停用后拿这个码注册 → invite.inactive
-    reg = _register(client, invite_code=created["code"])
-    assert reg.status_code == 400
-    assert reg.json()["code"] == "invite.inactive"
+    # ⚠️ 邀请码不再参与注册（lesson-39 起由短信验证码接管），
+    #    所以这里只验「停用状态生效」，不再验「拿码注册会被拦」。
 
 
 def test_admin_can_change_max_uses(client):
