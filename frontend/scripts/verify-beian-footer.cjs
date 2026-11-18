@@ -149,7 +149,17 @@ async function main() {
         )
       }
 
-      console.log('\n[4] 页脚原始 HTML（留证）')
+      console.log('\n[4] 举报与投诉入口')
+      const report12377 = footer.links.find((l) => l.href.includes('12377.cn'))
+      const reportPolice = footer.links.find((l) => l.href.includes('cyberpolice.mps.gov.cn'))
+      check('页脚有 12377 违法和不良信息举报入口', !!report12377, report12377 ? report12377.href : '')
+      check(
+        '页脚有公安网络违法犯罪举报入口',
+        !!reportPolice,
+        reportPolice ? reportPolice.href : '',
+      )
+
+      console.log('\n[5] 页脚原始 HTML（留证）')
       console.log('  ' + footer.html.replace(/\s+/g, ' ').slice(0, 400))
     }
   } catch (e) {

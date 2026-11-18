@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from app.services.content import check_display_name
 from app.services.audit import client_ip_and_port
 from app.database import get_session
 from app.models import Invite, Question, Paper, Session_, Upload, User
@@ -345,6 +346,24 @@ def login(
     )
 
 
+def _validated_display_name(raw: str | None, phone: str) -> str:
+    """昵称校验：不合规直接拒（公安备案 · 账号标识内容的违法有害信息防范）
+
+    空昵称是允许的 —— 兜底用脱敏手机号，不算用户输入。
+    """
+    stripped = (raw or "").strip()
+    if not stripped:
+        return mask_phone(phone)
+    problems = check_display_name(stripped)
+    if problems:
+        raise ApiHTTPException(
+            status_code=400,
+            detail="；".join(problems),
+            code=CODE_VALIDATION,
+        )
+    return stripped
+
+
 def _registration_open() -> bool:
     """注册通道开关。
 
@@ -479,7 +498,7 @@ def register(
     user = User(
         username=phone,
         phone=phone,
-        display_name=(payload.display_name or "").strip() or mask_phone(phone),
+        display_name=_validated_display_name(payload.display_name, phone),
         password_hash=hash_password(payload.password),
         must_change_password=False,
         is_active=True,
@@ -807,8 +826,9 @@ def update_profile(
 ):
     """修改个人资料（目前只支持显示名）"""
     display_name = payload.display_name.strip()
-    if len(display_name) > 50:
-        raise HTTPException(status_code=400, detail="显示名最长 50 字")
+    problems = check_display_name(display_name)
+    if problems:
+        raise HTTPException(status_code=400, detail="；".join(problems))
 
     user.display_name = display_name
     session.add(user)

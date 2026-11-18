@@ -38,7 +38,7 @@ from app.database import engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Question, Upload, User  # noqa: E402
 from app.routers.ocr import extract_filename  # noqa: E402
-from app.routers.upload import UPLOAD_DIR  # noqa: E402
+from app.services.paths import uploads_dir  # noqa: E402
 from app.scripts.create_users import hash_password  # noqa: E402
 from app.services import ocr_store  # noqa: E402
 
@@ -257,7 +257,7 @@ def test_unregistered_file_is_404(client):
     _make_user("test1")
     token = _login(client, "test1")
 
-    stray = UPLOAD_DIR / "stray_not_in_table.png"
+    stray = uploads_dir() / "stray_not_in_table.png"
     stray.parent.mkdir(parents=True, exist_ok=True)
     stray.write_bytes(PNG_BYTES)
     try:

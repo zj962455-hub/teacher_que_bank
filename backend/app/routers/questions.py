@@ -945,13 +945,57 @@ def delete_question(
     """删除题目"""
     question = _get_own_question(question_id, session, current_user)
 
+    removed = _cleanup_question_images(session, question)
+
     session.delete(question)
     session.commit()
 
-    return {"deleted": True, "id": question_id}
+    return {"deleted": True, "id": question_id, "removed_files": removed}
 
 
 # === 辅助函数 ===
+def _cleanup_question_images(session: Session, question: Question) -> list[str]:
+    """删题目时把它引用的图片文件一并清掉（公安备案 · 内容处置）
+
+    原来删题目只删数据库那一行 —— **图片文件永远留在服务器磁盘上**。
+    真出了违法有害内容要处置时，只删记录不删文件等于没处置。
+
+    ⚠️ 引用计数保护：同一张图可能被多道题共用
+    （实测：线上 id 28/29 共用一张、26/27 共用一张），
+    还被别的题引用就**不删文件**，否则会把它题搞成裂图。
+    """
+    removed: list[str] = []
+    for raw in (question.image_path, question.figure_path):
+        if not raw:
+            continue
+        filename = raw.rsplit("/", 1)[-1]
+        if not filename:
+            continue
+
+        others = session.exec(
+            select(Question)
+            .where(
+                (Question.image_path == raw) | (Question.figure_path == raw)
+            )
+            .where(Question.id != question.id)
+        ).first()
+        if others is not None:
+            continue
+
+        up = session.exec(
+            select(Upload).where(Upload.filename == filename)
+        ).first()
+        if up is not None:
+            session.delete(up)
+
+        # 用 services.paths 的规范解析（自带目录穿越防护）
+        filepath = upload_file_path(filename)
+        if filepath is not None and filepath.is_file():
+            filepath.unlink()
+            removed.append(filename)
+    return removed
+
+
 def _get_own_question(question_id: int, session: Session, user: User) -> Question:
     """取题目并校验归属
 

@@ -48,6 +48,11 @@ const MPS_CODE = (MPS.match(/\d{6,}/) || [''])[0]
 const MPS_QUERY = 'https://beian.mps.gov.cn/#/query/webSearch?code='
 // 公安备案图标 —— 官方徽章，已下载到 frontend/public/ 本地托管（不外链，见上方说明）
 const MPS_ICON = '/gh-beian.png'
+
+// 举报与投诉入口（违法和不良信息举报 / 公安网络违法犯罪举报）
+// —— 公安备案「违法有害信息举报受理渠道」这一项要有个能点的地方
+const REPORT_12377 = 'https://www.12377.cn/'
+const REPORT_POLICE = 'https://cyberpolice.mps.gov.cn'
 </script>
 
 <template>
@@ -66,6 +71,17 @@ const MPS_ICON = '/gh-beian.png'
       >
         <img :src="MPS_ICON" alt="公安备案图标" class="mps-icon" />
         {{ MPS }}
+      </a>
+    </div>
+
+    <div class="site-footer-row site-footer-report">
+      <span class="report-label">举报与投诉：</span>
+      <a :href="REPORT_12377" target="_blank" rel="noopener noreferrer" class="beian">
+        违法和不良信息举报中心（12377）
+      </a>
+      <span class="report-sep">·</span>
+      <a :href="REPORT_POLICE" target="_blank" rel="noopener noreferrer" class="beian">
+        公安网络违法犯罪举报网站
       </a>
     </div>
   </footer>
@@ -102,6 +118,20 @@ const MPS_ICON = '/gh-beian.png'
 
 .beian:hover {
   color: #595959;
+}
+
+/* 举报入口 —— 与备案号同一区域，灰一点不抢视觉 */
+.site-footer-report {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.report-label {
+  color: #8c8c8c;
+}
+
+.report-sep {
+  color: #d9d9d9;
 }
 
 /* 公安备案图标 —— 官方规定要带图标并可点击跳查询页 */

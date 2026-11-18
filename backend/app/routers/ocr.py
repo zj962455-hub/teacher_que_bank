@@ -35,7 +35,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Upload, User
-from app.routers.upload import UPLOAD_DIR
+from app.services.paths import upload_file_path, uploads_dir
 from app.services.auth import get_current_user
 from app.services.errors import (
     CODE_NOT_FOUND,
@@ -200,9 +200,9 @@ async def start_ocr(
     _own_upload(filename, session, current_user)
 
     # 拼本地路径(我们的 uploads/ 是相对路径)
-    image_path = UPLOAD_DIR / filename
+    image_path = upload_file_path(filename)
 
-    if not image_path.is_file():
+    if image_path is None or not image_path.is_file():
         raise ApiHTTPException(
             status_code=404,
             detail="图片不存在",
