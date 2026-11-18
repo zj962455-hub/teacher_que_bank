@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -68,6 +69,106 @@ DEFAULT_ENDPOINT = "dypnsapi.aliyuncs.com"
 DEFAULT_TEMPLATE_PARAM = {"code": "##code##", "min": "5"}
 
 
+# ============ 凭据：静态 AK 或 ECS 实例 RAM 角色（STS）============
+# 优先用 env 里的静态 AK（老配置、别的机器也能跑）；
+# 没有就自动走 ECS 实例 RAM 角色 —— 拿 STS 临时凭据，服务器上根本不存密钥。
+#
+# 线上这台是阿里云 ECS（i-0jldm8ubd3nmhp5b5e8tZ / cn-wulanchabu），
+# 绑了实例 RAM 角色之后，app.env 里两个 AK 变量可以完全不填。
+
+CRED_SOURCE_ENV = "env-ak"
+CRED_SOURCE_ECS_ROLE = "ecs-ram-role"
+CRED_SOURCE_NONE = "none"
+
+# 取到凭据后的缓存时长。远小于 STS 令牌寿命（≥1 小时），
+# 目的是别让每个请求都去戳一次元数据服务。
+_CRED_OK_TTL = 60.0
+# 取不到时的负缓存：连不上元数据时别把每个请求都拖慢
+_CRED_FAIL_TTL = 10.0
+
+_cred_cache = None
+_cred_cache_at = 0.0
+_cred_fail_until = 0.0
+
+# SDK 的凭据客户端只创建一次：
+# EcsRamRoleCredential 继承了 _AutomaticallyRefreshCredentials，
+# STS 令牌过期时 SDK 自己会续期 —— 所以缓存「客户端」而不是「令牌」。
+_credential_client = None
+
+
+class SmsCredentialError(RuntimeError):
+    """拿不到阿里云凭据（既没配 AK，也没绑实例 RAM 角色）。"""
+
+
+def _static_credentials():
+    """env 里的静态 AK。返回 (来源, ak, sk, token) 或 None。"""
+    ak = (os.getenv(ENV_AK) or "").strip()
+    sk = (os.getenv(ENV_SECRET) or "").strip()
+    if ak and sk:
+        return CRED_SOURCE_ENV, ak, sk, ""
+    return None
+
+
+def _ecs_role_credentials():
+    """从 ECS 实例 RAM 角色取 STS 临时凭据。
+
+    服务器上不需要存任何密钥 —— 凭据由元数据服务（100.100.100.200）发放，
+    控制台给实例绑上 RAM 角色之后自动生效。
+    """
+    from alibabacloud_credentials.client import Client as CredentialClient
+    from alibabacloud_credentials.models import Config as CredentialConfig
+
+    global _credential_client
+    if _credential_client is None:
+        _credential_client = CredentialClient(
+            CredentialConfig(type="ecs_ram_role", connect_timeout=2, timeout=3)
+        )
+    cred = _credential_client.get_credential()
+    return (
+        CRED_SOURCE_ECS_ROLE,
+        cred.access_key_id,
+        cred.access_key_secret,
+        cred.security_token or "",
+    )
+
+
+def _resolve_credentials():
+    """解析当前该用哪份凭据。返回 (来源, ak, sk, token) 或 None。"""
+    global _cred_cache, _cred_cache_at, _cred_fail_until
+
+    static = _static_credentials()
+    if static:
+        return static
+
+    now = time.monotonic()
+
+    # 刚失败过就先别重复戳元数据服务
+    if now < _cred_fail_until:
+        return None
+
+    if _cred_cache is not None and (now - _cred_cache_at) < _CRED_OK_TTL:
+        return _cred_cache
+
+    try:
+        resolved = _ecs_role_credentials()
+    except Exception:
+        resolved = None
+
+    if resolved is None:
+        _cred_fail_until = now + _CRED_FAIL_TTL
+        _cred_cache = None
+    else:
+        _cred_cache = resolved
+        _cred_cache_at = now
+    return resolved
+
+
+def credential_source() -> str:
+    """当前凭据来源：env-ak / ecs-ram-role / none（排查用）。"""
+    resolved = _resolve_credentials()
+    return resolved[0] if resolved else CRED_SOURCE_NONE
+
+
 # ============ 频控阈值 ============
 
 # 同号最短间隔（秒）—— 和发给阿里云的 Interval 参数保持一致
@@ -101,17 +202,17 @@ _ERROR_MAP = {
 
 
 def is_configured() -> bool:
-    """短信服务是否配齐了（AK + 签名 + 模板）。
+    """短信服务是否配齐了（凭据 + 签名 + 模板）。
 
     少任何一个都不能发码 —— 这时候应该报「找管理员」，
     而不是让老师对着一个永远失败的按钮发呆。
+
+    凭据可以是静态 AK，也可以是 ECS 实例 RAM 角色发的 STS 临时凭据
+    （绑了实例角色之后，app.env 里两个 AK 变量可以不填）。
     """
-    return bool(
-        os.getenv(ENV_AK)
-        and os.getenv(ENV_SECRET)
-        and os.getenv(ENV_SIGN)
-        and os.getenv(ENV_TEMPLATE_CODE)
-    )
+    if not (os.getenv(ENV_SIGN) and os.getenv(ENV_TEMPLATE_CODE)):
+        return False
+    return _resolve_credentials() is not None
 
 
 def normalize_phone(raw: str) -> str:
@@ -136,14 +237,29 @@ def mask_phone(phone: str) -> str:
 
 
 def _client():
-    """构造阿里云客户端（惰性 —— 没配 AK 时 import 也不炸）。"""
+    """构造阿里云客户端（惰性 —— 没凭据时 import 也不炸）。
+
+    凭据两种来源：
+    - env 里的静态 AK
+    - ECS 实例 RAM 角色发的 STS 临时凭据（推荐，服务器不存密钥）
+    """
     from alibabacloud_dypnsapi20170525.client import Client
     from alibabacloud_tea_openapi import models as open_api_models
 
+    resolved = _resolve_credentials()
+    if resolved is None:
+        raise SmsCredentialError(
+            "没有可用的阿里云凭据：app.env 里没填 AK，也没给这台 ECS 绑实例 RAM 角色"
+        )
+
+    _source, ak, sk, token = resolved
     config = open_api_models.Config(
-        access_key_id=os.getenv(ENV_AK),
-        access_key_secret=os.getenv(ENV_SECRET),
+        access_key_id=ak,
+        access_key_secret=sk,
     )
+    if token:
+        # STS 临时凭据必须带上 token 一起签名
+        config.security_token = token
     config.endpoint = os.getenv(ENV_ENDPOINT) or DEFAULT_ENDPOINT
     return Client(config)
 
@@ -154,6 +270,13 @@ def _translate_error(exc: Exception) -> ApiHTTPException:
     异常对象上取 code / message —— SDK 两种异常基类字段名一致，
     所以不用 import 具体的异常类（换个 SDK 版本也不会炸）。
     """
+    if isinstance(exc, SmsCredentialError):
+        return ApiHTTPException(
+            status_code=503,
+            detail="短信服务凭据没配好，请联系管理员",
+            code=CODE_SMS_NOT_CONFIGURED,
+        )
+
     code = getattr(exc, "code", "") or ""
     message = getattr(exc, "message", "") or str(exc)
 

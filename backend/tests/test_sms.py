@@ -167,6 +167,17 @@ def test_sms_not_configured_returns_503(client, monkeypatch):
     for name in (sms.ENV_AK, sms.ENV_SECRET, sms.ENV_SIGN, sms.ENV_TEMPLATE_CODE):
         monkeypatch.delenv(name, raising=False)
 
+    # 顺手把实例 RAM 角色这条路也堵上：
+    # 否则本机测试会真去戳 100.100.100.200（慢且结果取决于网络）
+    monkeypatch.setattr(sms, "_cred_cache", None)
+    monkeypatch.setattr(sms, "_cred_cache_at", 0.0)
+    monkeypatch.setattr(sms, "_cred_fail_until", 0.0)
+
+    def _no_role():
+        raise RuntimeError("no role attached")
+
+    monkeypatch.setattr(sms, "_ecs_role_credentials", _no_role)
+
     resp = client.post("/api/auth/sms/send", json={"phone": PHONE})
     assert resp.status_code == 503
     body = resp.json()
@@ -337,6 +348,10 @@ def test_stopped_invite_no_longer_blocks_registration(client, fake_sms):
     「直接短信注册替代现有邀请码注册」。
     """
     with Session(engine) as session:
+        # 这条用例往真库里插固定码 —— 先清掉上次的残留，
+        # 否则连跑两次时第二次必然撞唯一键 ux_invites_code
+        session.exec(delete(Invite).where(Invite.code == "TQB-STOPPED-0001"))
+        session.commit()
         session.add(
             Invite(
                 code="TQB-STOPPED-0001",
@@ -356,8 +371,16 @@ def test_stopped_invite_no_longer_blocks_registration(client, fake_sms):
 
     # 邀请码名额也不再被占用（注册流程压根不碰它）
     with Session(engine) as session:
-        invite = session.exec(select(Invite)).first()
+        invite = session.exec(
+            select(Invite).where(Invite.code == "TQB-STOPPED-0001")
+        ).first()
+    assert invite is not None
     assert invite.used_count == 0
+
+    # 收尾清掉，别给下一次跑留垃圾
+    with Session(engine) as session:
+        session.exec(delete(Invite).where(Invite.code == "TQB-STOPPED-0001"))
+        session.commit()
 
 # === 登录 ===
 
@@ -412,3 +435,99 @@ def test_login_disabled_account(client, fake_sms):
 
     resp = client.post("/api/auth/login", json={"account": PHONE, "password": PASSWORD})
     assert resp.status_code == 403
+
+
+# ============ 凭据来源：静态 AK / ECS 实例 RAM 角色（STS）============
+# 服务器是阿里云 ECS，可以给实例绑 RAM 角色，让 SDK 自动取 STS 临时凭据，
+# 服务器上根本不存密钥。这几条测的就是这条路的正确性。
+
+
+@pytest.fixture
+def clean_cred_cache(monkeypatch):
+    """清掉模块级凭据缓存 —— 否则上一条用例的结果会串到下一条。"""
+    monkeypatch.setattr(sms, "_cred_cache", None)
+    monkeypatch.setattr(sms, "_cred_cache_at", 0.0)
+    monkeypatch.setattr(sms, "_cred_fail_until", 0.0)
+    monkeypatch.setattr(sms, "_credential_client", None)
+
+
+def _clear_ak(monkeypatch):
+    monkeypatch.delenv(sms.ENV_AK, raising=False)
+    monkeypatch.delenv(sms.ENV_SECRET, raising=False)
+
+
+def _stub_role(monkeypatch):
+    monkeypatch.setattr(
+        sms,
+        "_ecs_role_credentials",
+        lambda: (sms.CRED_SOURCE_ECS_ROLE, "sts-ak", "sts-sk", "sts-token"),
+    )
+
+
+def test_credential_source_prefers_static_ak(monkeypatch, clean_cred_cache):
+    """env 里填了 AK 就用 AK，不去碰实例角色。"""
+    monkeypatch.setenv(sms.ENV_AK, "ak-1")
+    monkeypatch.setenv(sms.ENV_SECRET, "sk-1")
+    _stub_role(monkeypatch)
+    assert sms.credential_source() == sms.CRED_SOURCE_ENV
+
+
+def test_credential_source_falls_back_to_ecs_ram_role(monkeypatch, clean_cred_cache):
+    """没填 AK 时自动走实例 RAM 角色。"""
+    _clear_ak(monkeypatch)
+    _stub_role(monkeypatch)
+    assert sms.credential_source() == sms.CRED_SOURCE_ECS_ROLE
+
+
+def test_client_carries_sts_security_token(monkeypatch, clean_cred_cache):
+    """STS 临时凭据必须把 token 一起带进签名，否则阿里云认不了。"""
+    _clear_ak(monkeypatch)
+    _stub_role(monkeypatch)
+    client = sms._client()
+    cred = client._credential.get_credential()
+    assert cred.access_key_id == "sts-ak"
+    assert cred.security_token == "sts-token"
+
+
+def test_client_without_any_credential_raises(monkeypatch, clean_cred_cache):
+    """既没 AK 又没角色 -> 抛我们自己的异常，别把 SDK 的原始错抛出去。"""
+    _clear_ak(monkeypatch)
+
+    def _no_role():
+        raise RuntimeError("no role attached")
+
+    monkeypatch.setattr(sms, "_ecs_role_credentials", _no_role)
+    with pytest.raises(sms.SmsCredentialError):
+        sms._client()
+
+
+def test_is_configured_true_with_role_only(monkeypatch, clean_cred_cache):
+    """绑了实例 RAM 角色之后，app.env 里不填 AK 也应该算配好了。"""
+    _clear_ak(monkeypatch)
+    monkeypatch.setenv(sms.ENV_SIGN, "测试签名")
+    monkeypatch.setenv(sms.ENV_TEMPLATE_CODE, "100001")
+    _stub_role(monkeypatch)
+    assert sms.is_configured() is True
+
+
+def test_is_configured_false_without_role(monkeypatch, clean_cred_cache):
+    """没有任何凭据来源 -> 没配好，走「找管理员」。"""
+    _clear_ak(monkeypatch)
+    monkeypatch.setenv(sms.ENV_SIGN, "测试签名")
+    monkeypatch.setenv(sms.ENV_TEMPLATE_CODE, "100001")
+
+    def _no_role():
+        raise RuntimeError("no role attached")
+
+    monkeypatch.setattr(sms, "_ecs_role_credentials", _no_role)
+    assert sms.is_configured() is False
+
+
+def test_credential_error_maps_to_not_configured(monkeypatch, clean_cred_cache):
+    """凭据问题要映射成 sms.not_configured，不能变成 500。"""
+    from app.services.errors import CODE_SMS_NOT_CONFIGURED
+
+    exc = sms.SmsCredentialError("no credential")
+    mapped = sms._translate_error(exc)
+    assert mapped.status_code == 503
+    assert mapped.code == CODE_SMS_NOT_CONFIGURED

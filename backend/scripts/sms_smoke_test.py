@@ -4,6 +4,10 @@
 不连数据库、不依赖本项目代码，直接调阿里云 SDK。
 目的：把「AK 权限 / 签名 / 模板 / 产品是否开通」这四件容易混在一起的事一次分清。
 
+凭据两种来源（跟后端 sms.py 保持一致）：
+- app.env 里填了 ALIYUN_SMS_ACCESS_KEY_ID / _SECRET  -> 用静态 AK
+- 没填 -> 自动走 ECS 实例 RAM 角色，拿 STS 临时凭据（服务器上不存密钥）
+
 用法（在服务器上，用后端 venv 的 python）：
 
     # 1. 发一条验证码（脚本自己找 /etc/teacherbank/app.env）
@@ -20,7 +24,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from typing import Optional
+from typing import Optional, Tuple
 
 ENV_AK = "ALIYUN_SMS_ACCESS_KEY_ID"
 ENV_SECRET = "ALIYUN_SMS_ACCESS_KEY_SECRET"
@@ -37,6 +41,9 @@ DEFAULT_TEMPLATE_PARAM = {"code": "##code##", "min": "5"}
 CODE_LENGTH = 6
 CODE_VALID_SECONDS = 300
 RESEND_INTERVAL_SECONDS = 60
+
+CRED_SOURCE_ENV = "env-ak"
+CRED_SOURCE_ECS_ROLE = "ecs-ram-role"
 
 # 阿里云错误码 → 排查方向（都是控制台那边能改的）
 DIAGNOSIS = {
@@ -57,7 +64,7 @@ DIAGNOSIS = {
     "InvalidAccessKeyId.NotFound": "AK 不存在：检查 ALIYUN_SMS_ACCESS_KEY_ID 是否填错/已禁用",
     "InvalidAccessKeySecret.NotFound": "AK 与 SK 不匹配",
     "SignatureDoesNotMatch": "AK/SK 不匹配（也可能是复制时带了空格）",
-    "Forbidden": "权限不足：确认用的是 RAM 用户的 AK，且策略已挂上",
+    "Forbidden": "权限不足：确认 RAM 角色有那两个 action 的授权",
     "Throttling": "被限流了，等几秒重试",
 }
 
@@ -86,10 +93,47 @@ def _load_env_file() -> None:
             print(f"[env] 读 {path} 失败: {exc}")
 
 
+def _static_credentials() -> Optional[Tuple[str, str, str, str]]:
+    ak = (os.getenv(ENV_AK) or "").strip()
+    sk = (os.getenv(ENV_SECRET) or "").strip()
+    if ak and sk:
+        return CRED_SOURCE_ENV, ak, sk, ""
+    return None
+
+
+def _role_credentials() -> Optional[Tuple[str, str, str, str]]:
+    """ECS 实例 RAM 角色 -> STS 临时凭据。"""
+    try:
+        from alibabacloud_credentials.client import Client as CredentialClient
+        from alibabacloud_credentials.models import Config as CredentialConfig
+    except ImportError as exc:
+        print(f"[cred] 凭据 SDK 没装: {exc}")
+        return None
+
+    try:
+        client = CredentialClient(
+            CredentialConfig(type="ecs_ram_role", connect_timeout=2, timeout=3)
+        )
+        cred = client.get_credential()
+    except Exception as exc:
+        print(f"[cred] 取实例 RAM 角色失败: {type(exc).__name__}: {exc}")
+        return None
+
+    return (
+        CRED_SOURCE_ECS_ROLE,
+        cred.access_key_id,
+        cred.access_key_secret,
+        cred.security_token or "",
+    )
+
+
+def _resolve_credentials():
+    return _static_credentials() or _role_credentials()
+
+
 def _missing() -> list[str]:
+    """签名和模板是必须的；凭据二选一（静态 AK 或实例 RAM 角色）。"""
     needed = {
-        ENV_AK: os.getenv(ENV_AK),
-        ENV_SECRET: os.getenv(ENV_SECRET),
         ENV_SIGN: os.getenv(ENV_SIGN),
         ENV_TEMPLATE_CODE: os.getenv(ENV_TEMPLATE_CODE),
     }
@@ -100,19 +144,26 @@ def _client():
     from alibabacloud_dypnsapi20170525.client import Client
     from alibabacloud_tea_openapi import models as open_api_models
 
-    config = open_api_models.Config(
-        access_key_id=os.getenv(ENV_AK),
-        access_key_secret=os.getenv(ENV_SECRET),
-    )
+    resolved = _resolve_credentials()
+    if resolved is None:
+        raise RuntimeError(
+            "没有可用凭据：app.env 里没填 AK，也没给这台 ECS 绑实例 RAM 角色"
+        )
+
+    source, ak, sk, token = resolved
+    config = open_api_models.Config(access_key_id=ak, access_key_secret=sk)
+    if token:
+        config.security_token = token
     config.endpoint = os.getenv(ENV_ENDPOINT) or DEFAULT_ENDPOINT
+    print(f"[cred] 凭据来源: {source}")
     return Client(config)
 
 
 def _fail(exc: Exception) -> int:
     code = getattr(exc, "code", "") or ""
     message = getattr(exc, "message", "") or str(exc)
-    request_id = getattr(exc, "data", {}) or {}
-    rid = request_id.get("RequestId") if isinstance(request_id, dict) else None
+    data = getattr(exc, "data", {}) or {}
+    rid = data.get("RequestId") if isinstance(data, dict) else None
 
     print("\n❌ 失败")
     print(f"   错误码 : {code or '(空)'}")
@@ -182,12 +233,13 @@ def do_check(phone: str, code: str) -> int:
     except Exception as exc:
         return _fail(exc)
 
-    model = getattr(getattr(response, "body", None), "model", None)
+    body = getattr(response, "body", None)
+    model = getattr(body, "model", None)
     result = getattr(model, "verify_result", "")
     passed = result == "PASS"
     print("\n" + ("✅ 核验通过" if passed else "❌ 核验不通过"))
     print(f"   阿里云返回 : {result or '(空)'}")
-    print(f"   业务状态   : {getattr(getattr(response, 'body', None), 'code', '')} {getattr(getattr(response, 'body', None), 'message', '')}")
+    print(f"   业务状态   : {getattr(body, 'code', '')} {getattr(body, 'message', '')}")
     if not passed:
         print("   排查       : 码输错了 / 已过期 / 不是这个手机号收到的 / 60 秒内重复发送后旧码失效")
     return 0 if passed else 1
@@ -206,7 +258,8 @@ def main(argv: list[str]) -> int:
         print("❌ 配置不全，缺这些（只报名字，不打印值）：")
         for name in missing:
             print(f"   - {name}")
-        print("\n把这几个填进服务器 /etc/teacherbank/app.env（chmod 600）后重跑。")
+        print("\n签名和模板填进服务器 /etc/teacherbank/app.env（chmod 600）后重跑。")
+        print("（凭据不用填 —— 有静态 AK 就用，没有就自动走实例 RAM 角色）")
         return 2
 
     if mode == "send":

@@ -118,6 +118,22 @@ bash deploy/teacher-bank/rebuild.sh
 systemctl restart teacherbank-api
 ```
 
+### 🔐 阿里云短信凭据（lesson-39）
+
+短信的 AK/SK **默认不用填** —— 代码会自动走这台 ECS 的**实例 RAM 角色**取 STS 临时凭据，服务器上不存任何密钥。
+
+- 控制台配置六步（建角色 → 授最小权限 → 绑实例 → 重启 → 填签名/模板 → 自测）：
+  见 `docs/lesson-39-sms-auth.md` 第 **8.3** 节
+- 自定义策略：`deploy/teacher-bank/ram-policy.sms.json`（只授 `dypns:SendSmsVerifyCode` + `dypns:CheckSmsVerifyCode`）
+- 服务器上自测（`rebuild.sh` 会自动把脚本同步到 `/opt/teacher-bank/app/scripts/`）：
+
+```bash
+/opt/teacher-bank/.venv/bin/python /opt/teacher-bank/app/scripts/sms_smoke_test.py send 13800138000
+```
+
+> ⚠️ 给已有 ECS 实例绑定实例 RAM 角色后**需要重启实例**才生效。
+> 重启前确认 `teacherbank-api` / `paddleocr-api` / `nginx` / `postgresql` 都是 `enabled`（已核实），会自动拉起。
+
 ---
 
 ## 🆘 故障排查

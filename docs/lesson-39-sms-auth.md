@@ -112,7 +112,7 @@
 | `deploy/teacher-bank/deploy-lesson39.sh` | 一键部署（含迁移 + SDK 安装） |
 | `deploy/teacher-bank/app.env.sms.example` | 短信环境变量模板（老大手动填） |
 | `deploy/teacher-bank/ram-policy.sms.json` | RAM 自定义策略（只授两个 dypns action） |
-| `deploy/teacher-bank/sms-smoke-test.py` | 独立冒烟测试：不连库直接调 SDK，分清权限/签名/模板/产品开通 |
+| `backend/scripts/sms_smoke_test.py` | 独立冒烟测试：不连库直接调 SDK，分清权限/签名/模板/产品开通（rebuild.sh 会自动同步到服务器 `/opt/teacher-bank/app/scripts/`） |
 
 ---
 
@@ -164,23 +164,99 @@ AK/SK 只写服务器 `/etc/teacherbank/app.env`（chmod 600），不要发到�
 填完先自测一次，把「权限 / 签名 / 模板 / 产品是否开通」四种失败一次分清：
 
     # 1. 发一条
-    /opt/teacher-bank/.venv/bin/python deploy/teacher-bank/sms-smoke-test.py send 13800138000
+    /opt/teacher-bank/.venv/bin/python /opt/teacher-bank/app/scripts/sms_smoke_test.py send 13800138000
 
     # 2. 拿收到的验证码核验
-    /opt/teacher-bank/.venv/bin/python deploy/teacher-bank/sms-smoke-test.py check 13800138000 123456
+    /opt/teacher-bank/.venv/bin/python /opt/teacher-bank/app/scripts/sms_smoke_test.py check 13800138000 123456
 
 自测通过再重启服务：
 
     systemctl restart teacherbank-api
 
-### 8.3 更稳的做法：ECS RAM 角色（可以后做）
+### 8.3 凭据方案：默认走 ECS 实例 RAM 角色（STS 临时凭据）
 
-服务器上的静态 AK/SK 仍然是「长期有效的静态凭据」。如果这台机器是 ECS 或轻量应用服务器，
-可以给实例绑一个 RAM 角色，让 SDK 自动取 STS 临时凭据 —— **服务器上根本不存 AK/SK**。
+线上这台是阿里云 ECS（`i-0jldm8ubd3nmhp5b5e8tZ` / `cn-wulanchabu` / `ecs.e-c1m2.large`）。
+代码已改成**双模**（`backend/app/services/sms.py`）：
 
-代价：`backend/app/services/sms.py` 现在是硬编码 `Config(access_key_id=..., access_key_secret=...)`，
-要走角色得改成用 `alibabacloud_credentials` 的默认凭据链（约 15 行）。
-可以做成双模：env 里有 AK 就用 AK，没有就自动走凭据链，这样两条路都通、将来切角色不用再改代码。
+| 来源 | 条件 | 服务器上存不存密钥 |
+|---|---|---|
+| `env-ak` | `app.env` 里填了 `ALIYUN_SMS_ACCESS_KEY_ID` + `_SECRET` | 存（长期有效的静态凭据） |
+| `ecs-ram-role` | 没填 AK → 自动向实例元数据服务取 STS 临时凭据 | **不存** |
+
+走角色时 STS 令牌由元数据服务（100.100.100.200）发放，SDK 在令牌过期时**自动续期**
+（`EcsRamRoleCredential` 继承 `_AutomaticallyRefreshCredentials`），长期运行不用管。
+
+**没有凭据时的报错**：`短信服务凭据没配好，请联系管理员`（机器码 `sms.not_configured`），不是 500。
+
+#### 控制台配置（六步）
+
+**第 1 步 · 创建 RAM 角色**
+
+RAM 控制台 → 身份管理 → 角色 → 创建角色
+
+- 角色名称：`TeacherBankSmsRole`
+- 受信实体类型：**云服务**
+- 受信服务：**ECS（云服务器）**
+- 信任策略（控制台自动生成，确认是这段）：
+
+      {
+        "Version": "1",
+        "Statement": [
+          {
+            "Action": "sts:AssumeRole",
+            "Effect": "Allow",
+            "Principal": {
+              "Service": ["ecs.aliyuncs.com"]
+            }
+          }
+        ]
+      }
+
+**第 2 步 · 给角色授最小权限**
+
+RAM 控制台 → 身份管理 → 策略 → 创建自定义策略 → 粘贴 `deploy/teacher-bank/ram-policy.sms.json` 的内容 → 命名 `TeacherBankSmsPolicy`。
+
+再回到角色详情 → 权限管理 → 新增授权 → 选 `TeacherBankSmsPolicy`。
+
+**第 3 步 · 绑到 ECS 实例**
+
+ECS 控制台 → 实例与镜像 → 实例 → 找到 `i-0jldm8ubd3nmhp5b5e8tZ`（杭州 cn-wulanchabu）
+→ 更多 → **实例 RAM 角色** → 选 `TeacherBankSmsRole` → 确认。
+
+> ⚠️ **这一步需要重启实例才生效** —— 阿里云要求给已有实例绑定实例 RAM 角色后重启，
+> 元数据服务才会开始发放角色凭据。
+>
+> 重启风险已核实（2026-11-18）：`teacherbank-api` / `paddleocr-api` / `nginx` / `postgresql`
+> 全是 `active=enabled`，重启后会自动拉起，站点停机约 1~2 分钟。
+
+**第 4 步 · 验证角色已生效**
+
+    ssh root@8.160.177.222
+    curl -s http://100.100.100.200/latest/meta-data/ram/security-credentials/
+    # 应该输出：TeacherBankSmsRole
+
+**第 5 步 · 填签名和模板（AK 两行不用填）**
+
+    sudo vi /etc/teacherbank/app.env
+    # 追加两行：
+    ALIYUN_SMS_SIGN_NAME=<赠送签名的 SignName>
+    ALIYUN_SMS_TEMPLATE_CODE=<赠送模板的 TemplateCode>
+
+    sudo chown teacherbank:teacherbank /etc/teacherbank/app.env
+    sudo chmod 600 /etc/teacherbank/app.env
+    sudo systemctl restart teacherbank-api
+
+**第 6 步 · 自测发一条**
+
+    /opt/teacher-bank/.venv/bin/python /opt/teacher-bank/app/scripts/sms_smoke_test.py send 13800138000
+
+看到 `[cred] 凭据来源: ecs-ram-role` 且「✅ 发送成功」就说明整条链路通了。
+
+#### 不想重启的话：退回静态 AK
+
+跳过第 3 步，改成建 RAM 子账号（只授 `ram-policy.sms.json` 那两个 action），
+把 AK/SK 填进 `app.env` 的 `ALIYUN_SMS_ACCESS_KEY_ID` / `ALIYUN_SMS_ACCESS_KEY_SECRET`。
+代码不用改 —— 检测到 env 有 AK 就走 AK，没有才走角色。
 
 ---
 
