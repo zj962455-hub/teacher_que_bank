@@ -18,6 +18,7 @@
 from sqlmodel import SQLModel
 
 from .account import Invite, LoginAttempt, Session_, SmsAttempt, User
+from .compliance import RegulatoryRequest
 from .audit import AuditLog
 from .feedback import Feedback
 from .paper import CN_NUMBERS, Paper, PaperQuestion, PaperShare, auto_label
@@ -30,6 +31,8 @@ __all__ = [
     "SmsAttempt",
     "Invite",
     "LoginAttempt",
+    # 合规域
+    "RegulatoryRequest",
     # 安全域
     "AuditLog",
     # 题库域
