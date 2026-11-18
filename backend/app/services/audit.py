@@ -49,6 +49,8 @@ _ACTION_MAP = [
     ("/api/tags", "标签管理"),
     ("/api/feedback", "反馈管理"),
     ("/api/invites", "邀请码管理"),
+    # lesson-42 · 合规与监管配合（审计导出、调阅台账登记）
+    ("/api/compliance", "合规与监管配合"),
 ]
 
 

@@ -214,3 +214,14 @@ def test_csv_injection_is_escaped():
     text = audit_logs_to_csv([row])
     assert "=cmd" not in text.replace("'=cmd", "")
     assert "'=cmd" in text
+
+
+def test_compliance_action_mapping():
+    """合规相关路径要归到「合规与监管配合」，不能全叫「其他操作」"""
+    from app.services.audit import resolve_action
+
+    assert resolve_action("/api/compliance/audit/export") == "合规与监管配合"
+    assert resolve_action("/api/compliance/requests") == "合规与监管配合"
+    # 不影响其他既有映射
+    assert resolve_action("/api/auth/login") == "账号登录"
+    assert resolve_action("/api/questions/") == "题目管理"
