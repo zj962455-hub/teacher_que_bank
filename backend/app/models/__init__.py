@@ -17,7 +17,7 @@
 
 from sqlmodel import SQLModel
 
-from .account import Invite, Session_, SmsAttempt, User
+from .account import Invite, LoginAttempt, Session_, SmsAttempt, User
 from .audit import AuditLog
 from .feedback import Feedback
 from .paper import CN_NUMBERS, Paper, PaperQuestion, PaperShare, auto_label
@@ -29,6 +29,7 @@ __all__ = [
     "Session_",
     "SmsAttempt",
     "Invite",
+    "LoginAttempt",
     # 安全域
     "AuditLog",
     # 题库域

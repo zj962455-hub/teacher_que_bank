@@ -27,7 +27,7 @@ import {
 import { message } from '../composables/discreteApi'
 import { logout, changePassword } from '../api/auth'
 import {
-  getMe, updateProfile, getMyStats, listMySessions, revokeSession,
+  getMe, updateProfile, getMyStats, listMySessions, revokeSession, deleteMyAccount,
 } from '../api/profile'
 
 const props = defineProps({
@@ -143,6 +143,34 @@ async function doRevoke(row) {
     message.success('已注销该会话')
   } catch (e) {
     message.error(`注销失败：${e.message}`)
+  }
+}
+
+// === 注销账号（个人信息保护 · 删除权）===
+// 为什么要密码确认：不能只靠登录态 —— 会话被劫持就能把账号注销掉。
+const showDelete = ref(false)
+const deletePassword = ref('')
+const deleting = ref(false)
+
+async function doDeleteAccount() {
+  if (!deletePassword.value) {
+    message.warning('请输入当前密码')
+    return
+  }
+  deleting.value = true
+  try {
+    const res = await deleteMyAccount({ password: deletePassword.value })
+    const data = res && res.data ? res.data : res
+    message.success(
+      `账号已注销（撤销 ${data?.revoked_sessions ?? 0} 个会话，作废 ${data?.revoked_shares ?? 0} 条分享链接）`,
+    )
+    deletePassword.value = ''
+    showDelete.value = false
+    emit('logged-out')
+  } catch (e) {
+    message.error(`注销失败：${e.message}`)
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -328,6 +356,38 @@ function shortUa(ua) {
             <NEmpty description="没有其他登录会话" />
           </template>
         </NDataTable>
+
+        <NDivider />
+
+        <!-- === 注销账号（个人信息保护 · 删除权）=== -->
+        <NText strong>注销账号</NText>
+        <NText depth="3" style="font-size: 12px; display: block; margin-top: 4px">
+          注销后：账号停用、全部设备下线、分享链接作废、显示名清除。<b>不可恢复。</b>
+        </NText>
+        <NButton
+          v-if="!showDelete"
+          type="error"
+          secondary
+          style="margin-top: 10px"
+          @click="showDelete = true"
+        >
+          注销我的账号
+        </NButton>
+        <div v-else style="margin-top: 10px; max-width: 420px">
+          <NInput
+            v-model:value="deletePassword"
+            type="password"
+            show-password-on="click"
+            placeholder="输入当前密码以确认"
+            @keyup.enter="doDeleteAccount"
+          />
+          <NSpace style="margin-top: 10px">
+            <NButton type="error" :loading="deleting" @click="doDeleteAccount">
+              确认注销
+            </NButton>
+            <NButton @click="showDelete = false; deletePassword = ''">取消</NButton>
+          </NSpace>
+        </div>
 
         <NDivider />
 

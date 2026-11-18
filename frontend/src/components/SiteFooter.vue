@@ -83,6 +83,8 @@ const REPORT_POLICE = 'https://cyberpolice.mps.gov.cn'
       <a :href="REPORT_POLICE" target="_blank" rel="noopener noreferrer" class="beian">
         公安网络违法犯罪举报网站
       </a>
+      <span class="report-sep">·</span>
+      <a href="/privacy" class="beian">隐私政策与用户协议</a>
     </div>
   </footer>
 </template>

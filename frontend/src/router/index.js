@@ -22,6 +22,15 @@ const routes = [
     meta: { public: true, title: '登录' },
   },
   {
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('../pages/PrivacyPage.vue'),
+    // ⚠️ standalone 必须为 true —— App.vue 在「未登录」分支里**不渲染 RouterView**
+    //    （只出登录面板 + 页脚），所以公开页不标 standalone，访客看到的会是登录框，
+    //    页面内容根本没挂载（2026-11-18 实测踩到：正文只有 133 字）。
+    meta: { public: true, standalone: true, title: '隐私政策与用户协议' },
+  },
+  {
     path: '/',
     name: 'dashboard',
     component: () => import('../pages/DashboardPage.vue'),

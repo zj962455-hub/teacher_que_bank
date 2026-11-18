@@ -95,6 +95,7 @@ CODE_SMS_CODE_INVALID = "sms.code_invalid"      # 验证码不对或过期
 #    站点本身不对外公开注册（手机号要能收短信才注册得了），可接受。
 CODE_AUTH_ACCOUNT_NOT_FOUND = "auth.account_not_found"
 CODE_AUTH_INVALID_CREDENTIALS = "auth.invalid_credentials"
+CODE_AUTH_RATE_LIMITED = "auth.rate_limited"  # 登录失败次数过多（防撞库）
 CODE_AUTH_PHONE_TAKEN = "auth.phone_taken"  # 该手机号已注册
 CODE_AUTH_REGISTRATION_CLOSED = "auth.registration_closed"  # 注册通道被管理员关了
 

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import os
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -38,7 +38,7 @@ from sqlmodel import Session, select
 from app.services.content import check_display_name
 from app.services.audit import client_ip_and_port
 from app.database import get_session
-from app.models import Invite, Question, Paper, Session_, Upload, User
+from app.models import Invite, Question, Paper, Session_, Upload, User, LoginAttempt, PaperShare
 from app.services.auth import (
     SESSION_TTL_DAYS,
     check_password_strength,
@@ -62,6 +62,7 @@ from app.services.errors import (
     CODE_PASSWORD_CHANGE_LOCKED,
     CODE_VALIDATION,
     ApiHTTPException,
+    CODE_AUTH_RATE_LIMITED,
 )
 from app.services.sms import (
     PURPOSE_REGISTER,
@@ -265,6 +266,41 @@ def _find_user_by_account(session: Session, ident: str) -> Optional[User]:
     return session.exec(select(User).where(User.username == ident)).first()
 
 
+# ==== 登录限流（防撞库）====
+# 仓库里一直记着「全项目没有任何限流中间件」—— 发码频控是自己兜的，
+# 但登录没有。密码可以无限次试，撞库就等于拿别人账号下的个人信息。
+LOGIN_FAIL_WINDOW_MINUTES = 15
+LOGIN_FAIL_IP_LIMIT = 10        # 同 IP 在窗口内失败上限
+LOGIN_FAIL_ACCOUNT_LIMIT = 5    # 同账号在窗口内失败上限
+
+
+def _record_login_attempt(session: Session, account: str, ip: str, ok: bool) -> None:
+    """记一条登录尝试（成功与失败都记），只记结果与元信息，不记密码"""
+    session.add(
+        LoginAttempt(account=(account or "")[:50], ip=(ip or "")[:45], ok=ok)
+    )
+    session.commit()
+
+
+def _login_blocked(session: Session, account: str, ip: str) -> bool:
+    """这个账号 / 这个 IP 是不是被限流了"""
+    since = datetime.now(timezone.utc) - timedelta(minutes=LOGIN_FAIL_WINDOW_MINUTES)
+    rows = session.exec(
+        select(LoginAttempt)
+        .where(LoginAttempt.ok == False)  # noqa: E712
+        .where(LoginAttempt.created_at >= since)
+    ).all()
+    # IP 维度按**不同账号数**算：拦的是「拿一个 IP 喷洒枚举一堆账号」
+    # （同一账号反复试由账号维度负责）——
+    # 按「失败总次数」算会误伤：正常用户输错几次密码也会被拦。
+    ip_accounts = {r.account for r in rows if ip and r.ip == ip and r.account}
+    acct_hits = sum(1 for r in rows if account and r.account == account)
+    return (
+        len(ip_accounts) >= LOGIN_FAIL_IP_LIMIT
+        or acct_hits >= LOGIN_FAIL_ACCOUNT_LIMIT
+    )
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(
     payload: LoginRequest,
@@ -289,11 +325,21 @@ def login(
             code=CODE_VALIDATION,
         )
 
+    # 限流：同 IP / 同账号在窗口内失败太多 → 拒绝（防撞库）
+    client_ip, _client_port = client_ip_and_port(request)
+    if _login_blocked(session, ident, client_ip):
+        raise ApiHTTPException(
+            status_code=429,
+            detail="登录失败次数过多，请 15 分钟后再试",
+            code=CODE_AUTH_RATE_LIMITED,
+        )
+
     user = _find_user_by_account(session, ident)
 
     # 用户不存在 → 也走一次哈希校验，抹平时间差
     if user is None:
         _dummy_verify(payload.password)
+        _record_login_attempt(session, ident, client_ip, ok=False)
         raise ApiHTTPException(
             status_code=404,
             detail="账号不存在；如果用的是手机号，说明还没注册过",
@@ -301,6 +347,7 @@ def login(
         )
 
     if not verify_password(payload.password, user.password_hash):
+        _record_login_attempt(session, ident, client_ip, ok=False)
         raise ApiHTTPException(
             status_code=401,
             detail="密码错了，再输一次",
@@ -330,6 +377,9 @@ def login(
     session.add(user)
     session.commit()
     session.refresh(user)
+
+    # 成功也记一条（审计：谁在什么时候从哪个 IP 登录成功）
+    _record_login_attempt(session, ident, client_ip, ok=True)
 
     return LoginResponse(
         token=token,
@@ -734,6 +784,67 @@ def update_invite(
 
 
 # === 注销 ===
+
+class AccountDeleteRequest(BaseModel):
+    """注销账号请求 —— 要密码确认，防止误操作或被盗号后被注销"""
+
+    password: str
+
+
+@router.post("/account/delete")
+def delete_my_account(
+    payload: AccountDeleteRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """注销我的账号（个人信息保护 · 删除权）
+
+    做了什么
+    --------
+    1. 校验密码（不是只靠登录态 —— 防止会话被劫持后直接注销）
+    2. 撤销该账号**全部**登录会话（其它设备立刻掉线）
+    3. 吊销该账号生成的全部试卷分享链接（对外通道立刻关闭）
+    4. 清空显示名（个人标识信息清除）
+    5. 账号置为停用（无法再登录）
+
+    题目、试卷与上传的扫描件**保留**但不再对外提供访问
+    （账号停用后无人可访问，管理员也无批量查看他人内容的入口）；
+    如需物理删除，可由管理员按用户请求在数据库层执行。
+
+    ⚠️ 登录标识（手机号）保留：它是登录名与审计记录的关联键，
+    保留属《个人信息保护法》第四十七条「删除难以实现时，停止除存储和
+    采取必要安全保护措施之外的处理」的情形。
+    """
+    if not verify_password(payload.password, current_user.password_hash):
+        raise ApiHTTPException(
+            status_code=401,
+            detail="密码不对，无法注销",
+            code=CODE_AUTH_INVALID_CREDENTIALS,
+        )
+
+    uid = current_user.id or 0
+    revoked_sessions = revoke_all_sessions(session, uid)
+
+    now = datetime.now(timezone.utc)
+    shares = session.exec(
+        select(PaperShare).where(PaperShare.user_id == uid)
+    ).all()
+    for sh in shares:
+        if sh.revoked_at is None:
+            sh.revoked_at = now
+            session.add(sh)
+
+    current_user.is_active = False
+    current_user.display_name = ""
+    session.add(current_user)
+    session.commit()
+
+    return {
+        "deleted": True,
+        "revoked_sessions": revoked_sessions,
+        "revoked_shares": len(shares),
+    }
+
 
 @router.post("/logout")
 def logout(

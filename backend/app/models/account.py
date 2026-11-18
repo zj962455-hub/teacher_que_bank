@@ -214,3 +214,33 @@ class Invite(SQLModel, table=True):
     )
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class LoginAttempt(SQLModel, table=True):
+    """登录尝试流水（防撞库 + 审计）
+
+    为什么需要
+    ----------
+    仓库里一直记着「全项目没有任何限流中间件」—— 短信发码是自己兜的频控，
+    但**登录没有**。密码可以无限次试，撞库就���拿别人账号下的个人信息。
+
+    这张表记每一次登录尝试（成功与失败都记），用于：
+    - 限流：同 IP / 同账号在时间窗内失败太多 → 拒绝登录
+    - 审计：事后能查「谁在什么时候从哪个 IP 试过哪个账号」
+
+    只记结果，不记密码，也不记用户提交的其它内容。
+    """
+
+    __tablename__ = "login_attempts"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # 提交的登录名（手机号，或历史遗留的用户名）
+    account: str = Field(default="", max_length=50, index=True)
+    # 来源 IP
+    ip: str = Field(default="", max_length=45, index=True)
+    # 这次是否成功
+    ok: bool = Field(default=False, index=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), index=True
+    )

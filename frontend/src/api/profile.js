@@ -34,10 +34,21 @@ export function revokeSession(sessionId) {
   return http.delete(`/auth/sessions/${sessionId}`)
 }
 
+/**
+ * 注销我的账号（个人信息保护 · 删除权）
+ *
+ * 需要密码确认 —— 不能只靠登录态，否则会话被劫持就能把账号注销掉。
+ * 后端动作：撤销全部会话 + 吊销全部分享链接 + 清空显示名 + 账号停用。
+ */
+export function deleteMyAccount({ password }) {
+  return http.post('/auth/account/delete', { password })
+}
+
 export default {
   getMe,
   updateProfile,
   getMyStats,
   listMySessions,
   revokeSession,
+  deleteMyAccount,
 }
