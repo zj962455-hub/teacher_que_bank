@@ -222,11 +222,13 @@ async function handleRegister() {
           </NAlert>
 
           <NForm @submit.prevent="handleLogin">
+            <!-- 手机号是账号了，但**存量账号还是原用户名**（可能是「张老师」这种长串），
+                 所以这里不限 11 位 —— 限了就让老老师登不进去。 -->
             <NFormItem label="手机号">
               <NInput
                 v-model:value="account"
                 placeholder="请输入手机号"
-                :maxlength="11"
+                :maxlength="50"
                 :disabled="loginLoading"
                 @keyup.enter="handleLogin"
               />
@@ -253,7 +255,7 @@ async function handleRegister() {
                 登录
               </NButton>
               <NText depth="3" style="font-size: 12px; text-align: center; display: block">
-                还没有账号？切到「注册」用手机号收验证码注册
+                还没有账号？切到「注册」用手机号收验证码注册<br />老账号仍可用原用户名登录
               </NText>
             </NSpace>
           </NForm>
