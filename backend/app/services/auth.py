@@ -248,6 +248,10 @@ def get_current_user(
 
     # 顺手更新活跃时间（不用每次 commit，省一次写）
     record.last_used_at = datetime.now(timezone.utc)
+
+    # 审计用：本次请求的操作人（中间件在 call_next 返回后读得到）
+    request.state.user_id = user.id
+    request.state.username = user.username
     session.add(record)
     session.commit()
 

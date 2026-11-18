@@ -18,6 +18,7 @@
 from sqlmodel import SQLModel
 
 from .account import Invite, Session_, SmsAttempt, User
+from .audit import AuditLog
 from .feedback import Feedback
 from .paper import CN_NUMBERS, Paper, PaperQuestion, PaperShare, auto_label
 from .question import Category, Question, QuestionTag, Tag, Upload
@@ -28,6 +29,8 @@ __all__ = [
     "Session_",
     "SmsAttempt",
     "Invite",
+    # 安全域
+    "AuditLog",
     # 题库域
     "Category",
     "Question",

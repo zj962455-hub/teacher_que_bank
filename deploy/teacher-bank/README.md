@@ -341,3 +341,21 @@ psql -h 127.0.0.1 -U teacherbank -d teacher_question_bank \
 ```
 
 ⚠️ rsync 时目标是 **`app/app/`**，不是 `app/` —— rsync 到 `app/` 会多出一层嵌套，服务加载不到。
+
+
+## 日志留存相关配置（公安备案 · 安全评估）
+
+审计要「用户账号 + 操作时间 + 操作类型 + 源地址 + 目标地址 + 源端口 + 客户端特征」，
+分别由两处提供：
+
+| 部分 | 在哪 | 说明 |
+|---|---|---|
+| 用户账号 + 全部字段（可按账号检索） | backend/app/services/audit.py → audit_logs 表 | 应用层记录，迁移 014_add_audit_logs.sql |
+| 源地址 / 源端口 / 目标地址 / 耗时 | nginx-teacherbank.conf 的 X-Client-Port + nginx-log-format.conf 的 log_format | Web 层 |
+
+⚠️ 两处缺一不可：
+- nginx-teacherbank.conf 少了 proxy_set_header X-Client-Port 那一行 → **源端口记不上**
+- nginx-log-format.conf 没写进 /etc/nginx/nginx.conf → access.log 里没有源端口与目标地址
+
+⚠️ 后端只监听 127.0.0.1，来源地址与端口一律取自反向代理覆盖后的真实值；
+客户端伪造的 X-Forwarded-For / X-Real-IP 不予采信。

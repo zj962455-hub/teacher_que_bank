@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from app.services.audit import client_ip_and_port
 from app.database import get_session
 from app.models import Invite, Question, Paper, Session_, Upload, User
 from app.services.auth import (
@@ -312,8 +313,12 @@ def login(
             code=CODE_FORBIDDEN,
         )
 
+    # 审计：这次登录的账号（失败的登录也会被记到账号上）
+    request.state.user_id = user.id
+    request.state.username = user.username
+
     # 签发会话
-    client_ip = request.client.host if request.client else ""
+    client_ip, _client_port = client_ip_and_port(request)
     user_agent = request.headers.get("user-agent", "")
     token, record = create_session(
         user, session, ip=client_ip, user_agent=user_agent
@@ -409,7 +414,7 @@ def send_sms_code(
                 code=CODE_AUTH_ACCOUNT_NOT_FOUND,
             )
 
-    client_ip = request.client.host if request.client else ""
+    client_ip, _client_port = client_ip_and_port(request)
     send_code(session, payload.phone, ip=client_ip, purpose=purpose)
     return SmsSendResponse(sent=True, cooldown=RESEND_INTERVAL_SECONDS)
 
@@ -467,7 +472,7 @@ def register(
         )
 
     # 3. 验证码核验（在阿里云那边比对 —— 我们不存明文码）
-    client_ip = request.client.host if request.client else ""
+    client_ip, _client_port = client_ip_and_port(request)
     verify_code(session, phone, payload.code, ip=client_ip)
 
     # 4. 建用户 —— username 直接填手机号（唯一约束天然成立）
@@ -493,6 +498,10 @@ def register(
         )
 
     session.refresh(user)
+
+    # 审计：这次注册的账号
+    request.state.user_id = user.id
+    request.state.username = user.username
 
     # 5. 签发会话（跟登录一样，前端注册完直接进首页）
     user_agent = request.headers.get("user-agent", "")
@@ -574,7 +583,7 @@ def reset_password(
         )
 
     # 验证码核验 —— 用途必须是「重置密码」，注册用的码在这里会被拒
-    client_ip = request.client.host if request.client else ""
+    client_ip, _client_port = client_ip_and_port(request)
     verify_code(session, phone, payload.code, ip=client_ip, purpose=PURPOSE_RESET)
 
     user.password_hash = hash_password(payload.new_password)

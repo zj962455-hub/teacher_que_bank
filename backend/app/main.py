@@ -15,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # .env 在 backend/ 下(load_dotenv 默认读 cwd 的 .env)
 load_dotenv()
 
+from app.services.audit import audit_middleware
 from app.routers import upload, ocr, questions, papers, auth, categories, tags
 from app.routers import shares  # ← lesson-24 分享链接（管理线 + 公开线）
 from app.routers import feedback  # ← lesson-34 老师反馈收集
@@ -161,6 +162,11 @@ async def request_id_middleware(request: Request, call_next):
 
 
 # === 4.2 未捕获异常:不外泄细节 ===
+# === 操作审计（公安备案 · 安全评估）===
+# 挂在最外层：拿到最终状态码，也能读到认证依赖里设的 request.state.user_id
+app.middleware("http")(audit_middleware)
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """兜底异常处理
