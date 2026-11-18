@@ -71,7 +71,7 @@
 |---|---|
 | `lesson-02/app/migrations/012_add_phone_sms.sql`（新） | `users` 加 `phone`；新建 `sms_send_log`（频控 + 审计） |
 | `lesson-02/app/services/sms.py`（新） | 封装 SDK；读 `ALIYUN_SMS_AK/SK/SIGN_NAME/TEMPLATE_CODE/SCHEME_NAME`；`send_code` / `check_code`；异常映射成项目统一错误码 |
-| `lesson-02/app/routers/auth.py` | 新增 `POST /api/auth/sms/send`、`POST /api/auth/sms/check`（免登录）；注册请求体加手机号/验证码 |
+| `lesson-02/app/routers/auth.py` | 新增 `POST /api/auth/sms/send`（免登录）；注册请求体改为手机号/验证码（**核验合进注册接口**，见下方「与初版方案的两处偏离」） |
 | `lesson-02/app/services/errors.py` | 加 `CODE_SMS_SEND_FAILED` / `CODE_SMS_CODE_INVALID` / `CODE_SMS_RATE_LIMITED` |
 | `lesson-03/src/api/auth.js` | `sendSmsCode` / `checkSmsCode` |
 | `lesson-03/src/components/LoginPanel.vue` | 注册页加手机号 + 验证码 + 倒计时按钮 + 「同意接收短信」勾选 |
@@ -103,3 +103,24 @@
 ## 九、工作量估计
 
 后端约 200 行 + 1 个迁移 + 前端 1 个组件改动 + 1 个依赖 + 3 个环境变量；含本机测试 1 轮、线上部署 1 轮，**约 1 个工作日**。
+
+## 十、与初版方案的偏离（2026-11-18 落地后修正）
+
+### 1. 不做独立的 `/auth/sms/check`，核验合进注册接口
+
+初版方案写的是「`/sms/send` 发码 + `/sms/check` 核验」两个接口。落地时改成**注册接口内部直接核验**：
+
+- 少一次网络往返（老师点「注册」只等一次）
+- 验证码用完即焚（核验成功后阿里云侧即失效，不存在「核验过但没注册」的悬空态）
+- 少一个可被滥用的公开端点
+
+代价：前端拿不到「验证码正确但密码不合规」这种中间态反馈 —— 现在的做法是**后端先验密码强度再核验验证码**，弱密码不会白费验证码。
+
+### 2. 加了 `REGISTRATION_ENABLED` 总开关
+
+短信注册把邀请码那道闸拆了 —— 任何能收短信的号都能注册。
+所以留了一个环境变量，`REGISTRATION_ENABLED=false` 一键关注册（发码与注册都返回 403 `auth.registration_closed`）。
+
+### 3. 登录框不限 11 位
+
+手机号是 11 位，但**存量账号**的用户名可能是「张老师」这种长串 —— 限 11 位会让老老师登不进去，所以输入框放开到 50 位。
