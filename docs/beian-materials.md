@@ -180,12 +180,12 @@
 - [x] 日志留存 ≥ 6 个月
 - [x] 后端与数据库不暴露公网
 - [x] 防火墙仅放行必要端口
-- [x] **页脚公安备案公示位已就绪**（图标本地托管 gh-beian.png、链接 code 只放数字、绑定写法已修）—— 拿到号后回填即可（见第七节）
+- [x] **页脚公安备案公示位已就绪**（图标本地托管 gh-beian.png、链接 code 只放数字、绑定写法已修）—— 拿到号后跑 fill-mps-number.sh 一条命令回填（见第七节）
 - [ ] **主体信息表已填写**（第一节待填项）
 - [ ] **应急联系电话已填写**
 - [x] 实际恢复演练已执行并留记录（2026-11-05，9 张表行数全部一致，见 2.7）
 - [ ] 备案平台提交并取得备案号
-- [ ] 取得公安备案号后**回填到网站页脚公示**
+- [ ] 取得公安备案号后**回填到网站页脚公示**（bash deploy/teacher-bank/fill-mps-number.sh <备案号>）
 
 ---
 
@@ -243,19 +243,41 @@ HTML 解析，页脚图标位置变空白/裂图）。
 
 ### 3. 拿到号之后的操作
 
-1. 改 `frontend/src/components/SiteFooter.vue` 的 `MPS` 常量，填入公安备案号全称
+**一条命令搞定**（格式校验 → 写入 → 构建 → 同步 → 修权限 → 无头验收）：
+
+```bash
+bash deploy/teacher-bank/fill-mps-number.sh 浙公网安备XXXXXXXXXXXXXX号
+```
+
+- 备案号格式不对（省份简称写错、位数不是 14 位）会被**直接拒绝且不写脏文件**；
+- 只想本地先试、不部署：加 `--dry-run`；
+- 想同步填站点其他备案字段（主办单位名称、应急联系方式）→ 改
+  `frontend/src/site.config.js` 里的 `OPERATOR` / `CONTACT`，再跑一次上面的命令。
+
+> **备案里程碑要改的字段全部集中在 `frontend/src/site.config.js`**
+> （站名 / 主域名 / ICP 号 / 公安备案号 / 主办单位名称 / 应急联系方式）。
+> 早先这些散在 `SiteFooter.vue` 和 `PrivacyPage.vue` 两个文件里，
+> 漏改一处就与备案不一致 —— 2026-11-18 已收口。
+
+**手工步骤**（排查用，日常不必走）：
+
+1. 改 `frontend/src/site.config.js` 的 `export const MPS = ''`，填入公安备案号全称
 2. `cd frontend && npm run build`
-3. `bash deploy/teacher-bank/rebuild.sh`
+3. `rsync -az --delete frontend/dist/ root@8.160.177.222:/opt/teacher-bank/web/`
+   并修属主：`chown -R nginx:nginx /opt/teacher-bank/web`（文件 644 / 目录 755）
 4. 验收：`node frontend/scripts/verify-beian-footer.cjs`（不带 EXPECT_MPS 时
    期望「不渲染」；带 `EXPECT_MPS=浙公网安备…号` 时期望「渲染 + 链接 code 是数字
    + 图标 naturalWidth > 0」）
 5. 浏览器打开 `https://tqb.lanhu-lab.top/` 肉眼确认
 
-> 提交材料里「网站底部公示」那一条，直接写：
-> 「网站页脚已公示 ICP 备案号（浙ICP备2025185898号-2）与公安备案号，
-> 公安备案号带官方徽章图标并链接至全国互联网安全管理服务平台查询页」。
+> ⚠️ **官方流程提醒（2026-11-18 核对《网站备案办事指南》第五步）**：
+> 审核通过后**备案号不会自动发到手上**，要自己进平台
+> 【我的】→【我的网站】→【详情】→【下一步】，
+> 点【下载备案编号图标】【复制备案编号HTML代码】，再把 HTML 代码贴到网站页脚。
+> 所以拿到审核通过通知后，**先在平台下载备案号**，再跑上面的回填命令。
 
 ---
+
 ## 八、安全评估的定性结论（2026-11-18 核对公安部官方办事指南）
 
 ### 8.1 平台口径
