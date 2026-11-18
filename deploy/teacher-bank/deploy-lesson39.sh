@@ -42,13 +42,16 @@ ssh "$ECS_USER@$ECS_HOST" "sudo -u teacherbank $APP_ROOT/.venv/bin/python -c 'im
 # === 3. 迁移 ===
 echo "[3/6] 执行 migration 012..."
 scp -q "$REPO_DIR/lesson-02/app/migrations/012_add_phone_sms.sql" "$ECS_USER@$ECS_HOST:/tmp/012_add_phone_sms.sql"
-ssh "$ECS_USER@$ECS_HOST" 'sudo -u postgres psql -d teacher_question_bank -v ON_ERROR_STOP=1 -f /tmp/012_add_phone_sms.sql' | tail -4
+# ⚠️ scp 落地是 root 独占的 600 —— postgres 用户读不了（Permission denied），
+#    所以这里要放开读权限。/tmp 有 sticky 位，不影响别人改自己的文件。
+ssh "$ECS_USER@$ECS_HOST" 'chmod 644 /tmp/012_add_phone_sms.sql'
+ssh "$ECS_USER@$ECS_HOST" 'cd /tmp && sudo -u postgres psql -d teacher_question_bank -v ON_ERROR_STOP=1 -f /tmp/012_add_phone_sms.sql' | tail -4
 
 # === 4. app.env 占位 ===
 # ⚠️ 只补**空值占位**，不写老大的 AK —— 密钥由老大手动填（老大 2026-11-18 拍板自己填）。
 echo "[4/6] 补 app.env 短信变量占位..."
 scp -q "$REPO_DIR/deploy/teacher-bank/app.env.sms.example" "$ECS_USER@$ECS_HOST:/tmp/app.env.sms.example"
-ssh "$ECS_USER@$ECS_HOST" "grep -q ALIYUN_SMS_ACCESS_KEY_ID /etc/teacherbank/app.env || cat /tmp/app.env.sms.example >> /etc/teacherbank/app.env"
+ssh "$ECS_USER@$ECS_HOST" 'chmod 644 /tmp/app.env.sms.example' && ssh "$ECS_USER@$ECS_HOST" "grep -q ALIYUN_SMS_ACCESS_KEY_ID /etc/teacherbank/app.env || cat /tmp/app.env.sms.example >> /etc/teacherbank/app.env"
 ssh "$ECS_USER@$ECS_HOST" 'chown teacherbank:teacherbank /etc/teacherbank/app.env && chmod 600 /etc/teacherbank/app.env'
 
 # === 5. 前端 ===
