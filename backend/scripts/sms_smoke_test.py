@@ -111,8 +111,10 @@ def _role_credentials() -> Optional[Tuple[str, str, str, str]]:
         return None
 
     try:
+        # ⚠️ 超时单位是**毫秒**（SDK 默认 1000ms）。写成 3 会被当成 3ms，
+        #    元数据还没应答就超时了。
         client = CredentialClient(
-            CredentialConfig(type="ecs_ram_role", connect_timeout=2, timeout=3)
+            CredentialConfig(type="ecs_ram_role", connect_timeout=2000, timeout=3000)
         )
         cred = client.get_credential()
     except Exception as exc:

@@ -531,3 +531,37 @@ def test_credential_error_maps_to_not_configured(monkeypatch, clean_cred_cache):
     mapped = sms._translate_error(exc)
     assert mapped.status_code == 503
     assert mapped.code == CODE_SMS_NOT_CONFIGURED
+
+
+def test_ecs_role_timeouts_are_milliseconds(monkeypatch, clean_cred_cache):
+    """超时单位是**毫秒** —— 写成 3 会被当成 3ms。
+
+    踩过的坑：SDK 的 readTimeout 按 ms 解释（默认 1000ms），
+    传 3 的话元数据还没应答就超时，报错里显示 read timeout=0.003 秒。
+    那种情况下**绑了实例 RAM 角色也永远拿不到凭据**，而且很难查。
+
+    这条测试是给未来改这块的人立的规矩。
+    """
+    captured = {}
+
+    class _FakeCred:
+        access_key_id = "sts-ak"
+        access_key_secret = "sts-sk"
+        security_token = "sts-token"
+
+    class _FakeClient:
+        def __init__(self, cfg):
+            captured["cfg"] = cfg
+
+        def get_credential(self):
+            return _FakeCred()
+
+    import alibabacloud_credentials.client as cred_client
+
+    monkeypatch.setattr(cred_client, "Client", _FakeClient)
+
+    sms._ecs_role_credentials()
+
+    cfg = captured["cfg"]
+    assert cfg.timeout >= 1000, "超时单位是毫秒，read timeout 不能小于 1000ms"
+    assert cfg.connect_timeout >= 1000, "超时单位是毫秒，connect timeout 不能小于 1000ms"

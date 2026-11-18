@@ -120,8 +120,11 @@ def _ecs_role_credentials():
 
     global _credential_client
     if _credential_client is None:
+        # ⚠️ 超时单位是**毫秒**（SDK 默认 1000ms，Tea 的 readTimeout 也按 ms 解释）。
+        #    写成 3 会被当成 3ms，报错里显示 read timeout=0.003 秒 ——
+        #    那样元数据还没应答就超时了，绑了角色也永远拿不到凭据。
         _credential_client = CredentialClient(
-            CredentialConfig(type="ecs_ram_role", connect_timeout=2, timeout=3)
+            CredentialConfig(type="ecs_ram_role", connect_timeout=2000, timeout=3000)
         )
     cred = _credential_client.get_credential()
     return (
