@@ -237,6 +237,30 @@ ECS 控制台 → 实例与镜像 → 实例 → 找到 `i-0jldm8ubd3nmhp5b5e8tZ
 
 **第 5 步 · 填签名和模板（AK 两行不用填）**
 
+> **这两个值只能从控制台拿 —— DYPNS 没有查询签名/模板的 API**（已核对 SDK：`alibabacloud_dypnsapi20170525`
+> 只有 send/check/verify/scheme 那几个接口，没有 list 类接口），所以别指望能从 API 或文档里自动发现。
+>
+> **不需要买套餐。** 号码认证服务的「短信认证」是**按量计费**（0.06 元/条，新用户有免费额度），
+> 赠送签名 + 赠送模板是**开通「短信认证」服务时自动配发**的资源。
+>
+> 取值路径（号码认证服务控制台）：
+>
+> - 服务开通页：<https://dypns.console.aliyun.com/functions> —— 没开通就**没有**赠送资源，页面是空的
+> - 赠送签名：<https://dypns.console.aliyun.com/smsCertParamsConfig/sign> → 拿 **SignName**
+> - 赠送模板：<https://dypns.console.aliyun.com/smsCertParamsConfig/template> → 拿 **TemplateCode**
+>
+> 值长什么样：SignName 是**阿里云自己的落款**（一般就是「阿里云」，不是「蓝狐网」）；
+> TemplateCode 形如 `SMS_279900123`，**每个账号不同**。
+>
+> 账号要**已实名认证**才能开通并看到赠送资源。
+>
+> **怎么判断是「没开通」还是「值填错」**：
+>
+> - 没开通 → API 返回 `isv.PRODUCT_UNSUBSCRIBE`（我们映射成「短信服务还没开通，请联系管理员」）
+> - 开通了但值不对 → 返回 `isv.INVALID_PARAMETERS`「签名或者模版无效」
+>
+> 2026-11-18 实测：我们的 API 已经返回后者，所以**服务是开着的**，只是值还没拿到。
+
     sudo vi /etc/teacherbank/app.env
     # 追加两行：
     ALIYUN_SMS_SIGN_NAME=<赠送签名的 SignName>
