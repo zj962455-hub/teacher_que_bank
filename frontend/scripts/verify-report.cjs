@@ -45,7 +45,7 @@ async function fillByPlaceholder(page, placeholder, value) {
       const el = [...document.querySelectorAll('input, textarea')].find(
         (i) => i.placeholder && i.placeholder.includes(ph),
       )
-      if (!el) throw new Error(`找不到 placeholder 含 "${ph}" 的输入框`)
+      if (!el) throw new Error(`找不到 placeholder 含 "${list.join('/')}" 的输入框`)
       const proto = el.tagName === 'TEXTAREA'
         ? window.HTMLTextAreaElement.prototype
         : window.HTMLInputElement.prototype

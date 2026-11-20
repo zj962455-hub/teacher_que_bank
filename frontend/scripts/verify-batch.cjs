@@ -26,10 +26,13 @@ async function wait(ms) {
 async function fillInput(page, placeholder, value) {
   await page.evaluate(
     (ph, val) => {
-      const el = [...document.querySelectorAll('input')].find(
-        (i) => i.placeholder && i.placeholder.includes(ph),
-      )
-      if (!el) throw new Error(`找不到 placeholder 含 "${ph}" 的输入框`)
+      const list = Array.isArray(ph) ? ph : [ph]
+      const el = list
+        .map((p) => [...document.querySelectorAll('input')].find(
+          (i) => i.placeholder && i.placeholder.includes(p),
+        ))
+        .find(Boolean)
+      if (!el) throw new Error(`找不到 placeholder 含 "${list.join('/')}" 的输入框`)
       const proto = el.tagName === 'TEXTAREA'
         ? window.HTMLTextAreaElement.prototype
         : window.HTMLInputElement.prototype
@@ -74,7 +77,7 @@ async function main() {
   console.log('→ 登录')
   await page.goto(BASE, { waitUntil: 'networkidle2', timeout: 30000 })
   await wait(1200)
-  await fillInput(page, '用户名', USER)
+  await fillInput(page, ['手机号', '用户名'], USER)
   await fillInput(page, '密码', PASS)
   await clickByText(page, '登录')
   await wait(2500)

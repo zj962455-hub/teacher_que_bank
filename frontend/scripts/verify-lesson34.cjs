@@ -58,7 +58,7 @@ async function fillInput(page, placeholder, value) {
       const el = [...document.querySelectorAll('input, textarea')].find(
         (i) => i.placeholder && i.placeholder.includes(ph),
       )
-      if (!el) throw new Error(`找不到 placeholder 含 "${ph}" 的输入框`)
+      if (!el) throw new Error(`找不到 placeholder 含 "${list.join('/')}" 的输入框`)
       const proto = el.tagName === 'TEXTAREA'
         ? window.HTMLTextAreaElement.prototype
         : window.HTMLInputElement.prototype
@@ -310,7 +310,7 @@ async function main() {
   await page.evaluate(() => localStorage.clear())
   await page.goto(BASE, { waitUntil: 'networkidle2' })
   await wait(1200)
-  await fillInput(page, '用户名', ADMIN)
+  await fillInput(page, ['手机号', '用户名'], ADMIN)
   await fillInput(page, '密码', PASS)
   await wait(200)
   await clickButton(page, '登录')
@@ -378,7 +378,7 @@ async function main() {
   await page.evaluate(() => localStorage.clear())
   await page.goto(BASE, { waitUntil: 'networkidle2' })
   await wait(1200)
-  await fillInput(page, '用户名', SHARED)
+  await fillInput(page, ['手机号', '用户名'], SHARED)
   await fillInput(page, '密码', PASS)
   await wait(200)
   await clickButton(page, '登录')
@@ -394,7 +394,7 @@ async function main() {
   await page.evaluate(() => localStorage.clear())
   await page.goto(BASE, { waitUntil: 'networkidle2' })
   await wait(1200)
-  await fillInput(page, '用户名', ADMIN)
+  await fillInput(page, ['手机号', '用户名'], ADMIN)
   await fillInput(page, '密码', PASS)
   await wait(200)
   await clickButton(page, '登录')
