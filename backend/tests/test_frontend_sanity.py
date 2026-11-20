@@ -190,12 +190,24 @@ def test_site_config_placeholder_values_are_empty():
 
     空串 = 页面整行不渲染（正确）。
     非空但不是真实值 = 假信息上公网（事故）。
+
+    两种合法写法（2026-11-20 起 OPERATOR/CONTACT 改走环境变量）：
+
+    - 字面量：export const OPERATOR = 'xxx'
+      → 值必须是空串或真实值，不能是样例值
+    - 环境变量：export const OPERATOR = import.meta.env.VITE_OPERATOR || ''
+      → 真实值只落在本机 frontend/.env.local，仓库里恒为空串
     """
     text = (FRONTEND_SRC / "site.config.js").read_text(encoding="utf-8")
-    for name in ("OPERATOR", "CONTACT"):
-        m = re.search(r"^export const " + name + r" = '([^']*)'$", text, flags=re.M)
-        assert m, "site.config.js 里找不到 export const " + name
-        value = m.group(1).strip()
+    for name, env_name in (("OPERATOR", "VITE_OPERATOR"), ("CONTACT", "VITE_CONTACT")):
+        lit = re.search(r"^export const " + name + r" = '([^']*)'$", text, flags=re.M)
+        env = re.search(
+            r"^export const " + name + r" = import\.meta\.env\." + env_name + r" \|\| '([^']*)'$",
+            text,
+            flags=re.M,
+        )
+        assert lit or env, "site.config.js 里找不到 export const " + name
+        value = (lit or env).group(1).strip()
         if value:
             assert value not in ("某某教育科技有限公司", "待填"), (
                 name + " 仍是样例值：" + value
