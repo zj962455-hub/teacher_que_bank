@@ -29,6 +29,7 @@ import { listTags, createTag, deleteTag } from '../api/tags'
 import { renderMathText } from '../utils/mathRenderer'
 import { stripFigurePlaceholder } from '../utils/figurePlaceholder'   // ← lesson-38: 展示去掉【题图】占位
 import FigureThumb from '../components/FigureThumb.vue'
+import AppIcon from '../components/AppIcon.vue'
 import { message } from '../composables/discreteApi'
 import { parseError } from '../utils/errors'   // ← 课 32:统一错误解析
 
@@ -350,7 +351,10 @@ const columns = computed(() => [
   {
     title: 'ID',
     key: 'id',
-    width: 60,
+    width: 64,
+    render: (row) => h('span', {
+      style: 'color: var(--tqb-text-tertiary); font-size: 12px;',
+    }, String(row.id)),
   },
   {
     title: '题目内容',
@@ -359,7 +363,7 @@ const columns = computed(() => [
     //    render 直接返回字符串 → NDataTable 当纯文本显示,KaTeX 的 HTML 源码全露出来
     //    (照抄 QuestionBank.vue 的写法)
     render: (row) => h('div', {
-      style: 'white-space: pre-wrap; max-height: 80px; overflow: hidden; font-size: 13px;',
+      style: 'white-space: pre-wrap; max-height: 84px; overflow: hidden; font-size: 13px; line-height: 1.75; color: var(--tqb-text-primary);',
       innerHTML: renderMathText(stripFigurePlaceholder(row.content_markdown || row.content_plain)),
     }),
   },
@@ -382,7 +386,12 @@ const columns = computed(() => [
   {
     title: '难度',
     key: 'difficulty',
-    width: 80,
+    width: 84,
+    render: (row) => {
+      const level = row.difficulty || '未知'
+      const type = level === '中等' ? 'warning' : level === '困难' ? 'error' : 'default'
+      return h(NTag, { size: 'small', bordered: false, type }, { default: () => level })
+    },
   },
   {
     title: '标签',
@@ -413,12 +422,12 @@ const columns = computed(() => [
         { size: 4 },
         {
           default: () => [
-            h(NButton, { size: 'tiny', onClick: () => router.push({ name: 'question-detail', params: { id: row.id } }) }, { default: () => '详情' }),
+            h(NButton, { size: 'tiny', quaternary: true, onClick: () => router.push({ name: 'question-detail', params: { id: row.id } }) }, { default: () => '详情' }),
             h(
               NPopconfirm,
               { onPositiveClick: () => doDelete(row) },
               {
-                trigger: () => h(NButton, { size: 'tiny', type: 'error' }, { default: () => '删除' }),
+                trigger: () => h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }),
                 default: () => '删除这道题？',
               },
             ),
@@ -436,14 +445,27 @@ const checkedRowKeys = computed(() => selectedKeys.value)
 <template>
   <div>
     <div class="tqb-page-head">
-      <h2 class="tqb-page-title">📚 题目列表</h2>
-      <NButton type="primary" size="small" @click="router.push({ name: 'capture' })">
-        + 录题
-      </NButton>
-      <NSpace size="small">
-        <NButton size="small" @click="doExportExcel">📊 导出 Excel</NButton>
-        <NButton size="small" quaternary @click="doExportBackup">💾 备份</NButton>
-      </NSpace>
+      <div class="tqb-page-heading">
+        <h2 class="tqb-page-title">
+          <AppIcon name="stack" :size="18" />
+          题目列表
+        </h2>
+        <p class="tqb-page-subtitle">按章节、题型、难度筛选；勾选后可批量改分类或删除</p>
+      </div>
+      <div class="page-actions">
+        <NButton size="small" @click="doExportExcel">
+          <template #icon><AppIcon name="download" :size="15" /></template>
+          导出 Excel
+        </NButton>
+        <NButton size="small" quaternary @click="doExportBackup">
+          <template #icon><AppIcon name="download" :size="15" /></template>
+          备份
+        </NButton>
+        <NButton type="primary" size="small" @click="router.push({ name: 'capture' })">
+          <template #icon><AppIcon name="plus" :size="15" /></template>
+          录题
+        </NButton>
+      </div>
     </div>
 
     <div class="tqb-layout">
@@ -503,73 +525,90 @@ const checkedRowKeys = computed(() => selectedKeys.value)
       <!-- 右：筛选 + 表格 -->
       <div class="tqb-main">
         <NCard size="small">
-          <NSpace :size="8" style="flex-wrap: wrap">
-            <NSelect
-              v-model:value="filters.subject"
-              :options="SUBJECT_OPTIONS"
-              placeholder="学科"
-              clearable
-              style="width: 120px"
-              @update:value="onFilterChange"
-            />
-            <NSelect
-              v-model:value="filters.question_type"
-              :options="TYPE_OPTIONS"
-              placeholder="题型"
-              clearable
-              style="width: 130px"
-              @update:value="onFilterChange"
-            />
-            <NSelect
-              v-model:value="filters.grade"
-              :options="GRADE_OPTIONS"
-              placeholder="学段"
-              clearable
-              style="width: 110px"
-              @update:value="onFilterChange"
-            />
-            <NSelect
-              v-model:value="filters.difficulty"
-              :options="DIFFICULTY_OPTIONS"
-              placeholder="难度"
-              clearable
-              style="width: 110px"
-              @update:value="onFilterChange"
-            />
-            <NInput
-              v-model:value="filters.keyword"
-              placeholder="搜题干关键词"
-              clearable
-              style="width: 200px"
-              @keyup.enter="onSearch"
-            />
-            <NSelect
-              v-model:value="filters.tag_ids"
-              :options="tags.map((t) => ({ label: `${t.name} (${t.count})`, value: t.id }))"
-              placeholder="标签（可多选，取交集）"
-              multiple
-              filterable
-              clearable
-              style="width: 220px"
-              @update:value="onFilterChange"
-            />
-            <NSelect
-              v-model:value="filters.sort"
-              :options="SORT_OPTIONS"
-              style="width: 110px"
-              @update:value="onFilterChange"
-            />
-            <NSelect
-              v-model:value="filters.order"
-              :options="ORDER_OPTIONS"
-              style="width: 90px"
-              @update:value="onFilterChange"
-            />
-            <NButton size="small" @click="onSearch">搜索</NButton>
-            <NButton size="small" quaternary @click="resetFilters">
-              重置
-            </NButton>
-          </NSpace>
+                    <div class="filter-groups">
+            <div class="filter-group">
+              <span class="tqb-field-label">筛选条件</span>
+              <div class="filter-fields">
+                <NSelect
+                  v-model:value="filters.subject"
+                  :options="SUBJECT_OPTIONS"
+                  placeholder="学科"
+                  clearable
+                  style="width: 130px"
+                  @update:value="onFilterChange"
+                />
+                <NSelect
+                  v-model:value="filters.question_type"
+                  :options="TYPE_OPTIONS"
+                  placeholder="题型"
+                  clearable
+                  style="width: 140px"
+                  @update:value="onFilterChange"
+                />
+                <NSelect
+                  v-model:value="filters.grade"
+                  :options="GRADE_OPTIONS"
+                  placeholder="学段"
+                  clearable
+                  style="width: 120px"
+                  @update:value="onFilterChange"
+                />
+                <NSelect
+                  v-model:value="filters.difficulty"
+                  :options="DIFFICULTY_OPTIONS"
+                  placeholder="难度"
+                  clearable
+                  style="width: 120px"
+                  @update:value="onFilterChange"
+                />
+                <NInput
+                  v-model:value="filters.keyword"
+                  placeholder="搜题干关键词"
+                  clearable
+                  style="width: 240px"
+                  @keyup.enter="onSearch"
+                />
+              </div>
+            </div>
+            <div class="filter-group">
+              <span class="tqb-field-label">标签与排序</span>
+              <div class="filter-fields">
+                <NSelect
+                  v-model:value="filters.tag_ids"
+                  :options="tags.map((t) => ({ label: `${t.name} (${t.count})`, value: t.id }))"
+                  placeholder="标签（可多选，取交集）"
+                  multiple
+                  filterable
+                  clearable
+                  style="width: 240px"
+                  @update:value="onFilterChange"
+                />
+                <NSelect
+                  v-model:value="filters.sort"
+                  :options="SORT_OPTIONS"
+                  placeholder="排序字段"
+                  style="width: 130px"
+                  @update:value="onFilterChange"
+                />
+                <NSelect
+                  v-model:value="filters.order"
+                  :options="ORDER_OPTIONS"
+                  placeholder="顺序"
+                  style="width: 110px"
+                  @update:value="onFilterChange"
+                />
+                <NButton size="small" @click="onSearch">
+                  <template #icon><AppIcon name="search" :size="15" /></template>
+                  搜索
+                </NButton>
+                <NButton size="small" quaternary @click="resetFilters">
+                  <template #icon><AppIcon name="refresh" :size="15" /></template>
+                  重置
+                </NButton>
+              </div>
+            </div>
+          </div>
+
         </NCard>
 
         <!-- 批量操作条 -->
@@ -613,7 +652,7 @@ const checkedRowKeys = computed(() => selectedKeys.value)
                 style="width: 150px"
               />
               <NButton size="small" type="primary" @click="doBatchUpdate">批量修改</NButton>
-              <NButton size="small" type="error" @click="doBatchDelete">批量删除</NButton>
+              <NButton size="small" text type="error" @click="doBatchDelete">批量删除</NButton>
               <NButton size="small" quaternary @click="clearSelection">取消选择</NButton>
             </NSpace>
           </div>
@@ -650,11 +689,42 @@ const checkedRowKeys = computed(() => selectedKeys.value)
 </template>
 
 <style scoped>
+.tqb-page-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tqb-space-2);
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--tqb-space-2);
+}
+
+/* 筛选区：两组字段，每组一行，组与组之间靠间距分组 */
+.filter-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tqb-space-4);
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: var(--tqb-space-3);
+}
+
+.filter-fields {
+  display: flex;
+  align-items: center;
+  gap: var(--tqb-space-2);
+  flex-wrap: wrap;
+}
 
 .chapter-tip {
-  margin-top: 10px;
-  color: #999;
-  font-size: 12px;
+  margin-top: var(--tqb-space-2);
+  color: var(--tqb-text-tertiary);
+  font-size: var(--tqb-font-xs);
   line-height: 1.5;
 }
 </style>

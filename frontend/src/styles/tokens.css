@@ -53,8 +53,15 @@
   --tqb-bg-hover: #f7f9fc;
   --tqb-bg-subtle: #fafbfd;
 
-  --tqb-border: #e4e7ec;
-  --tqb-border-strong: #d0d5dd;
+  --tqb-border: #e6e8ec;
+  --tqb-border-strong: #d3d7de;
+
+  /* 次级面：卡片里的浅色块（统计卡、筛选区、快捷入口底色） */
+  --tqb-surface-muted: #f6f8fb;
+  --tqb-surface-sunken: #eef1f5;
+
+  /* 焦点环 —— 键盘可达的控件必须有可见焦点（WCAG 2.4.7） */
+  --tqb-focus-ring: 0 0 0 3px rgba(47, 111, 237, 0.28);
 
   /* ============ 间距（4 的倍数）============ */
   --tqb-space-1: 4px;
@@ -67,9 +74,9 @@
   --tqb-space-10: 40px;
 
   /* ============ 圆角 ============ */
-  --tqb-radius-sm: 4px;
-  --tqb-radius-md: 6px;
-  --tqb-radius-lg: 10px;
+  --tqb-radius-sm: 6px;
+  --tqb-radius-md: 8px;
+  --tqb-radius-lg: 12px;
   --tqb-radius-full: 999px;
 
   /* ============ 阴影 ============ */
@@ -78,14 +85,20 @@
   --tqb-shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.04);
   --tqb-shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.1), 0 4px 6px -2px rgba(16, 24, 40, 0.03);
 
+  /* 卡片用「1px 环 + 抬起」两层，而不是「一圈灰边」——
+     环代替边框（forced-colors 模式下仍有边），抬起代替死板的描边 */
+  --tqb-shadow-card: 0 0 0 1px rgba(16, 24, 40, 0.05), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --tqb-shadow-card-hover: 0 0 0 1px rgba(16, 24, 40, 0.08), 0 6px 16px -4px rgba(16, 24, 40, 0.1);
+
   /* ============ 字号 ============ */
-  --tqb-font-xs: 12px;
-  --tqb-font-sm: 13px;
-  --tqb-font-base: 14px;
-  --tqb-font-md: 16px;
-  --tqb-font-lg: 18px;
-  --tqb-font-xl: 22px;
-  --tqb-font-2xl: 28px;
+  /* 用 rem：浏览器字号设置变化时跟着缩放 */
+  --tqb-font-xs: 0.75rem;
+  --tqb-font-sm: 0.8125rem;
+  --tqb-font-base: 0.875rem;
+  --tqb-font-md: 1rem;
+  --tqb-font-lg: 1.125rem;
+  --tqb-font-xl: 1.375rem;
+  --tqb-font-2xl: 1.75rem;
 
   --tqb-line-tight: 1.3;
   --tqb-line-normal: 1.6;
@@ -136,4 +149,8 @@
   --tqb-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --tqb-shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.45);
   --tqb-shadow-lg: 0 12px 16px -4px rgba(0, 0, 0, 0.5);
+
+  /* 深色模式下阴影看不见了，改用一道白环撑出边界 */
+  --tqb-shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --tqb-shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.14);
 }

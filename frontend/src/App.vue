@@ -18,6 +18,7 @@ import { ref, computed, onMounted, provide } from 'vue'
 import { NButton, NConfigProvider, zhCN, dateZhCN } from 'naive-ui'
 import { RouterView, useRouter, useRoute } from 'vue-router'
 import LoginPanel from './components/LoginPanel.vue'
+import AppIcon from './components/AppIcon.vue'
 import SiteFooter from './components/SiteFooter.vue'
 import FeedbackModal from './components/FeedbackModal.vue'
 import { lightTheme, darkTheme, buildThemeOverrides } from './styles/theme'
@@ -104,18 +105,18 @@ function onProfileUpdated(user) {
 //    塞在业务入口中间反而没人注意。
 const NAV_ITEMS = computed(() => {
   const items = [
-    { name: 'dashboard', label: '首页' },
-    { name: 'questions', label: '题库' },
-    { name: 'capture', label: '录题' },
-    { name: 'categories', label: '分类' },
-    { name: 'papers', label: '组卷' },
-    { name: 'feedbacks', label: '反馈记录' },
-    { name: 'guide', label: '使用指南' },
+    { name: 'dashboard', label: '首页', icon: 'home' },
+    { name: 'questions', label: '题库', icon: 'stack' },
+    { name: 'capture', label: '录题', icon: 'scan' },
+    { name: 'categories', label: '分类', icon: 'folder' },
+    { name: 'papers', label: '组卷', icon: 'file' },
+    { name: 'feedbacks', label: '反馈记录', icon: 'message' },
+    { name: 'guide', label: '使用指南', icon: 'book' },
   ]
   if (currentUser.value?.is_admin) {
-    items.push({ name: 'invites', label: '邀请码' })
+    items.push({ name: 'invites', label: '邀请码', icon: 'ticket' })
     // 举报受理（lesson-43）—— 管理员入口，跟邀请码一样只在导航里露
-    items.push({ name: 'reports', label: '举报受理' })
+    items.push({ name: 'reports', label: '举报受理', icon: 'shield' })
   }
   return items
 })
@@ -155,31 +156,49 @@ function go(name) {
       <template v-else>
         <header class="top-bar">
           <div class="top-left">
-            <span class="brand">🦊 蓝狐网</span>
-            <nav class="nav">
-              <NButton
+            <span class="brand">
+              <span class="brand-mark"><AppIcon name="fox" :size="20" /></span>
+              <span class="brand-name">蓝狐网</span>
+            </span>
+            <nav class="nav" aria-label="主导航">
+              <button
                 v-for="item in NAV_ITEMS"
                 :key="item.name"
-                quaternary
-                size="small"
-                :type="route.name === item.name ? 'primary' : 'default'"
+                type="button"
+                class="nav-item"
+                :class="{ 'nav-item--active': route.name === item.name }"
+                :aria-current="route.name === item.name ? 'page' : undefined"
                 @click="go(item.name)"
               >
-                {{ item.label }}
-              </NButton>
+                <AppIcon :name="item.icon" :size="16" />
+                <span>{{ item.label }}</span>
+              </button>
             </nav>
           </div>
-          <NSpace :size="4" align="center">
-            <NButton quaternary size="small" title="遇到问题？提个反馈" @click="showFeedback = true">
-              💬 反馈
-            </NButton>
-            <NButton quaternary size="small" :title="isDark ? '切到浅色' : '切到深色'" @click="toggleTheme">
-              {{ isDark ? '🌙' : '☀️' }}
-            </NButton>
-            <NButton quaternary size="small" @click="go('profile')">
-              👤 {{ currentUser?.display_name || currentUser?.username || '我' }}
-            </NButton>
-          </NSpace>
+          <div class="top-actions">
+            <button
+              type="button"
+              class="tqb-icon-btn"
+              title="遇到问题？提个反馈"
+              aria-label="反馈"
+              @click="showFeedback = true"
+            >
+              <AppIcon name="message" :size="18" />
+            </button>
+            <button
+              type="button"
+              class="tqb-icon-btn"
+              :title="isDark ? '切到浅色模式' : '切到深色模式'"
+              :aria-label="isDark ? '切到浅色模式' : '切到深色模式'"
+              @click="toggleTheme"
+            >
+              <AppIcon :name="isDark ? 'moon' : 'sun'" :size="18" />
+            </button>
+            <button type="button" class="user-chip" @click="go('profile')">
+              <AppIcon name="user" :size="16" />
+              <span>{{ currentUser?.display_name || currentUser?.username || '我' }}</span>
+            </button>
+          </div>
         </header>
 
         <main class="page">
@@ -230,17 +249,88 @@ function go(name) {
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tqb-space-2);
+  white-space: nowrap;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--tqb-radius-md);
+  background: var(--tqb-primary-soft);
+  color: var(--tqb-primary);
+}
+
+.brand-name {
   font-size: var(--tqb-font-md);
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--tqb-text-primary);
-  white-space: nowrap;
 }
 
+/* 导航项：默认安静，选中才有存在感 */
 .nav {
   display: flex;
-  gap: var(--tqb-space-1);
+  gap: 2px;
   flex-wrap: wrap;
+}
+
+.nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--tqb-radius-md);
+  background: transparent;
+  color: var(--tqb-text-secondary);
+  font-family: inherit;
+  font-size: var(--tqb-font-base);
+  cursor: pointer;
+  transition: background var(--tqb-transition), color var(--tqb-transition);
+}
+
+.nav-item:hover {
+  background: var(--tqb-bg-hover);
+  color: var(--tqb-text-primary);
+}
+
+.nav-item--active {
+  background: var(--tqb-primary-soft);
+  color: var(--tqb-primary);
+  font-weight: 600;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--tqb-space-1);
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 var(--tqb-space-3);
+  border: none;
+  border-radius: var(--tqb-radius-md);
+  background: transparent;
+  color: var(--tqb-text-regular);
+  font-family: inherit;
+  font-size: var(--tqb-font-base);
+  cursor: pointer;
+  transition: background var(--tqb-transition), color var(--tqb-transition);
+}
+
+.user-chip:hover {
+  background: var(--tqb-bg-hover);
+  color: var(--tqb-text-primary);
 }
 
 .page {
@@ -257,8 +347,12 @@ function go(name) {
     margin-bottom: var(--tqb-space-3);
   }
 
-  .brand {
+  .brand-name {
     font-size: var(--tqb-font-base);
+  }
+
+  .nav-item {
+    padding: 6px 8px;
   }
 }
 </style>

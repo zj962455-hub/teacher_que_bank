@@ -62,6 +62,18 @@ a:hover {
 }
 
 /* ============================================================
+   1.1 焦点环
+   ------------------------------------------------------------
+   键盘用户要看得见自己在哪 —— 鼠标点击不该出现这个环，
+   所以只在 :focus-visible 时给（WCAG 2.4.7）。
+   ============================================================ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--tqb-primary);
+  outline-offset: 2px;
+  border-radius: var(--tqb-radius-sm);
+}
+
+/* ============================================================
    2. 滚动条（细一点，别抢内容的视线）
    ============================================================ */
 ::-webkit-scrollbar {
@@ -127,15 +139,36 @@ a:hover {
    ============================================================ */
 .tqb-card {
   background: var(--tqb-bg-card);
-  border: 1px solid var(--tqb-border);
+  /* 边框让位给「1px 环 + 抬起」两层阴影 —— 视觉更轻，
+     forced-colors 模式下阴影会消失，环还在，边界不丢 */
+  border: 1px solid transparent;
   border-radius: var(--tqb-radius-lg);
-  box-shadow: var(--tqb-shadow-xs);
-  transition: box-shadow var(--tqb-transition), border-color var(--tqb-transition);
+  box-shadow: var(--tqb-shadow-card);
+  transition: box-shadow var(--tqb-transition);
 }
 
 .tqb-card--hover:hover {
-  box-shadow: var(--tqb-shadow-md);
-  border-color: var(--tqb-border-strong);
+  box-shadow: var(--tqb-shadow-card-hover);
+}
+
+/* naive-ui 的卡片同步用同一套层级 */
+.app .n-card {
+  border-color: transparent;
+  box-shadow: var(--tqb-shadow-card);
+  transition: box-shadow var(--tqb-transition);
+}
+
+.app .n-card__header {
+  padding: var(--tqb-space-3) var(--tqb-space-5);
+}
+
+.app .n-card__content {
+  padding: var(--tqb-space-4) var(--tqb-space-5);
+}
+
+/* 表格里的数字等宽对齐 */
+.app .n-data-table-td {
+  font-variant-numeric: tabular-nums;
 }
 
 /** 统计数字（大号） */
@@ -197,8 +230,96 @@ a:hover {
 }
 
 /* ============================================================
+   6.5 统计卡（首页概览）
+   ============================================================ */
+.tqb-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--tqb-space-4);
+}
+
+.tqb-stat-card {
+  display: flex;
+  align-items: center;
+  gap: var(--tqb-space-3);
+  padding: var(--tqb-space-4) var(--tqb-space-5);
+  background: var(--tqb-bg-card);
+  border: 1px solid transparent;
+  border-radius: var(--tqb-radius-lg);
+  box-shadow: var(--tqb-shadow-card);
+}
+
+.tqb-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: var(--tqb-radius-md);
+  background: var(--tqb-primary-soft);
+  color: var(--tqb-primary);
+}
+
+.tqb-stat-value {
+  font-size: var(--tqb-font-2xl);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--tqb-text-primary);
+}
+
+.tqb-stat-label {
+  margin-top: 2px;
+  font-size: var(--tqb-font-sm);
+  color: var(--tqb-text-secondary);
+}
+
+/* ============================================================
    7. 工具类
    ============================================================ */
+
+/** 纯图标按钮（顶栏右侧） */
+.tqb-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: var(--tqb-radius-md);
+  background: transparent;
+  color: var(--tqb-text-secondary);
+  cursor: pointer;
+  transition: background var(--tqb-transition), color var(--tqb-transition);
+}
+
+.tqb-icon-btn:hover {
+  background: var(--tqb-bg-hover);
+  color: var(--tqb-text-primary);
+}
+
+/** 分区标题（卡片里的二级标题） */
+.tqb-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--tqb-space-2);
+  margin: 0;
+  font-size: var(--tqb-font-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--tqb-text-primary);
+}
+
+/** 分组标签（筛选区里的字段名） */
+.tqb-field-label {
+  font-size: var(--tqb-font-xs);
+  font-weight: 600;
+  color: var(--tqb-text-tertiary);
+  letter-spacing: 0.02em;
+} 
 .tqb-muted {
   color: var(--tqb-text-secondary);
 }

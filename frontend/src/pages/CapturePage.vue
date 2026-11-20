@@ -9,6 +9,7 @@ import { ref, nextTick } from 'vue'
 import { NAlert, NSpace, NTag, NText } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import UploadImage from '../components/UploadImage.vue'
+import AppIcon from '../components/AppIcon.vue'
 import OcrResult from '../components/OcrResult.vue'
 
 const router = useRouter()
@@ -71,12 +72,14 @@ function backTo(item) {
 <template>
   <div>
     <div class="tqb-page-head">
-      <h2 class="tqb-page-title">📷 录题</h2>
+      <div class="tqb-page-heading">
+        <h2 class="tqb-page-title">
+          <AppIcon name="scan" :size="18" />
+          录题
+        </h2>
+        <p class="tqb-page-subtitle">上传题目图片 → OCR 自动识别文字和公式 → 校对后一键入库</p>
+      </div>
     </div>
-
-    <p class="page-desc">
-      上传题目图片 → OCR 自动识别文字和公式 → 校对后一键入库。
-    </p>
 
     <UploadImage @uploaded="onUploaded" />
 
@@ -115,10 +118,9 @@ function backTo(item) {
 </template>
 
 <style scoped>
-
-.page-desc {
-  color: #666;
-  font-size: 13px;
-  margin: 0 0 16px;
+.tqb-page-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tqb-space-2);
 }
 </style>
