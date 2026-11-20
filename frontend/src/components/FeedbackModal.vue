@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from './AppIcon.vue'
 /**
  * FeedbackModal — 反馈弹窗 — lesson-34
  *
@@ -106,7 +107,13 @@ async function handleSubmit() {
 
 <template>
   <NModal :show="show" @update:show="close">
-    <NCard title="💬 提个意见" style="max-width: 520px" :bordered="false" role="dialog">
+    <NCard style="max-width: 520px" :bordered="false" role="dialog">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="message" :size="16" />
+        提个意见
+      </h3>
+    </template>
       <NAlert v-if="hint || error" type="error" :bordered="false" style="margin-bottom: 12px">
         {{ hint || error?.message }}
       </NAlert>

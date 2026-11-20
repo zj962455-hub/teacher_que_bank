@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from './AppIcon.vue'
 /**
  * PaperEditor — 组卷页（三栏）— lesson-11
  *
@@ -286,7 +287,7 @@ onMounted(() => {
           :disabled="!paperItems.length"
           @click="exportPdf"
         >
-          📄 导出 PDF
+          导出 PDF
         </NButton>
         <NButton
           v-if="current"
@@ -312,7 +313,13 @@ onMounted(() => {
     <!-- ===== 三栏 ===== -->
     <div class="three-col">
       <!-- 左：选题 -->
-      <NCard title="📚 选题" size="small" class="col-left">
+      <NCard size="small" class="col-left">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="stack" :size="16" />
+        选题
+      </h3>
+    </template>
         <NSpace vertical size="small">
           <NSpace size="small" wrap>
             <NSelect
@@ -405,7 +412,13 @@ onMounted(() => {
       </NCard>
 
       <!-- 中：试卷区（拖拽排序） -->
-      <NCard title="📝 试卷" size="small" class="col-mid">
+      <NCard size="small" class="col-mid">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="file" :size="16" />
+        试卷
+      </h3>
+    </template>
         <NEmpty v-if="!current" description="先选一张试卷" style="padding: 32px 0" />
         <NEmpty
           v-else-if="!paperItems.length"
@@ -452,7 +465,13 @@ onMounted(() => {
       <!-- 右：预览 -->
       <!-- ⚠️ 常驻渲染(不 v-if current)—— 否则没选卷时整列消失,
       <!--    三栏结构会塌成两栏,布局不稳定 -->
-      <NCard v-if="previewOpen" title="👀 预览" size="small" class="col-right">
+      <NCard v-if="previewOpen" size="small" class="col-right">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="eye" :size="16" />
+        预览
+      </h3>
+    </template>
         <NSpin :show="loading">
           <div v-if="current" class="preview-paper">
             <div class="preview-title">{{ current.title }}</div>

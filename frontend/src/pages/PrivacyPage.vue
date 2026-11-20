@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '../components/AppIcon.vue'
 /**
  * PrivacyPage — 隐私政策与用户协议
  *
@@ -119,7 +120,13 @@ const SECTIONS = [
 
 <template>
   <div class="privacy">
-    <NCard title="🔒 隐私政策与用户协议" :bordered="false" style="max-width: 860px">
+    <NCard :bordered="false" style="max-width: 860px">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="shield" :size="16" />
+        隐私政策与用户协议
+      </h3>
+    </template>
       <div v-for="s in SECTIONS" :key="s.title" class="sec">
         <NText strong>{{ s.title }}</NText>
         <ul>

@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from './AppIcon.vue'
 /**
  * LoginPanel — 登录 / 注册面板 — lesson-11 + lesson-34 + lesson-39
  *
@@ -308,7 +309,13 @@ async function handleResetPassword() {
 
 <template>
   <div class="login-panel">
-    <NCard title="🦊 蓝狐网" style="max-width: 420px" :bordered="false">
+    <NCard style="max-width: 420px" :bordered="false">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="fox" :size="16" />
+        蓝狐网
+      </h3>
+    </template>
       <NTabs v-model:value="tab" type="line" animated @update:value="switchTab">
         <!-- === 登录 === -->
         <NTabPane name="login" tab="登录">

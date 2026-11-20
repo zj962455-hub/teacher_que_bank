@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '../components/AppIcon.vue'
 /**
  * InvitesPage — 邀请码管理 — lesson-34（灰度试用入口）
  *
@@ -219,7 +220,13 @@ function formatTime(iso) {
 </script>
 
 <template>
-  <NCard title="🎟 邀请码管理" :bordered="false">
+  <NCard :bordered="false">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="ticket" :size="16" />
+        邀请码管理
+      </h3>
+    </template>
     <NAlert type="info" :bordered="false" style="margin-bottom: 12px">
       生成邀请码发给老师 —— 他们在登录页切到「注册」页签，填码就能自己注册。
     </NAlert>

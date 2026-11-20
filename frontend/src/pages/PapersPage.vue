@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '../components/AppIcon.vue'
 /**
  * PapersPage — ⑦ 组卷页
  *
@@ -16,7 +17,7 @@ const router = useRouter()
 <template>
   <div>
     <div class="tqb-page-head">
-      <h2 class="tqb-page-title">📄 组卷</h2>
+      <h2 class="tqb-page-title"><AppIcon name="file" :size="18" />组卷</h2>
       <NButton size="small" quaternary @click="router.push({ name: 'papers' })">
         我的试卷
       </NButton>

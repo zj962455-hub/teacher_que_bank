@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '../components/AppIcon.vue'
 /**
  * FeedbacksPage — 反馈记录页 — lesson-34
  *
@@ -143,7 +144,13 @@ function formatTime(iso) {
 </script>
 
 <template>
-  <NCard title="💬 反馈记录" :bordered="false">
+  <NCard :bordered="false">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="message" :size="16" />
+        反馈记录
+      </h3>
+    </template>
     <NText depth="3" style="font-size: 12px; display: block; margin-bottom: 12px">
       <template v-if="isAdmin">
         管理员视角：所有人的反馈都在这儿，处理完把状态改成「已处理」。
@@ -197,7 +204,7 @@ function formatTime(iso) {
           :disabled="!!exporting"
           @click="handleExport('markdown')"
         >
-          📄 导出 Markdown
+          导出 Markdown
         </NButton>
         <NButton
           size="small"
@@ -205,7 +212,7 @@ function formatTime(iso) {
           :disabled="!!exporting"
           @click="handleExport('csv')"
         >
-          📊 导出 CSV
+          导出 CSV
         </NButton>
         <NText depth="3" style="font-size: 12px">
           导出内容含提交人、联系方式、状态和来源页面。

@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from './AppIcon.vue'
 /**
  * OcrBlockList — OCR block 列表（lesson-06 任务 4 抽取）
  *
@@ -224,13 +225,13 @@ const renderedContent = computed(() => {
         :style="showFigure ? (figureCropStyle(b) || {}) : {}"
       >
         <NText v-if="!showFigure" depth="3" style="font-size: 11px;">
-          🖼 图形（见上方「题图」）
+          <AppIcon name="image" :size="15" /> 图形（见上方「题图」）
         </NText>
         <NText v-if="b.content" depth="3" style="font-size: 11px;">
           图内标注：{{ b.content }}
         </NText>
         <NText v-else-if="!figureCropStyle(b)" depth="3" style="font-size: 11px;">
-          🖼 检测到图形区域
+          <AppIcon name="image" :size="15" /> 检测到图形区域
         </NText>
       </div>
 

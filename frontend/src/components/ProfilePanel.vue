@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from './AppIcon.vue'
 /**
  * ProfilePanel — 个人中心 — lesson-11
  *
@@ -225,7 +226,13 @@ function shortUa(ua) {
 </script>
 
 <template>
-  <NCard title="👤 个人中心" style="max-width: 760px" :bordered="false">
+    <NCard style="max-width: 760px" :bordered="false">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="user" :size="16" />
+        个人中心
+      </h3>
+    </template>
     <NSpin :show="loading">
       <template v-if="me">
         <!-- === 账号信息 === -->

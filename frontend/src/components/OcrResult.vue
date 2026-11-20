@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from './AppIcon.vue'
 import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
 import { http, fetchImageBlobUrl } from '../api/auth'
 import {
@@ -384,7 +385,13 @@ async function copyPlainText() {
 </script>
 
 <template>
-  <NCard title="🔍 OCR 识别结果" size="small">
+  <NCard size="small">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="search" :size="16" />
+        OCR 识别结果
+      </h3>
+    </template>
     <NSpace vertical size="medium">
       <!-- 顶部:状态 + 历史下拉 + 开始按钮 -->
       <NSpace align="center">
@@ -392,7 +399,7 @@ async function copyPlainText() {
           {{ status === 'idle' ? '待识别' : status === 'processing' ? '识别中...' : status === 'completed' ? '已完成' : '失败' }}
         </NTag>
         <NButton type="primary" :disabled="status === 'processing' || !imageUrl" @click="startOcr">
-          {{ status === 'completed' ? '🔄 重新识别' : '🚀 开始识别' }}
+          {{ status === 'completed' ? '重新识别' : '开始识别' }}
         </NButton>
         <NSpace v-if="historyOptions.length" align="center">
           <NText depth="3" style="font-size: 12px">历史：</NText>
@@ -407,7 +414,7 @@ async function copyPlainText() {
           />
         </NSpace>
         <NButton v-if="status === 'completed'" size="small" @click="showEditor = !showEditor">
-          {{ showEditor ? '📝 收起编辑器' : '📝 转题目编辑器' }}
+          {{ showEditor ? '收起编辑器' : '转题目编辑器' }}
         </NButton>
         <NButton
           v-if="status === 'completed'"
@@ -416,12 +423,12 @@ async function copyPlainText() {
           :loading="saving"
           @click="saveToBank"
         >
-          💾 存入题库
+          存入题库
         </NButton>
       </NSpace>
 
       <!-- 错误 -->
-      <NAlert v-if="error" type="error" :show-icon="false">❌ {{ error }}</NAlert>
+      <NAlert v-if="error" type="error">{{ error }}</NAlert>
 
       <!-- Loading -->
       <NSpin v-if="status === 'processing'" size="medium">
@@ -457,7 +464,7 @@ async function copyPlainText() {
           <NCard
             v-if="figureBlocks.length"
             size="small"
-            title="🖼 题图（从原图裁出，入库时随题保存）"
+            title="题图（从原图裁出，入库时随题保存）"
             style="margin-bottom: 8px;"
           >
             <NSpace>
@@ -491,14 +498,14 @@ async function copyPlainText() {
                   共 {{ allBlocks.length }} 个块 · {{ result?.stats?.elapsed_ms }}ms · {{ result?.stats?.model }}
                 </NText>
                 <NButton size="small" type="primary" @click="copyPlainText">
-                  📋 复制纯文本
+                  复制纯文本
                 </NButton>
               </NSpace>
             </NTabPane>
             <NTabPane name="formula" tab="② 带公式(Markdown)">
               <pre style="white-space: pre-wrap; font-family: monospace">{{ withFormulas }}</pre>
               <NSpace>
-                <NButton size="small" @click="copyMarkdown">📋 复制 Markdown</NButton>
+                <NButton size="small" @click="copyMarkdown">复制 Markdown</NButton>
                 <NText depth="3" style="font-size: 12px">
                   {{ formulaBlocks.length }} 个公式块(lesson-07 接 KaTeX 渲染)
                 </NText>

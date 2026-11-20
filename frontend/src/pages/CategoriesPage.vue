@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '../components/AppIcon.vue'
 /**
  * CategoriesPage — ⑥ 章节分类管理
  *
@@ -301,7 +302,7 @@ function renderNodeLabel({ option }) {
 <template>
   <div>
     <div class="tqb-page-head">
-      <h2 class="tqb-page-title">🗂 章节分类管理</h2>
+      <h2 class="tqb-page-title"><AppIcon name="folder" :size="18" />章节分类管理</h2>
       <NSpace :size="8">
         <NButton size="small" type="primary" @click="startCreate(null)">+ 新建顶层分类</NButton>
         <NButton size="small" quaternary @click="loadTree">刷新</NButton>

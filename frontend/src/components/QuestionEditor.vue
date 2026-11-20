@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from './AppIcon.vue'
 /**
  * QuestionEditor — 题目编辑器（lesson-06 任务 5A+5B）
  *
@@ -372,7 +373,7 @@ function resetContent() {
   <NCard size="small" style="margin-top: 12px;">
     <template #header>
       <NSpace align="center" justify="space-between">
-        <span>{{ mode === 'edit' ? '✏️ 编辑题目' : '📝 题目编辑器' }}</span>
+        <span class="editor-title"><AppIcon name="edit" :size="16" />{{ mode === 'edit' ? '编辑题目' : '题目编辑器' }}</span>
         <NSpace>
           <NButton size="tiny" @click="emit('close')">收起</NButton>
         </NSpace>
@@ -430,7 +431,7 @@ function resetContent() {
     <!-- === 分类操作条 === -->
     <NSpace align="center" size="small" style="margin-bottom: 8px;">
       <NButton size="small" type="primary" @click="autoClassify({ force: true })">
-        🤖 自动分类
+        <AppIcon name="robot" :size="15" /> 自动分类
       </NButton>
       <NButton size="small" @click="resetMeta" :disabled="!manuallyEdited">
         ↺ 恢复自动
@@ -450,7 +451,7 @@ function resetContent() {
         命中关键词：{{ meta.matched.join('、') }}
       </NText>
       <NText v-if="manuallyEdited" depth="3" style="font-size: 11px; color: #d48806;">
-        ⚠️ 已手动调整，AI 分类不会覆盖
+        已手动调整，AI 分类不会覆盖
       </NText>
     </NSpace>
 
@@ -459,7 +460,7 @@ function resetContent() {
     <!-- === 几何配图（OCR 读不出来的那部分）=== -->
     <div v-if="figureBlobUrl" style="margin-bottom: 10px;">
       <NText depth="3" style="font-size: 12px; display: block; margin-bottom: 4px;">
-        🖼 题目配图（导出试卷时会一起带上）
+        <AppIcon name="image" :size="15" /> 题目配图（导出试卷时会一起带上）
       </NText>
       <img
         :src="figureBlobUrl"
@@ -493,7 +494,7 @@ function resetContent() {
     <div style="display: flex; gap: 12px; align-items: stretch;">
       <div style="flex: 1; min-width: 0;">
         <NText depth="3" style="font-size: 12px; display: block; margin-bottom: 4px;">
-          ✏️ 题目内容（可直接编辑）
+          <AppIcon name="edit" :size="15" /> 题目内容（可直接编辑）
         </NText>
         <NInput
           v-model:value="content"
@@ -505,7 +506,7 @@ function resetContent() {
 
       <div style="flex: 1; min-width: 0;">
         <NText depth="3" style="font-size: 12px; display: block; margin-bottom: 4px;">
-          👁 预览（$x^2$ 会转成 x²）
+          <AppIcon name="eye" :size="15" /> 预览（$x^2$ 会转成 x²）
         </NText>
         <div
           style="
@@ -527,13 +528,13 @@ function resetContent() {
     <!-- === 复制按钮组（任务 5A） === -->
     <NSpace style="margin-top: 12px;">
       <NButton size="small" type="primary" @click="copyPlain">
-        📋 复制纯文本
+        <AppIcon name="copy" :size="15" /> 复制纯文本
       </NButton>
       <NButton size="small" @click="copyFormula">
-        📐 复制公式版
+        复制公式版
       </NButton>
       <NButton size="small" @click="copyJson">
-        🧩 复制 JSON
+        复制 JSON
       </NButton>
       <NButton size="small" quaternary @click="resetContent">
         ↺ 重置回原文
@@ -544,7 +545,7 @@ function resetContent() {
         type="primary"
         @click="saveToDatabase"
       >
-        💾 保存到题库
+        <AppIcon name="save" :size="15" /> 保存到题库
       </NButton>
     </NSpace>
   </NCard>

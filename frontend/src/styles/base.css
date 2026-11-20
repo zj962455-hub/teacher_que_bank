@@ -111,6 +111,9 @@ a:hover {
 
 .tqb-page-title {
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tqb-space-2);
   font-size: var(--tqb-font-lg);
   font-weight: 600;
   letter-spacing: -0.01em;

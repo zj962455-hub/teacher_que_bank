@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '../components/AppIcon.vue'
 /**
  * GuidePage — 老师使用指南 — lesson-34
  *
@@ -30,10 +31,16 @@ const STEPS = [
 
 <template>
   <div class="guide">
-    <NCard title="📖 使用指南" :bordered="false">
+    <NCard :bordered="false">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="book" :size="16" />
+        使用指南
+      </h3>
+    </template>
       <NAlert type="info" :bordered="false" style="margin-bottom: 16px">
         第一次用？按下面六步走一遍，十分钟就能上手。
-        卡住了先用顶栏的「💬 反馈」说一声，会有人来改。
+        卡住了先用顶栏的「 反馈」说一声，会有人来改。
       </NAlert>
 
       <NSteps :current="6" size="small" style="margin-bottom: 20px">
@@ -67,25 +74,25 @@ const STEPS = [
       <!-- === 2. 录题 === -->
       <NCard size="small" :bordered="true" title="第二步 · 录题（拍照 → 识别 → 校对 → 保存）" style="margin-bottom: 12px">
         <ol class="steps">
-          <li>点顶栏「📷 录题」。</li>
+          <li>点顶栏「 录题」。</li>
           <li>
             <b>拍照或上传图片</b>：把试卷、练习册、卷子拍清楚（正着拍、光线均匀、别太歪），
             也可以从相册里选一张已有的照片。
           </li>
           <li>
-            <b>点「🚀 开始识别」</b>：系统自动做 OCR，把图片里的文字和公式认出来。
+            <b>点「 开始识别」</b>：系统自动做 OCR，把图片里的文字和公式认出来。
             这一步大概要几秒钟，认完左边显示原图（红框标出认到的位置），右边显示识别结果。
           </li>
           <li>
             <b>校对（这一步最重要，别跳过）</b>：
-            点「📝 转题目编辑器」，逐题检查。识别错的地方直接改。
+            点「 转题目编辑器」，逐题检查。识别错的地方直接改。
           </li>
           <li>
-            <b>点「💾 存入题库」</b>，题目就进你的题库了。
+            <b>点「 存入题库」</b>，题目就进你的题库了。
           </li>
         </ol>
         <NAlert type="error" :bordered="false" style="margin-top: 10px">
-          <b>⚠️ OCR 会认错公式和文字，一定要校对。</b>
+          <b>️ OCR 会认错公式和文字，一定要校对。</b>
           图片模糊、公式复杂、上下标重叠的时候最容易认错 ——
           根号会变成方块，分式会少一半，负号可能就没了。
           直接拿去用，印出来的卷子会错。校对一遍只要几十秒，比印错一整张卷子划算。
@@ -113,7 +120,7 @@ const STEPS = [
           </li>
         </ol>
         <NSpace style="margin-top: 8px">
-          <NTag size="small" :bordered="false">📊 导出 Excel</NTag>
+          <NTag size="small" :bordered="false"> 导出 Excel</NTag>
           <NText depth="3" style="font-size: 12px">
             题目多的时候可以导一份 Excel 备份，放心整理。
           </NText>
@@ -125,16 +132,16 @@ const STEPS = [
         <ol class="steps">
           <li>点顶栏「组卷」，先「+ 新建试卷」，给卷子起个名字（比如「高一数学第一单元测试」）。</li>
           <li>
-            <b>左栏「📚 选题」</b>：按学科、难度、学段筛，或者直接搜题干，
+            <b>左栏「 选题」</b>：按学科、难度、学段筛，或者直接搜题干，
             点题目右边的「+」加进卷子。
           </li>
           <li>
-            <b>中栏「📝 试卷」</b>：已经加进来的题。
+            <b>中栏「 试卷」</b>：已经加进来的题。
             拖动左边的「⠿」可以<b>调整顺序</b>；
             题号和分值都能改（题号可以写成「一、」「(1)」这种）。
           </li>
           <li>
-            <b>右栏「👀 预览」</b>：看看排版对不对。
+            <b>右栏「 预览」</b>：看看排版对不对。
           </li>
           <li>
             <b>导出</b>：点「导出 PDF」出印刷版，点「导出 JPG」出图片版（发微信用）。
@@ -145,7 +152,7 @@ const STEPS = [
       <!-- === 5. 分享 === -->
       <NCard size="small" :bordered="true" title="第五步 · 分享给家长和学生" style="margin-bottom: 12px">
         <ol class="steps">
-          <li>在「我的试卷」里打开一张卷子，进入导出页，往下滚到「🔗 分享链接」。</li>
+          <li>在「我的试卷」里打开一张卷子，进入导出页，往下滚到「 分享链接」。</li>
           <li>选个有效期（几小时 / 几天 / 一周），点「生成分享链接」。</li>
           <li>点「复制链接」，发到微信群或家长群。</li>
         </ol>
@@ -160,7 +167,7 @@ const STEPS = [
         <ol class="steps">
           <li>
             遇到不顺手的地方（按钮点不动、公式显示不对、想加个功能），
-            点顶栏右上角的「💬 反馈」。
+            点顶栏右上角的「 反馈」。
           </li>
           <li>
             选一下是「功能异常 / 功能建议 / 其它」，<b>写清楚哪里不对</b>

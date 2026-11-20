@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from './AppIcon.vue'
 /**
  * QuestionBank — 题库列表 — lesson-08
  *
@@ -174,7 +175,13 @@ onMounted(load)
 </script>
 
 <template>
-  <NCard title="📚 我的题库" size="small">
+  <NCard size="small">
+    <template #header>
+      <h3 class="tqb-section-title">
+        <AppIcon name="stack" :size="16" />
+        我的题库
+      </h3>
+    </template>
     <NSpace vertical size="medium">
       <!-- 筛选栏 -->
       <NSpace align="center" wrap>

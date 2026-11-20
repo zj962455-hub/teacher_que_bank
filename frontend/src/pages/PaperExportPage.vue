@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '../components/AppIcon.vue'
 /**
  * PaperExportPage — ⑧ 试卷预览/导出 + 分享链接
  *
@@ -180,7 +181,7 @@ async function doExport() {
 
         <!-- === 分享链接（课 24）=== -->
         <NDivider />
-        <div class="share-title">🔗 分享链接</div>
+        <div class="share-title"><AppIcon name="link" :size="16" />分享链接</div>
         <div class="share-hint">
           发到微信群 / 学生家长群，<b>对方不用账号</b>，点开就能看卷子、下 PDF / JPG。
           链接<b>必带过期时间</b>，也能随时吊销。

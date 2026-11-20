@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '../components/AppIcon.vue'
 /**
  * PaperListPage — 我的试卷列表
  *
@@ -53,7 +54,7 @@ function doDelete(row) {
 <template>
   <div>
     <div class="tqb-page-head">
-      <h2 class="tqb-page-title">📄 我的试卷</h2>
+      <h2 class="tqb-page-title"><AppIcon name="file" :size="18" />我的试卷</h2>
       <NButton type="primary" size="small" @click="router.push({ name: 'paper-new' })">
         + 组卷
       </NButton>
