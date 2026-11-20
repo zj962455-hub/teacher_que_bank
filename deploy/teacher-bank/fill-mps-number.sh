@@ -52,17 +52,25 @@ fi
 # 用途：验收脚本的期望值必须跟线上实际渲染的一致，
 #      否则「只改主体信息」时，验收会拿旧的空值去对，白报失败。
 read_site_cfg() {
-  python3 - "$REPO_DIR/frontend/src/site.config.js" <<'PYEOF'
+  python3 - "$REPO_DIR/frontend/src/site.config.js" "$REPO_DIR/frontend/.env.local" <<'PYEOF'
 import io
+import os
 import re
 import shlex
 import sys
 
-s = io.open(sys.argv[1], encoding="utf-8").read()
-for name in ("MPS", "OPERATOR", "CONTACT"):
-    m = re.search(r"^export const " + name + r" = '([^']*)'", s, flags=re.M)
-    val = m.group(1) if m else ""
-    print("CFG_" + name + "=" + shlex.quote(val))
+cfg_path, env_path = sys.argv[1], sys.argv[2]
+
+# MPS：公开的备案号，在 site.config.js（入库文件）
+s = io.open(cfg_path, encoding="utf-8").read()
+m = re.search(r"^export const MPS = '([^']*)'", s, flags=re.M)
+print("CFG_MPS=" + shlex.quote(m.group(1) if m else ""))
+
+# OPERATOR / CONTACT：个人信息，在 .env.local（不入库）
+env = io.open(env_path, encoding="utf-8").read() if os.path.exists(env_path) else ""
+for name, key in (("OPERATOR", "VITE_OPERATOR"), ("CONTACT", "VITE_CONTACT")):
+    m = re.search(r"^" + key + r"=(.*)$", env, flags=re.M)
+    print("CFG_" + name + "=" + shlex.quote(m.group(1).strip() if m else ""))
 PYEOF
 }
 
@@ -118,7 +126,10 @@ fi
 python3 "$REPO_DIR/deploy/teacher-bank/_set_site_fields.py" \
   "$MPS_ARG" "$OPERATOR_ARG" "$CONTACT_ARG" \
   "$REPO_DIR/frontend/src/site.config.js"
-grep -n "^export const \(MPS\|OPERATOR\|CONTACT\) = " "$REPO_DIR/frontend/src/site.config.js"
+echo "  site.config.js（入库 · 公开信息）："
+grep -n "^export const MPS = " "$REPO_DIR/frontend/src/site.config.js"
+echo "  .env.local（不入库 · 个人信息）："
+grep -nE "^VITE_(OPERATOR|CONTACT)=" "$REPO_DIR/frontend/.env.local" 2>/dev/null || echo "    （还没有 .env.local）"
 
 eval "$(read_site_cfg)"
 echo "  写入后当前值：MPS=[$CFG_MPS] OPERATOR=[$CFG_OPERATOR] CONTACT=[$CFG_CONTACT]"

@@ -87,6 +87,9 @@
 （Registrant Name / Organization / Street / Phone 全为 REDACTED FOR PRIVACY），
 所以「姓名」这一层在域名侧并没有额外暴露。
 
+**代码侧也确认过**：本站**不采集、不存储身份证号**（仓库 grep 无身份证字段，
+注册走手机号 + 短信验证码），所以不存在「网站自己存了证件号又泄露」这条路径。
+
 ### 1.2 未实测到的部分（如实标注）
 
 - **没能实测「姓名是否已在工信部公开查询里可查」**：工信部查询接口
@@ -327,9 +330,12 @@ bash deploy/teacher-bank/fill-mps-number.sh --operator "营业执照全称" --co
 bash deploy/teacher-bank/fill-mps-number.sh --operator "你的姓名" --contact "tqb-contact@lanhu-lab.top"
 ```
 
-  ⚠️ 这两个值会写进 frontend/src/site.config.js，而**该文件是入库文件**
-  （.gitignore 只忽略 .env / .env.local，没忽略它）——
-  填之前先想清楚「要不要让它进 Git 历史」，进历史后即使后来删掉也能翻出来。
+  ⚠️ **个人信息不会进 Git**（2026-11-20 改）：
+  这两个值写进 frontend/.env.local（.gitignore 已忽略），
+  前端从 import.meta.env.VITE_OPERATOR / VITE_CONTACT 读，构建时注入。
+  而 frontend/src/site.config.js 是**入库文件**，且本仓库在 GitHub 上是 **public** ——
+  把姓名邮箱写进去等于把个人信息推到公开仓库，删掉也能从 git 历史里翻出来。
+  公安备案号（MPS）是公开信息，仍留在 site.config.js。
 
   脚本会拒绝写入「某某」「待填」这类样例值（真信息没到位就**留空**，页面自动不显示那行）；
 - 三个字段都写完后，脚本会用**写入后的真实值**做线上无头验收，

@@ -55,10 +55,19 @@ export const MPS_CODE = (MPS.match(/\d{6,}/) || [''])[0]
 //      手机号会被爬虫抓走变成推销/诈骗来电的来源，也会和账号体系里的手机号混淆。
 // ⚠️ **身份证号、证件照片、家庭住址、银行卡一律不进这个文件** ——
 //    它们只出现在提交给主管部门的备案材料里，**不在网站上公开**。
-//    真实值还没到位 → 留空字符串 → 页面上这一行**直接不出现**
+//
+// 🔒 **真实值走 .env.local，不进 git**（2026-11-20 改）：
+//    这个仓库是 **public** 的，而本文件是入库文件 —— 把姓名和邮箱写在这里，
+//    等于把个人信息推到公开仓库里，删掉也还能从 git 历史里翻出来。
+//    改成从环境变量读：
+//      frontend/.env.local        ← 真实值（.gitignore 已忽略，不入库）
+//      frontend/.env.development  ← 空值占位（入库，安全）
+//      frontend/.env.production   ← 空值占位（入库，安全）
+//    构建时由 Vite 注入 → 产物里有值 → 线上正常显示；
+//    本地没填 → 值为空字符串 → 页面上这一行**直接不出现**
 //    （而不是显示半成品文字：审核员看到会当成备案材料没填，负分）。
-export const OPERATOR = ''
-export const CONTACT = ''
+export const OPERATOR = import.meta.env.VITE_OPERATOR || ''
+export const CONTACT = import.meta.env.VITE_CONTACT || ''
 
 export default {
   SITE_NAME,

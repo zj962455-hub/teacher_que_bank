@@ -1,12 +1,22 @@
 """
-写 site.config.js 的备案字段（MPS / OPERATOR / CONTACT）
+写备案字段：**MPS 进 site.config.js，其余个人信息进 .env.local**
 
-为什么单独一个文件
-----------------
-回填脚本 deploy/teacher-bank/fill-mps-number.sh 里本来是内嵌 python heredoc，
-再往里加正则替换就越写越难读。拆出来单独一个文件，改起来不容易出错。
+为什么分两个地方（2026-11-20 改）
+--------------------------------
+- site.config.js 是**入库文件**，而 teacher_que_bank 仓库在 GitHub 上是 **public**。
+  把运营主体姓名、联系方式写进去 = 把个人信息推到公开仓库，
+  以后删掉也还能从 git 历史里翻出来。
+- 所以拆开：
+    MPS（公安备案号，公开信息）      → site.config.js（入库无妨）
+    OPERATOR / CONTACT（个人信息）  → frontend/.env.local（.gitignore 已忽略，不入库）
+  前端从 import.meta.env.VITE_OPERATOR / VITE_CONTACT 读，构建时注入。
 
-用法：python3 _set_site_fields.py <MPS> <OPERATOR> <CONTACT> <文件路径>
+⚠️ Vite 加载顺序：.env → .env.local → .env.[mode] → .env.[mode].local，
+   **后者覆盖前者**。所以入库的 .env.development / .env.production 里
+   只能写注释说明，**不能写 VITE_OPERATOR= 空值** ——
+   否则空值会把 .env.local 里的真实值覆盖掉，线上那行又不显示了。
+
+用法：python3 _set_site_fields.py <MPS> <OPERATOR> <CONTACT> <site.config.js 路径>
   —— 空字符串表示「这一项不动」（不是清空）
 
 ⚠️ 拒绝样例值：真实值没到位，正确做法是**留空**（页面会自动隐藏那一行），
@@ -14,19 +24,24 @@
 """
 
 import io
+import os
 import re
 import sys
 
 BANNED = ("待填", "待补充", "某某", "占位", "placeholder", "example.com", "TODO", "FIXME")
 
 
-def set_field(text, name, value):
-    """只改非空字段 —— 传空 = 不动这一项"""
-    if not value:
-        return text, False
+def _check(name, value):
     for bad in BANNED:
         if bad in value:
             raise SystemExit("!! 拒绝写入样例值（%s 里含「%s」）" % (name, bad))
+
+
+def set_js_field(text, name, value):
+    """改 site.config.js 里的 export const NAME = '...'"""
+    if not value:
+        return text, False
+    _check(name, value)
     safe = value.replace("\\", "\\\\").replace("'", "\\'")
     new, n = re.subn(
         r"^export const " + name + r" = '[^']*'.*$",
@@ -40,24 +55,44 @@ def set_field(text, name, value):
     return new, True
 
 
+def set_env_field(text, key, value):
+    """改 .env.local 里的 KEY=value"""
+    if not value:
+        return text, False
+    _check(key, value)
+    line = key + "=" + value
+    pattern = r"^" + re.escape(key) + r"=.*$"
+    if re.search(pattern, text, flags=re.M):
+        new, n = re.subn(pattern, line, text, count=1, flags=re.M)
+        return new, True
+    if text and not text.endswith("\n"):
+        text += "\n"
+    return text + line + "\n", True
+
+
 def main():
     if len(sys.argv) != 5:
-        raise SystemExit("用法: _set_site_fields.py <MPS> <OPERATOR> <CONTACT> <文件路径>")
+        raise SystemExit("用法: _set_site_fields.py <MPS> <OPERATOR> <CONTACT> <site.config.js 路径>")
     mps, operator, contact, path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
     s = io.open(path, encoding="utf-8").read()
 
-    s, a = set_field(s, "MPS", mps)
-    s, b = set_field(s, "OPERATOR", operator)
-    s, c = set_field(s, "CONTACT", contact)
-
-    io.open(path, "w", encoding="utf-8").write(s)
-
+    s, a = set_js_field(s, "MPS", mps)
     if a:
-        print("  已写入 MPS = " + mps)
+        print("  已写入 MPS = " + mps + "（site.config.js）")
+
+    # 个人信息 → frontend/.env.local（不入库）
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(path))), ".env.local")
+    env = io.open(env_path, encoding="utf-8").read() if os.path.exists(env_path) else ""
+    env, b = set_env_field(env, "VITE_OPERATOR", operator)
+    env, c = set_env_field(env, "VITE_CONTACT", contact)
+    if b or c:
+        io.open(env_path, "w", encoding="utf-8").write(env)
+        os.chmod(env_path, 0o600)
     if b:
-        print("  已写入 OPERATOR（运营主体名称）")
+        print("  已写入 VITE_OPERATOR（运营主体）→ .env.local（不入库）")
     if c:
-        print("  已写入 CONTACT（应急联系方式）")
+        print("  已写入 VITE_CONTACT（联系方式）→ .env.local（不入库）")
+
     if not (a or b or c):
         print("  没有要写入的字段（全部为空 = 不动）")
 
