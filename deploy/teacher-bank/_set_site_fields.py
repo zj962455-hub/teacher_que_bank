@@ -28,13 +28,29 @@ import os
 import re
 import sys
 
-BANNED = ("待填", "待补充", "某某", "占位", "placeholder", "example.com", "TODO", "FIXME")
+BANNED = (
+    "待填",
+    "待补充",
+    "某某",
+    "占位",
+    "placeholder",
+    "example.com",
+    "TODO",
+    "FIXME",
+    # 我们自己在用法注释/文档里用过的假值 —— 照抄注释就会把假信息推到公网
+    "13800000000",
+    "13800138000",
+    "公司全称",
+)
 
 
 def _check(name, value):
     for bad in BANNED:
         if bad in value:
             raise SystemExit("!! 拒绝写入样例值（%s 里含「%s」）" % (name, bad))
+    # 尖括号 = 没填的占位写法（<主办单位全称> 之类）
+    if "<" in value or ">" in value:
+        raise SystemExit("!! 拒绝写入占位写法（%s 里含尖括号）" % name)
 
 
 def set_js_field(text, name, value):
@@ -78,6 +94,10 @@ def main():
 
     s, a = set_js_field(s, "MPS", mps)
     if a:
+        # ⚠️ 必须真的落盘：少了这一行，脚本会打印「已写入」但文件没变 ——
+        #    备案号回填会「静默假成功」（号没进 site.config.js，构建/rsync/验收
+        #    用的还是空值，脚本最后照样打印「✅ 已回填并上线」）。
+        io.open(path, "w", encoding="utf-8").write(s)
         print("  已写入 MPS = " + mps + "（site.config.js）")
 
     # 个人信息 → frontend/.env.local（不入库）

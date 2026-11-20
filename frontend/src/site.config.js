@@ -14,7 +14,7 @@
  * 所以：**备案要改的字段，全放这一个文件**。
  *   回填公安备案号：bash deploy/teacher-bank/fill-mps-number.sh <备案号>
  *   主体名称 / 应急联系方式：
- *     bash deploy/teacher-bank/fill-mps-number.sh --operator "公司全称" --contact "13800000000"
+ *     bash deploy/teacher-bank/fill-mps-number.sh --operator "<主办单位全称>" --contact "<对外联系方式>"
  *
  * ⚠️ 这里的字段都会**公开展示在网站上**（备案要求公示），不是密钥。
  *    私密信息（密码、AK）一律不进这个文件。

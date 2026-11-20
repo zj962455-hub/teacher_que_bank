@@ -9,8 +9,11 @@
 #
 # 用法：
 #   bash deploy/teacher-bank/fill-mps-number.sh 浙公网安备XXXXXXXXXXXXXX号
-#   bash deploy/teacher-bank/fill-mps-number.sh --operator "公司全称" --contact "13800000000"
+#   bash deploy/teacher-bank/fill-mps-number.sh --operator "<主办单位全称>" --contact "<对外联系方式>"
 #   bash deploy/teacher-bank/fill-mps-number.sh 浙公网安备XXXXXXXXXXXXXX号 --dry-run
+#
+# ⚠️ 示例值请用尖括号占位（<...>）：脚本会**拒绝**「某某」「待填」「13800000000」
+#    这类样例值与尖括号写法 —— 照抄示例等于把假信息推到公网。
 #
 # ⚠️ --dry-run **不写文件、不构建、不部署**，只做格式校验 + 预演。
 #    （2026-11-19 修：老版本 dry-run 会先把号写进 site.config.js 再退出，
