@@ -22,6 +22,13 @@ const puppeteer = require('puppeteer-core')
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const BASE = process.env.VERIFY_BASE || 'https://tqb.lanhu-lab.top'
+const USER = process.env.VERIFY_USER || 'test1'
+const PASS = process.env.VERIFY_PASS || ''
+
+if (!PASS) {
+  console.error('需要 VERIFY_PASS 环境变量（生产口令不入库）')
+  process.exit(1)
+}
 
 const errors = []
 const results = []
@@ -93,13 +100,13 @@ async function main() {
       const el = [...document.querySelectorAll('input')].find((i) => i.placeholder?.includes('手机号'))
       if (!el) throw new Error('找不到手机号输入框')
       const proto = window.HTMLInputElement.prototype
-      Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, 'test2')
+      Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, USER)
       el.dispatchEvent(new Event('input', { bubbles: true }))
     })
     await page.evaluate(() => {
       const el = [...document.querySelectorAll('input')].find((i) => i.placeholder?.includes('密码'))
       const proto = window.HTMLInputElement.prototype
-      Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, 'REDACTED-OLD-PASSWORD')
+      Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, PASS)
       el.dispatchEvent(new Event('input', { bubbles: true }))
     })
     await page.evaluate(() => {

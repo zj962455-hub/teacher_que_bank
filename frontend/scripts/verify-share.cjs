@@ -17,7 +17,12 @@ const puppeteer = require('puppeteer-core')
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const BASE = process.env.VERIFY_BASE || 'https://tqb.lanhu-lab.top'
 const USER = process.env.VERIFY_USER || 'test1'
-const PASS = process.env.VERIFY_PASS || 'REDACTED-OLD-PASSWORD'
+const PASS = process.env.VERIFY_PASS || ''
+
+if (!PASS) {
+  console.error('需要 VERIFY_PASS 环境变量（生产口令不入库）')
+  process.exit(1)
+}
 
 const errors = []
 
@@ -184,7 +189,7 @@ async function main() {
     const login = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'test1', password: 'REDACTED-OLD-PASSWORD' }),
+      body: JSON.stringify({ username: USER, password: PASS }),
     })
     if (!login.ok) return { ok: false, detail: `登录失败 ${login.status}` }
     const { token } = await login.json()

@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """线上接口体积/耗时探针（课 33 验收用）"""
 import json
+import os
 import time
 import urllib.request
 
 BASE = "https://tqb.lanhu-lab.top"
-USER, PASSWORD = "test1", "REDACTED-OLD-PASSWORD"
+USER = os.environ.get("VERIFY_USER", "test1")
+# 生产口令不写进仓库：必须由环境变量传入
+PASSWORD = os.environ.get("VERIFY_PASS", "")
 
 
 def post(path, payload, token=None):
@@ -32,6 +35,8 @@ def get(path, token=None):
 
 
 def main():
+    if not PASSWORD:
+        raise SystemExit("需要 VERIFY_PASS 环境变量（生产口令不入库）")
     token = post("/api/auth/login", {"username": USER, "password": PASSWORD})["token"]
     print("=== 线上接口（课 33 验收）===")
     for path, label in (

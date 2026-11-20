@@ -16,7 +16,7 @@
  * 环境变量：
  *   VERIFY_BASE   默认 https://tqb.lanhu-lab.top
  *   VERIFY_USER   默认 test2
- *   VERIFY_PASS   默认 REDACTED-OLD-PASSWORD
+ *   VERIFY_PASS   必填（口令不入库）
  *   VERIFY_IMAGE  默认本目录下的 fixture 图片（不存在则跳过上传步骤）
  */
 
@@ -27,7 +27,12 @@ const path = require('path')
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const BASE = process.env.VERIFY_BASE || 'https://tqb.lanhu-lab.top'
 const USER = process.env.VERIFY_USER || 'test2'
-const PASS = process.env.VERIFY_PASS || 'REDACTED-OLD-PASSWORD'
+const PASS = process.env.VERIFY_PASS || ''
+
+if (!PASS) {
+  console.error('需要 VERIFY_PASS 环境变量（生产口令不入库）')
+  process.exit(1)
+}
 const IMAGE = process.env.VERIFY_IMAGE || path.join(__dirname, 'fixture', 'sample.png')
 
 const errors = []

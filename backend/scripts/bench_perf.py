@@ -2,7 +2,7 @@
 
 用法：cd backend && ./venv/bin/python scripts/bench_perf.py
 """
-import json, sys, time
+import json, secrets, sys, time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -21,7 +21,8 @@ def _before(conn, cursor, statement, params, context, executemany):
     queries.append(statement)
 
 
-PASSWORD = "REDACTED-OLD-PASSWORD"
+# 临时用户口令随机生成，不在仓库里留任何固定口令
+PASSWORD = secrets.token_urlsafe(12)
 N_QUESTIONS = 200
 N_PAPERS = 8
 PER_PAPER = 25

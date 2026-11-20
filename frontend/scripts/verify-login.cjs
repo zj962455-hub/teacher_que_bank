@@ -4,7 +4,7 @@
  * 验证什么
  * --------
  * 1. 未登录时只显示登录面板，业务组件不渲染（否则全是 401）
- * 2. 输入 test1/REDACTED-OLD-PASSWORD 能登录成功
+ * 2. 输入 $VERIFY_USER/$VERIFY_PASS 能登录成功
  * 3. 登录后业务界面出现，题库列表能加载出数据
  * 4. 页面无运行时错误（pageerror / console error）
  * 5. 退出后回到登录面板
@@ -18,7 +18,12 @@ const puppeteer = require('puppeteer-core')
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const BASE = process.env.VERIFY_BASE || 'https://tqb.lanhu-lab.top'
 const USER = process.env.VERIFY_USER || 'test1'
-const PASS = process.env.VERIFY_PASS || 'REDACTED-OLD-PASSWORD'
+const PASS = process.env.VERIFY_PASS || ''
+
+if (!PASS) {
+  console.error('需要 VERIFY_PASS 环境变量（生产口令不入库）')
+  process.exit(1)
+}
 
 const errors = []
 const failedRequests = []

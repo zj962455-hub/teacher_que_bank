@@ -13,7 +13,7 @@
  *
  * 跑法：
  *   node scripts/verify-categories.cjs
- *   VERIFY_BASE=https://tqb.lanhu-lab.top VERIFY_USER=test1 VERIFY_PASS=REDACTED-OLD-PASSWORD node scripts/verify-categories.cjs
+ *   VERIFY_BASE=https://tqb.lanhu-lab.top VERIFY_USER=test1 VERIFY_PASS=*** node scripts/verify-categories.cjs
  *
  * ⚠️ 脚本会**自己造分类数据**再验，验完删掉 —— 不依赖环境里有没有种子数据。
  */
@@ -23,7 +23,12 @@ const puppeteer = require('puppeteer-core')
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const BASE = process.env.VERIFY_BASE || 'http://localhost:5173'
 const USER = process.env.VERIFY_USER || 'test1'
-const PASS = process.env.VERIFY_PASS || 'Test123456'
+const PASS = process.env.VERIFY_PASS || ''
+
+if (!PASS) {
+  console.error('需要 VERIFY_PASS 环境变量（生产口令不入库）')
+  process.exit(1)
+}
 const TAG = '验收' + Date.now().toString().slice(-5)
 
 const errors = []

@@ -35,7 +35,12 @@ const API = process.env.VERIFY_API || 'http://localhost:8000'
 const ADMIN = process.env.VERIFY_ADMIN || 'verify_admin'
 const SHARED = process.env.VERIFY_SHARED || 'verify_shared'
 const SHARED_DISPLAY = process.env.VERIFY_SHARED_DISPLAY || '共享试用账号'
-const PASS = process.env.VERIFY_PASS || 'Verify1234'
+const PASS = process.env.VERIFY_PASS || ''
+
+if (!PASS) {
+  console.error('需要 VERIFY_PASS 环境变量（生产口令不入库）')
+  process.exit(1)
+}
 const PYTHON = '/Users/rrobot/Desktop/dev/teacher_question_bank/backend/venv/bin/python'
 const BACKEND = '/Users/rrobot/Desktop/dev/teacher_question_bank/backend'
 

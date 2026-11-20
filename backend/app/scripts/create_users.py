@@ -8,10 +8,10 @@
 
 或一次性建号：
     /opt/teacher-bank/.venv/bin/python -m app.scripts.create_users \
-        --user test1:测试账号一:REDACTED-OLD-PASSWORD --user test2:测试账号二:REDACTED-OLD-PASSWORD
+        --user <用户名>:<显示名>:<强口令>
 
 ⚠️ 密码强度：大写 + 小写 + 数字 + ≥8 位。
-   「REDACTED-OLD-PASSWORD」这种**过不了强度校验** —— 建号时强制，
+   「纯小写+数字」这种**过不了强度校验** —— 建号时强制，
    避免弱口令进系统（备案表要写「口令采用不可逆哈希加盐存储」，
    弱口令会让这句话变成空话）。
    管理员要建的初始密码必须是强口令，或者用 --force 跳过（仅限测试）。
@@ -174,11 +174,9 @@ def main() -> int:
     create_tables()
 
     if not args.user:
-        # 默认建两个测试账号
-        specs = [
-            ("test1", "测试账号一", "REDACTED-OLD-PASSWORD"),
-            ("test2", "测试账号二", "REDACTED-OLD-PASSWORD"),
-        ]
+        # 不再默认建号：默认弱口令曾随本仓库公开，必须显式传 --user
+        print("必须显式传 --user 用户名:显示名:强口令（不再默认建任何账号）")
+        return 1
     else:
         specs = []
         for raw in args.user:

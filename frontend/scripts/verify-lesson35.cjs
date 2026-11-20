@@ -9,9 +9,14 @@ const puppeteer = require('puppeteer-core')
 const fs = require('fs')
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-const BASE = 'https://tqb.lanhu-lab.top'
-const USER = 'test2'
-const PASS = 'REDACTED-OLD-PASSWORD'
+const BASE = process.env.VERIFY_BASE || 'https://tqb.lanhu-lab.top'
+const USER = process.env.VERIFY_USER || 'test1'
+const PASS = process.env.VERIFY_PASS || ''
+
+if (!PASS) {
+  console.error('需要 VERIFY_PASS 环境变量（生产口令不入库）')
+  process.exit(1)
+}
 const IMG = '/Users/rrobot/.openclaw/workspace/tmp-verify2/20261108_004950_d8b6b398.png'
 const SHOT_DIR = '/Users/rrobot/.openclaw/workspace/tmp-verify2'
 
