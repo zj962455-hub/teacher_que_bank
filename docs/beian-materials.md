@@ -354,13 +354,13 @@ bash deploy/teacher-bank/fill-mps-number.sh 浙公网安备XXXXXXXXXXXXXX号
 - 主办单位名称与应急联系方式也可以一条命令一起写：
 
 ```bash
-bash deploy/teacher-bank/fill-mps-number.sh --operator "营业执照全称" --contact "应急联系电话"
+bash deploy/teacher-bank/fill-mps-number.sh --operator "<主办单位名称>" --contact "<对外联系方式>"
 ```
 
   个人主体则是（**联系方式优先用邮箱**，理由见 1.1 节）：
 
 ```bash
-bash deploy/teacher-bank/fill-mps-number.sh --operator "你的姓名" --contact "tqb-contact@lanhu-lab.top"
+bash deploy/teacher-bank/fill-mps-number.sh --operator "<运营主体姓名>" --contact "<对外联系方式邮箱>"
 ```
 
   ⚠️ **个人信息不会进 Git**（2026-11-20 改）：
@@ -370,7 +370,12 @@ bash deploy/teacher-bank/fill-mps-number.sh --operator "你的姓名" --contact 
   把姓名邮箱写进去等于把个人信息推到公开仓库，删掉也能从 git 历史里翻出来。
   公安备案号（MPS）是公开信息，仍留在 site.config.js。
 
-  脚本会拒绝写入「某某」「待填」这类样例值（真信息没到位就**留空**，页面自动不显示那行）；
+  ⚠️ **上面示例里的尖括号占位（<...>）不能照抄** —— 脚本会拒绝它们。
+  拒绝清单覆盖：「某某」「待填」「占位」「示例」「公司全称」「营业执照全称」
+  「应急联系电话」「你的姓名」这类中文文档式占位，以及 13800000000/13800138000
+  这类样例号，还包括任何含尖括号的写法。
+  **真信息没到位就留空**（页面自动不显示那一行），不要拿描述性文字凑数 ——
+  描述性文字一旦上线，就是备案事故。
 - 三个字段都写完后，脚本会用**写入后的真实值**做线上无头验收，
   期望值和页面实际渲染始终一致（不会拿旧值去对、白报失败）。
 

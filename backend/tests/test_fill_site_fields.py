@@ -81,7 +81,17 @@ def test_operater_and_contact_go_to_env_local_not_repo_file(tmp_path):
 
 def test_sample_values_are_rejected(tmp_path):
     """样例值必须被拒 —— 照抄文档示例就等于把假信息推到公网"""
-    for bad in ("某某公司", "待填", "13800000000", "13800138000", "公司全称"):
+    for bad in (
+        "某某公司",
+        "待填",
+        "13800000000",
+        "13800138000",
+        "公司全称",
+        "营业执照全称",
+        "应急联系电话",
+        "你的姓名",
+        "示例值",
+    ):
         cfg = _sandbox(tmp_path)
         r = _run(cfg, operator=bad)
         assert r.returncode != 0, "样例值 %r 竟然被接受了" % bad
