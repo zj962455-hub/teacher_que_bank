@@ -44,8 +44,10 @@
   /* ============ 中性色 ============ */
   --tqb-text-primary: #1a1d23;
   --tqb-text-regular: #3d434d;
-  --tqb-text-secondary: #6b7280;
-  --tqb-text-tertiary: #9aa1ac;
+  /* 次要/三级文字也是正文（提示、说明、时间戳），不能只靠「看起来淡」——
+     浅色下要 ≥4.5:1，所以比原先深一档 */
+  --tqb-text-secondary: #5b636f;
+  --tqb-text-tertiary: #6b7280;
   --tqb-text-inverse: #ffffff;
 
   --tqb-bg-page: #f4f6f9;
@@ -135,12 +137,18 @@
   --tqb-text-primary: #f2f4f7;
   --tqb-text-regular: #d0d5dd;
   --tqb-text-secondary: #98a2b3;
-  --tqb-text-tertiary: #667085;
+  /* 深色下三级文字要 ≥4.5:1（卡面 #1c1f24 上 #667085 只有 3.3:1） */
+  --tqb-text-tertiary: #8a919c;
 
   --tqb-bg-page: #14161a;
   --tqb-bg-card: #1c1f24;
   --tqb-bg-hover: #24272d;
   --tqb-bg-subtle: #212429;
+
+  /* 内层块（快捷入口、拖拽区、预览格）也要有自己的深色值 ——
+     漏了就还是浅色块，深色下白得刺眼 */
+  --tqb-surface-muted: #212429;
+  --tqb-surface-sunken: #191c20;
 
   --tqb-border: #2e3238;
   --tqb-border-strong: #3d434d;
