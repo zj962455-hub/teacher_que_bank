@@ -3,112 +3,474 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>{{SITE_NAME}}</title>
+<title>{{SITE_NAME}} · 教师题库</title>
 <meta name="description" content="{{SITE_NAME}} —— 面向教培数学教师的私有题库管理工具：拍照录题、AI 识别公式、分类打标签、组卷导出 PDF、试卷分享。" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <style>
-  :root {
-    --blue: #2f6df6;
-    --blue-dark: #1c4fd0;
-    --ink: #1f2329;
-    --muted: #646a73;
-    --line: #e8eaed;
-    --bg: #f6f8fb;
+/* ================================================================
+   蓝狐网 · 一级域名门户页
+   ---------------------------------------------------------------
+   设计令牌沿用题库站 frontend/src/styles/tokens.css（改名不改值）——
+   同一个品牌、同一套颜色/间距/圆角/字号，两站看起来是一家人。
+
+   改这一页时按 better-interface 的分工来：
+     · 图标      24×24 线性 SVG，currentColor，1.6px 描边（不用 emoji）
+     · 卡片      「1px 环 + 抬起」两层阴影，不用一圈灰边造层次
+     · 字号      rem（浏览器字号设置变化时跟着缩放）
+     · 焦点      :focus-visible 实心环（实测 7:1，不是低对比的半透明光环）
+     · hover     一律收在 @media (hover: hover) 里（触摸端 :hover 会粘住）
+     · 动效      只在首屏入场用，且受 prefers-reduced-motion 控制
+   ================================================================ */
+
+:root {
+  /* ---- 品牌（靛蓝）---- */
+  --brand: #2f6fed;            /* 白字 4.55:1 ✓ */
+  --brand-hover: #2560d8;      /* 白字 5.61:1 ✓ —— 悬停往深走，不往浅走 */
+  --brand-pressed: #1e52bd;
+  --brand-soft: #eaf1fe;
+  --brand-soft-hover: #dbe8fd;
+  --focus: #1e52bd;            /* 焦点环：对面板 7:1 ✓ */
+
+  /* ---- 中性 ---- */
+  --text-primary: #1a1d23;
+  --text-secondary: #5b636f;   /* 6.1:1 ✓ */
+  --text-tertiary: #6b7280;    /* 4.8:1 ✓ */
+  --bg-page: #f4f6f9;
+  --bg-card: #ffffff;
+  --border: #e6e8ec;
+  --border-strong: #d3d7de;
+
+  /* ---- 间距（4 的倍数）---- */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+
+  /* ---- 圆角 ---- */
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-full: 999px;
+
+  /* ---- 阴影 ---- */
+  --shadow-card: 0 0 0 1px rgba(16, 24, 40, 0.05), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-lift: 0 0 0 1px rgba(16, 24, 40, 0.08), 0 16px 32px -16px rgba(16, 24, 40, 0.22);
+  --shadow-btn: 0 1px 2px rgba(16, 24, 40, 0.10);
+
+  /* ---- 字号 ---- */
+  --font-sm: 0.8125rem;
+  --font-base: 0.875rem;
+  --font-md: 1rem;
+  --font-lg: 1.125rem;
+  --font-xl: 1.375rem;
+  --font-2xl: 1.75rem;
+  --font-display: 2.5rem;
+
+  --line-tight: 1.3;
+  --line-normal: 1.6;
+  --line-relaxed: 1.75;
+
+  --transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+               "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+  font-size: var(--font-md);
+  line-height: var(--line-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 顶部一层柔光，让首屏有纵深；纯装饰，不承载信息 */
+.page {
+  position: relative;
+  min-height: 100%;
+  isolation: isolate;
+}
+.page::before {
+  content: "";
+  position: absolute;
+  inset: -220px 0 auto 0;
+  height: 620px;
+  z-index: -1;
+  background:
+    radial-gradient(46% 52% at 22% 18%, rgba(47, 111, 237, 0.14) 0%, rgba(47, 111, 237, 0) 100%),
+    radial-gradient(38% 46% at 78% 8%, rgba(89, 160, 255, 0.16) 0%, rgba(89, 160, 255, 0) 100%),
+    linear-gradient(180deg, rgba(234, 241, 254, 0.85) 0%, rgba(244, 246, 249, 0) 100%);
+  pointer-events: none;
+}
+
+.shell {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding-inline: var(--space-6);
+}
+
+/* ---------- 跳转链接：键盘用户第一个 Tab 就是它 ---------- */
+.skip-link {
+  position: absolute;
+  inset-inline-start: var(--space-4);
+  inset-block-start: -60px;
+  z-index: 10;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--brand);
+  color: #fff;
+  font-size: var(--font-base);
+  text-decoration: none;
+  transition: inset-block-start 0.18s var(--ease-out);
+}
+.skip-link:focus-visible {
+  inset-block-start: var(--space-4);
+}
+
+/* ---------- 焦点环：实心 2px + 2px 偏移，实测 7:1 ---------- */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- 页头 ---------- */
+.site-header {
+  padding-block: var(--space-6) var(--space-4);
+}
+.site-header .shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #2f6fed 0%, #59a0ff 100%);
+  box-shadow: 0 6px 14px -8px rgba(47, 111, 237, 0.9);
+  color: #fff;
+}
+.brand-mark svg { display: block; }
+.brand-name {
+  font-size: var(--font-xl);
+  letter-spacing: 0.01em;
+}
+.header-link {
+  color: var(--text-secondary);
+  font-size: var(--font-base);
+  text-decoration: none;
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition);
+}
+.header-link:hover { color: var(--brand); }
+
+/* ---------- 首屏 ---------- */
+main { padding-block: var(--space-8) var(--space-16); }
+
+.hero-panel {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lift);
+  padding: var(--space-12);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--brand);
+}
+
+.display {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-display);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 0 0 var(--space-8);
+  max-width: 34em;              /* 每行 ~34 个汉字，别拉太宽 */
+  color: var(--text-secondary);
+  font-size: var(--font-md);
+  line-height: var(--line-relaxed);
+  text-wrap: pretty;
+}
+
+/* ---------- 动作区：一个实心主按钮，其余保持中性 ---------- */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-12);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 48px;              /* 触摸目标 ≥ 44px ✓ */
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-md);
+  font-size: var(--font-md);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--transition), box-shadow var(--transition),
+              transform var(--transition), border-color var(--transition);
+}
+.btn-primary {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: var(--shadow-btn);
+}
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.btn svg { display: block; }
+
+/* ---------- 能力清单 ---------- */
+.features {
+  display: grid;
+  /* 260px 下限：桌面排成 2×2，四个能力不落成 3+1 的孤儿行；窄屏自动收成单列 */
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-8) var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.feature h2 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-md);
+  font-weight: 600;
+  line-height: var(--line-tight);
+}
+.feature p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-base);
+  line-height: var(--line-normal);
+  text-wrap: pretty;
+}
+
+/* ---------- 页脚 ---------- */
+.site-footer {
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+  padding-block: var(--space-8);
+}
+.footer-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+  font-size: var(--font-sm);
+  line-height: var(--line-relaxed);
+  color: var(--text-tertiary);
+}
+.footer-brand {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+.site-footer a {
+  color: var(--text-tertiary);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+.site-footer a:hover { color: var(--text-secondary); }
+.site-footer .mps { display: inline-flex; align-items: center; gap: var(--space-1); }
+.site-footer .mps-icon { width: 16px; height: 16px; display: block; }
+.footer-sep { color: var(--border-strong); }
+
+/* ---------- 悬停：只在真能悬停的指针上 ---------- */
+@media (hover: hover) {
+  .btn-primary:hover { background: var(--brand-hover); }
+  .btn-primary:active { background: var(--brand-pressed); transform: scale(0.96); }
+  .btn-secondary:hover { background: var(--brand-soft); color: var(--brand); }
+  .header-link:hover { color: var(--brand); }
+  .site-footer a:hover { color: var(--text-secondary); }
+}
+
+/* ---------- 首屏入场：只在一次性时刻用，100ms 阶梯 ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-panel > * {
+    opacity: 0;
+    transform: translateY(12px);
+    animation: rise 300ms var(--ease-out) forwards;
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
-                 "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
-    line-height: 1.7;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 56px 20px 40px; }
-  header { text-align: center; margin-bottom: 36px; }
-  .logo {
-    display: inline-flex; align-items: center; gap: 10px;
-    font-size: 30px; font-weight: 700; letter-spacing: 1px;
-    color: var(--blue-dark);
-  }
-  .logo .mark {
-    width: 44px; height: 44px; border-radius: 12px;
-    background: linear-gradient(135deg, var(--blue) 0%, #59a0ff 100%);
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 24px;
-  }
-  .tagline { margin: 10px 0 0; color: var(--muted); font-size: 15px; }
-  .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-  .card {
-    display: block; text-decoration: none; color: inherit;
-    background: #fff; border: 1px solid var(--line); border-radius: 14px;
-    padding: 22px 22px 20px;
-    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-  }
-  .card:hover {
-    transform: translateY(-2px);
-    border-color: #cfe0ff;
-    box-shadow: 0 10px 24px rgba(47, 109, 246, .10);
-  }
-  .card h2 { margin: 0 0 8px; font-size: 18px; color: var(--ink); }
-  .card p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
-  .go { color: var(--blue); font-size: 14px; font-weight: 600; }
-  footer {
-    margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--line);
-    text-align: center; color: #8c8c8c; font-size: 12px; line-height: 1.9;
-  }
-  footer .row { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
-  footer .name { color: #595959; font-weight: 600; }
-  footer a { color: #8c8c8c; text-decoration: none; }
-  footer a:hover { color: #595959; }
-  footer .mps { display: inline-flex; align-items: center; gap: 4px; }
-  footer .mps-icon { width: 16px; height: 16px; display: block; }
-  footer .sub { margin-top: 4px; }
-  .sep { color: #d9d9d9; }
-  @media (max-width: 480px) {
-    .wrap { padding: 40px 16px 32px; }
-    .logo { font-size: 25px; }
-  }
+  .hero-panel > *:nth-child(1) { animation-delay: 0ms; }
+  .hero-panel > *:nth-child(2) { animation-delay: 100ms; }
+  .hero-panel > *:nth-child(3) { animation-delay: 200ms; }
+  .hero-panel > *:nth-child(4) { animation-delay: 300ms; }
+  .hero-panel > *:nth-child(5) { animation-delay: 400ms; }
+}
+@keyframes rise {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 640px) {
+  .shell { padding-inline: var(--space-4); }
+  .hero-panel { padding: var(--space-8) var(--space-6); }
+  .display { font-size: var(--font-2xl); }
+  .actions { flex-direction: column; align-items: stretch; }
+  .btn { width: 100%; }
+  .features { gap: var(--space-6); }
+}
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div class="logo"><span class="mark">🦊</span><span>{{SITE_NAME}}</span></div>
-      <p class="tagline">面向教培数学教师的私有题库管理工具</p>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <div class="page">
+    <header class="site-header">
+      <div class="shell">
+        <span class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4.5 4.2 8.6 7h6.8l4.1-2.8v5.4c0 6.2-3.7 9.8-7.5 10.9-3.8-1.1-7.5-4.7-7.5-10.9z"/>
+              <path d="M9.2 11.6h.01M14.8 11.6h.01"/>
+            </svg>
+          </span>
+          <span class="brand-name">{{SITE_NAME}}</span>
+        </span>
+        <a class="header-link" href="{{GUIDE_URL}}">使用指南</a>
+      </div>
     </header>
 
-    <section class="cards">
-      <a class="card" href="{{APP_URL}}">
-        <h2>教师题库</h2>
-        <p>拍照录题 · AI 识别公式 · 分类打标签 · 组卷导出 PDF · 试卷分享链接</p>
-        <span class="go">进入题库 →</span>
-      </a>
-      <a class="card" href="{{PRIVACY_URL}}">
-        <h2>隐私政策与用户协议</h2>
-        <p>我们是谁、收集哪些信息、如何保障你的权益</p>
-        <span class="go">查看 →</span>
-      </a>
-    </section>
+    <main id="main">
+      <div class="shell">
+        <section class="hero-panel">
+          <p class="eyebrow">{{SITE_NAME}} · 教师题库</p>
+          <h1 class="display">拍照录题、组卷导出，老师的题库一处管完</h1>
+          <p class="lede">
+            手机拍一张纸质题目，AI 识别题干、选项和公式并自动归类；组好的卷子一键导出 PDF，
+            也能生成分享链接直接发给家长。
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="{{APP_URL}}">
+              进入教师题库
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M5 12h13M12.5 5.8 18.7 12l-6.2 6.2"/>
+              </svg>
+            </a>
+            <a class="btn btn-secondary" href="{{PRIVACY_URL}}">隐私政策与用户协议</a>
+          </div>
 
-    <footer>
-      <div class="row">
-        <span class="name">{{SITE_NAME}}</span>
-        <a href="{{MIIT_URL}}" target="_blank" rel="noopener noreferrer">{{ICP}}</a>
-        {{MPS_BLOCK}}
+          <ul class="features">
+            <li class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3.5 9.5A1.5 1.5 0 0 1 5 8h2.3a1 1 0 0 0 .8-.4l1-1.3a1 1 0 0 1 .8-.4h4.2a1 1 0 0 1 .8.4l1 1.3a1 1 0 0 0 .8.4H19a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/>
+                  <path d="M15.5 13a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0z"/>
+                </svg>
+              </span>
+              <h2>拍照录题</h2>
+              <p>拍下纸质题目，识别题干、选项与公式</p>
+            </li>
+            <li class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3.5v2M7.5 6.5h9A2.5 2.5 0 0 1 19 9v6a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 15V9a2.5 2.5 0 0 1 2.5-2.5z"/>
+                  <path d="M9.5 11h.01M14.5 11h.01M10 14.5h4"/>
+                </svg>
+              </span>
+              <h2>公式识别</h2>
+              <p>识别后自动排版，公式按原样还原</p>
+            </li>
+            <li class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2.5h8a1.5 1.5 0 0 1 1.5 1.5v7.5A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/>
+                </svg>
+              </span>
+              <h2>分类与标签</h2>
+              <p>按学科章节归档，打标签随时找得到</p>
+            </li>
+            <li class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6.5 3.5h7l4.5 4.5v12.5h-11.5z"/>
+                  <path d="M13.5 3.5V8H18"/>
+                </svg>
+              </span>
+              <h2>组卷导出 PDF</h2>
+              <p>挑题组卷、排版导出，直接打印</p>
+            </li>
+          </ul>
+        </section>
       </div>
-      <div class="row sub">
-        <span>举报与投诉：</span>
-        <a href="{{REPORT_12377}}" target="_blank" rel="noopener noreferrer">违法和不良信息举报中心（12377）</a>
-        <span class="sep">·</span>
-        <a href="{{REPORT_POLICE}}" target="_blank" rel="noopener noreferrer">公安网络违法犯罪举报网站</a>
-      </div>
-      <div class="row sub">
-        <span>主办者：{{OPERATOR}}</span>
-        <span class="sep">·</span>
-        <span>联系方式：{{CONTACT}}</span>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <p class="footer-brand">{{SITE_NAME}}</p>
+        <p class="footer-row">
+          <a href="{{MIIT_URL}}" target="_blank" rel="noopener noreferrer">{{ICP}}</a>
+          {{MPS_BLOCK}}
+        </p>
+        <p class="footer-row">
+          <span>举报与投诉：</span>
+          <a href="{{REPORT_12377}}" target="_blank" rel="noopener noreferrer">违法和不良信息举报中心（12377）</a>
+          <span class="footer-sep">·</span>
+          <a href="{{REPORT_POLICE}}" target="_blank" rel="noopener noreferrer">公安网络违法犯罪举报网站</a>
+        </p>
+        <p class="footer-row">
+          <span>主办者：{{OPERATOR}}</span>
+          <span class="footer-sep">·</span>
+          <span>联系方式：{{CONTACT}}</span>
+        </p>
       </div>
     </footer>
   </div>

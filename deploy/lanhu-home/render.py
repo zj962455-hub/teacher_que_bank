@@ -110,6 +110,7 @@ def main():
         "{{CONTACT}}": html.escape(contact) if contact else "见隐私政策页",
         "{{APP_URL}}": "https://%s/" % SUBDOMAIN,
         "{{PRIVACY_URL}}": "https://%s/privacy" % SUBDOMAIN,
+        "{{GUIDE_URL}}": "https://%s/guide" % SUBDOMAIN,
         "{{MIIT_URL}}": MIIT_URL,
         "{{REPORT_12377}}": REPORT_12377,
         "{{REPORT_POLICE}}": REPORT_POLICE,
