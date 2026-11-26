@@ -26,17 +26,23 @@
   /* ============ 品牌色 ============ */
   /* 主色：沉稳的靛蓝 —— 教育场景要专业，不要花哨 */
   --tqb-primary: #2f6fed;
-  --tqb-primary-hover: #4a83f5;
-  --tqb-primary-pressed: #1f56c9;
+  --tqb-primary-hover: #2560d8;
+  --tqb-primary-pressed: #1e52bd;
   --tqb-primary-soft: #eaf1fe;
+  /* 实心底色上的字色 —— 角色令牌：浅色下是白字（对 #2f6fed 4.55:1），
+     深色模式下主色按钮是浅蓝底，必须配深墨字（白字只有 3.11:1，不过 AA） */
+  --tqb-on-primary: #ffffff;
   --tqb-primary-soft-hover: #dbe8fd;
 
   /* ============ 功能色 ============ */
   --tqb-success: #16a34a;
   --tqb-success-soft: #e8f6ee;
-  --tqb-warning: #d97706;
+  /* 警告色当文字用时必须过 4.5:1（白底 5.02、警告浅底 4.57）——
+     原 #d97706 只有 3.19/2.90，11px 的「已手动调整」提示基本看不清 */
+  --tqb-warning: #b45309;
   --tqb-warning-soft: #fdf3e4;
-  --tqb-danger: #dc2626;
+  /* 危险色同理：#dc2626 在危险浅底上只有 4.23，改 #c81e1e（5.74/5.02） */
+  --tqb-danger: #c81e1e;
   --tqb-danger-soft: #fdecec;
   --tqb-info: #0891b2;
   --tqb-info-soft: #e6f6f9;
@@ -63,7 +69,10 @@
   --tqb-surface-sunken: #eef1f5;
 
   /* 焦点环 —— 键盘可达的控件必须有可见焦点（WCAG 2.4.7） */
-  --tqb-focus-ring: 0 0 0 3px rgba(47, 111, 237, 0.28);
+  /* 焦点环：必须是实心且对比度 ≥3:1（WCAG 1.4.11）。
+     原来的 3px/28% 半透明光环对面板只有约 1.4:1，键盘用户基本看不见。
+     这里用实心 2px #1e52bd（对面板 6.2:1、对白卡 7:1）。 */
+  --tqb-focus-ring: 0 0 0 2px #1e52bd;
 
   /* ============ 间距（4 的倍数）============ */
   --tqb-space-1: 4px;
@@ -123,6 +132,8 @@
   --tqb-primary-hover: #7ba3fb;
   --tqb-primary-pressed: #3f73e8;
   --tqb-primary-soft: #1c2b47;
+  /* 深色下主色是浅蓝（#5b8ff9），实心按钮必须配深墨字：白字只有 3.11:1 */
+  --tqb-on-primary: #0b1220;
   --tqb-primary-soft-hover: #24365a;
 
   --tqb-success: #4ade80;
@@ -151,6 +162,7 @@
   --tqb-surface-sunken: #191c20;
 
   --tqb-border: #2e3238;
+  --tqb-focus-ring: 0 0 0 2px #7ba3fb;
   --tqb-border-strong: #3d434d;
 
   --tqb-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);

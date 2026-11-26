@@ -419,7 +419,7 @@ function reset() {
   padding: var(--tqb-space-2) var(--tqb-space-4);
   border-radius: var(--tqb-radius-md);
   background: var(--tqb-primary);
-  color: var(--tqb-text-inverse);
+  color: var(--tqb-on-primary);
   font-size: var(--tqb-font-base);
   font-weight: 500;
   pointer-events: none;
@@ -513,7 +513,7 @@ function reset() {
 
 .btn--primary {
   background: var(--tqb-primary);
-  color: var(--tqb-text-inverse);
+  color: var(--tqb-on-primary);
 }
 
 .btn--primary:hover:not(:disabled) {

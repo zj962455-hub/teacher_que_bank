@@ -399,7 +399,7 @@ const columns = computed(() => [
     width: 160,
     render: (row) => {
       const list = row.tags || []
-      if (!list.length) return h('span', { style: 'color:#999;font-size:12px' }, '—')
+      if (!list.length) return h('span', { style: 'color:var(--tqb-text-tertiary);font-size:12px' }, '—')
       return h(
         NSpace,
         { size: 4, wrap: true },

@@ -362,7 +362,7 @@ const renderedContent = computed(() => {
   border: 1px solid #e0e0e0;
   border-radius: 4px;
   background-repeat: no-repeat;
-  background-color: #fff;
+  background-color: var(--tqb-bg-card);
   max-width: 100%;
   overflow: hidden;
 }
@@ -380,7 +380,7 @@ const renderedContent = computed(() => {
   border-radius: 4px;
   padding: 6px 10px;
   min-height: 32px;
-  background: #fafafa;
+  background: var(--tqb-surface-muted);
   text-align: center;
 }
 </style>

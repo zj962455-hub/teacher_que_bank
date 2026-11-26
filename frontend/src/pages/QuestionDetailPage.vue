@@ -294,7 +294,7 @@ function doDelete() {
 
 .meta {
   font-size: 12px;
-  color: #999;
+  color: var(--tqb-text-tertiary);
 }
 
 .figure-box {

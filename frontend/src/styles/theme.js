@@ -36,6 +36,7 @@ export function buildThemeOverrides(dark = false) {
   const cardColor = cssVar('--tqb-bg-card', '#ffffff')
   const borderRadius = cssVar('--tqb-radius-md', '6px')
   const fontSize = cssVar('--tqb-font-base', '14px')
+  const onPrimary = cssVar('--tqb-on-primary', '#ffffff')
 
   return {
     common: {
@@ -77,6 +78,12 @@ export function buildThemeOverrides(dark = false) {
       borderRadiusMedium: borderRadius,
       borderRadiusSmall: cssVar('--tqb-radius-sm', '4px'),
       fontWeight: '500',
+      // 主按钮的字色由角色令牌给（--tqb-on-primary）：
+      // 浅色 = 白字（对 #2f6fed 4.55:1）；深色 = 深墨字（浅蓝底白字只有 3.11:1，不过 AA）
+      textColorPrimary: onPrimary,
+      textColorHoverPrimary: onPrimary,
+      textColorPressedPrimary: onPrimary,
+      textColorFocusPrimary: onPrimary,
     },
     Input: {
       borderRadius: borderRadius,

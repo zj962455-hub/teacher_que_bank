@@ -113,7 +113,7 @@ function doDelete(row) {
 
 .paper-meta {
   font-size: 12px;
-  color: #999;
+  color: var(--tqb-text-tertiary);
   margin-top: 2px;
 }
 </style>

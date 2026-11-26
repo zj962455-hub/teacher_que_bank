@@ -450,7 +450,7 @@ function resetContent() {
       <NText v-if="meta.matched.length" depth="3" style="font-size: 11px;">
         命中关键词：{{ meta.matched.join('、') }}
       </NText>
-      <NText v-if="manuallyEdited" depth="3" style="font-size: 11px; color: #d48806;">
+      <NText v-if="manuallyEdited" depth="3" style="font-size: 11px; color: var(--tqb-warning);">
         已手动调整，AI 分类不会覆盖
       </NText>
     </NSpace>
@@ -517,7 +517,7 @@ function resetContent() {
             white-space: pre-wrap;
             font-size: 13px;
             line-height: 1.7;
-            background: #fafafa;
+            background: var(--tqb-surface-muted);
           "
           class="editor-preview"
           v-html="previewHtml"

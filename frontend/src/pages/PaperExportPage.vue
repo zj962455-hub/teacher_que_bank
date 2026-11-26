@@ -265,7 +265,7 @@ async function doExport() {
 }
 
 .q-score {
-  color: #999;
+  color: var(--tqb-text-tertiary);
   font-size: 12px;
   flex-shrink: 0;
 }

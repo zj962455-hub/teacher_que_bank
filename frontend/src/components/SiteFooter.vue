@@ -88,7 +88,10 @@ const REPORT_POLICE = 'https://cyberpolice.mps.gov.cn'
 .site-footer {
   margin-top: 32px;
   padding: 18px 0 24px;
-  border-top: 1px solid #e6e6e6;
+  /* 页脚要有自己的底色：否则备案号小字实际落在页底色上，
+     三级文字只有 4.47:1，压线不过 AA（白卡上是 4.83） */
+  background: var(--tqb-bg-card);
+  border-top: 1px solid var(--tqb-border);
   text-align: center;
   font-size: 12px;
   line-height: 1.6;
@@ -103,18 +106,18 @@ const REPORT_POLICE = 'https://cyberpolice.mps.gov.cn'
 }
 
 .site-name {
-  color: #595959;
+  color: var(--tqb-text-secondary);
   font-weight: 500;
 }
 
 .beian {
-  color: #8c8c8c;
+  color: var(--tqb-text-secondary);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .beian:hover {
-  color: #595959;
+  color: var(--tqb-text-secondary);
 }
 
 /* 举报入口 —— 与备案号同一区域，灰一点不抢视觉 */
@@ -124,11 +127,11 @@ const REPORT_POLICE = 'https://cyberpolice.mps.gov.cn'
 }
 
 .report-label {
-  color: #8c8c8c;
+  color: var(--tqb-text-secondary);
 }
 
 .report-sep {
-  color: #d9d9d9;
+  color: var(--tqb-border-strong);
 }
 
 /* 公安备案图标 —— 官方规定要带图标并可点击跳查询页 */

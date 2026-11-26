@@ -162,17 +162,17 @@ ul {
 li {
   font-size: 13px;
   line-height: 1.85;
-  color: #434343;
+  color: var(--tqb-text-regular);
 }
 
 .foot {
   margin-top: 26px;
   padding-top: 14px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--tqb-border);
 }
 
 .back {
-  color: #8c8c8c;
+  color: var(--tqb-text-tertiary);
   text-decoration: none;
   font-size: 13px;
 }

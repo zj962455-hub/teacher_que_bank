@@ -559,13 +559,13 @@ onMounted(() => {
   align-items: flex-start;
   gap: 8px;
   padding: 8px 4px;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fff;
+  border-bottom: 1px solid var(--tqb-border);
+  background: var(--tqb-bg-card);
 }
 
 .drag-handle {
   cursor: grab;
-  color: #bbb;
+  color: var(--tqb-text-tertiary);
   font-size: 15px;
   line-height: 1.7;
   flex-shrink: 0;
@@ -586,8 +586,8 @@ onMounted(() => {
 
 /* === 预览 === */
 .preview-paper {
-  background: #fff;
-  border: 1px solid #e8e8e8;
+  background: var(--tqb-bg-card);
+  border: 1px solid var(--tqb-border);
   border-radius: 4px;
   padding: 16px 14px;
   font-size: 13px;
@@ -602,7 +602,7 @@ onMounted(() => {
 
 .preview-subtitle {
   font-size: 12px;
-  color: #666;
+  color: var(--tqb-text-regular);
   text-align: center;
 }
 
@@ -628,7 +628,7 @@ onMounted(() => {
 .preview-figure {
   flex: 0 0 auto;
   max-width: 38%;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--tqb-border);
   border-radius: 3px;
 }
 /* 题图在题目文字下方：右下角 / 左下角 */
@@ -657,7 +657,7 @@ onMounted(() => {
 
 .preview-score {
   flex-shrink: 0;
-  color: #999;
+  color: var(--tqb-text-tertiary);
   font-size: 12px;
 }
 </style>

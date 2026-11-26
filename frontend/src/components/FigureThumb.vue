@@ -48,9 +48,9 @@ watch(
 
 <style scoped>
 .figure-thumb {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--tqb-border);
   border-radius: 3px;
-  background: #fafafa;
+  background: var(--tqb-surface-muted);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -62,7 +62,7 @@ watch(
   display: block;
 }
 .figure-thumb-empty {
-  color: #ccc;
+  color: var(--tqb-text-tertiary);
   font-size: 11px;
 }
 </style>
