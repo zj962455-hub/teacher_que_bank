@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{{SITE_NAME}}</title>
+<meta name="description" content="{{SITE_NAME}} —— 面向教培数学教师的私有题库管理工具：拍照录题、AI 识别公式、分类打标签、组卷导出 PDF、试卷分享。" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<style>
+  :root {
+    --blue: #2f6df6;
+    --blue-dark: #1c4fd0;
+    --ink: #1f2329;
+    --muted: #646a73;
+    --line: #e8eaed;
+    --bg: #f6f8fb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+                 "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 56px 20px 40px; }
+  header { text-align: center; margin-bottom: 36px; }
+  .logo {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: 30px; font-weight: 700; letter-spacing: 1px;
+    color: var(--blue-dark);
+  }
+  .logo .mark {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--blue) 0%, #59a0ff 100%);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  .tagline { margin: 10px 0 0; color: var(--muted); font-size: 15px; }
+  .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card {
+    display: block; text-decoration: none; color: inherit;
+    background: #fff; border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px 22px 20px;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    border-color: #cfe0ff;
+    box-shadow: 0 10px 24px rgba(47, 109, 246, .10);
+  }
+  .card h2 { margin: 0 0 8px; font-size: 18px; color: var(--ink); }
+  .card p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  .go { color: var(--blue); font-size: 14px; font-weight: 600; }
+  footer {
+    margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--line);
+    text-align: center; color: #8c8c8c; font-size: 12px; line-height: 1.9;
+  }
+  footer .row { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  footer .name { color: #595959; font-weight: 600; }
+  footer a { color: #8c8c8c; text-decoration: none; }
+  footer a:hover { color: #595959; }
+  footer .mps { display: inline-flex; align-items: center; gap: 4px; }
+  footer .mps-icon { width: 16px; height: 16px; display: block; }
+  footer .sub { margin-top: 4px; }
+  .sep { color: #d9d9d9; }
+  @media (max-width: 480px) {
+    .wrap { padding: 40px 16px 32px; }
+    .logo { font-size: 25px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo"><span class="mark">🦊</span><span>{{SITE_NAME}}</span></div>
+      <p class="tagline">面向教培数学教师的私有题库管理工具</p>
+    </header>
+
+    <section class="cards">
+      <a class="card" href="{{APP_URL}}">
+        <h2>教师题库</h2>
+        <p>拍照录题 · AI 识别公式 · 分类打标签 · 组卷导出 PDF · 试卷分享链接</p>
+        <span class="go">进入题库 →</span>
+      </a>
+      <a class="card" href="{{PRIVACY_URL}}">
+        <h2>隐私政策与用户协议</h2>
+        <p>我们是谁、收集哪些信息、如何保障你的权益</p>
+        <span class="go">查看 →</span>
+      </a>
+    </section>
+
+    <footer>
+      <div class="row">
+        <span class="name">{{SITE_NAME}}</span>
+        <a href="{{MIIT_URL}}" target="_blank" rel="noopener noreferrer">{{ICP}}</a>
+        {{MPS_BLOCK}}
+      </div>
+      <div class="row sub">
+        <span>举报与投诉：</span>
+        <a href="{{REPORT_12377}}" target="_blank" rel="noopener noreferrer">违法和不良信息举报中心（12377）</a>
+        <span class="sep">·</span>
+        <a href="{{REPORT_POLICE}}" target="_blank" rel="noopener noreferrer">公安网络违法犯罪举报网站</a>
+      </div>
+      <div class="row sub">
+        <span>主办者：{{OPERATOR}}</span>
+        <span class="sep">·</span>
+        <span>联系方式：{{CONTACT}}</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
