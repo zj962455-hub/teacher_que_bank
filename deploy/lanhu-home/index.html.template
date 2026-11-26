@@ -202,7 +202,7 @@ main { padding-block: var(--space-8) var(--space-16); }
 }
 
 .display {
-  margin: 0 0 var(--space-4);
+  margin: 0 0 var(--space-8);
   font-size: var(--font-display);
   font-weight: 700;
   line-height: 1.18;
@@ -210,21 +210,13 @@ main { padding-block: var(--space-8) var(--space-16); }
   text-wrap: balance;
 }
 
-.lede {
-  margin: 0 0 var(--space-8);
-  max-width: 34em;              /* 每行 ~34 个汉字，别拉太宽 */
-  color: var(--text-secondary);
-  font-size: var(--font-md);
-  line-height: var(--line-relaxed);
-  text-wrap: pretty;
-}
 
 /* ---------- 动作区：一个实心主按钮，其余保持中性 ---------- */
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-  margin-bottom: var(--space-12);
+  margin-bottom: var(--space-10);
 }
 .btn {
   display: inline-flex;
@@ -347,7 +339,6 @@ main { padding-block: var(--space-8) var(--space-16); }
   .hero-panel > *:nth-child(2) { animation-delay: 100ms; }
   .hero-panel > *:nth-child(3) { animation-delay: 200ms; }
   .hero-panel > *:nth-child(4) { animation-delay: 300ms; }
-  .hero-panel > *:nth-child(5) { animation-delay: 400ms; }
 }
 @keyframes rise {
   to { opacity: 1; transform: translateY(0); }
@@ -387,12 +378,8 @@ main { padding-block: var(--space-8) var(--space-16); }
     <main id="main">
       <div class="shell">
         <section class="hero-panel">
-          <p class="eyebrow">{{SITE_NAME}} · 教师题库</p>
-          <h1 class="display">拍照录题、组卷导出，老师的题库一处管完</h1>
-          <p class="lede">
-            手机拍一张纸质题目，AI 识别题干、选项和公式并自动归类；组好的卷子一键导出 PDF，
-            也能生成分享链接直接发给家长。
-          </p>
+          <p class="eyebrow">面向教培数学教师</p>
+          <h1 class="display">{{SITE_NAME}} · 教师题库</h1>
           <div class="actions">
             <a class="btn btn-primary" href="{{APP_URL}}">
               进入教师题库
